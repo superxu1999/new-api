@@ -22,9 +22,18 @@ import type { User } from '@/features/users/types'
 // API Payloads
 // ============================================================================
 
+// ============================================================================
+// Auth Types
+// ============================================================================
+
+// Login mode
+export type LoginMode = 'password' | 'sms'
+
 export interface LoginPayload {
-  username: string
-  password: string
+  username?: string
+  password?: string
+  phone?: string
+  code?: string
   turnstile?: string
 }
 
@@ -36,6 +45,7 @@ export interface RegisterPayload {
   username: string
   password: string
   email?: string
+  phone?: string
   verification_code?: string
   aff_code?: string
   turnstile?: string
@@ -113,6 +123,9 @@ export interface SystemStatus {
     turnstile_check?: boolean
     turnstile_site_key?: string
     email_verification?: boolean
+    sms_verification?: boolean
+    sms_login?: boolean
+    sms_register?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
     display_token_stat_enabled?: boolean

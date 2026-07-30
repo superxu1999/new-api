@@ -82,7 +82,6 @@ const oauthSchema = z.object({
   WeChatAuthEnabled: z.boolean(),
   WeChatServerAddress: z.string(),
   WeChatServerToken: z.string(),
-  WeChatAccountQRCodeImageURL: z.string(),
 })
 
 type OAuthFormValues = z.infer<typeof oauthSchema>
@@ -111,7 +110,6 @@ type FlatOAuthDefaults = {
   WeChatAuthEnabled: boolean
   WeChatServerAddress: string
   WeChatServerToken: string
-  WeChatAccountQRCodeImageURL: string
 }
 
 const oauthTabContentClassName =
@@ -145,7 +143,6 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
   WeChatAuthEnabled: defaults.WeChatAuthEnabled,
   WeChatServerAddress: defaults.WeChatServerAddress ?? '',
   WeChatServerToken: defaults.WeChatServerToken ?? '',
-  WeChatAccountQRCodeImageURL: defaults.WeChatAccountQRCodeImageURL ?? '',
 })
 
 const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
@@ -172,7 +169,6 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   WeChatAuthEnabled: values.WeChatAuthEnabled,
   WeChatServerAddress: values.WeChatServerAddress,
   WeChatServerToken: values.WeChatServerToken,
-  WeChatAccountQRCodeImageURL: values.WeChatAccountQRCodeImageURL,
 })
 
 type OAuthSectionProps = {
@@ -871,29 +867,6 @@ export function OAuthSection(props: OAuthSectionProps) {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name='WeChatAccountQRCodeImageURL'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('QR Code Image URL')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t('https://example.com/qr-code.png')}
-                          autoComplete='off'
-                          value={field.value ?? ''}
-                          onChange={(event) =>
-                            field.onChange(event.target.value)
-                          }
-                          name={field.name}
-                          onBlur={field.onBlur}
-                          ref={field.ref}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </TabsContent>
             </Tabs>
           </SettingsForm>

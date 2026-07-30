@@ -32,13 +32,16 @@ type PlaygroundInputControlsProps = {
   groupValue: string
   isGenerating?: boolean
   isModelLoading?: boolean
+  isVideoModel?: boolean
   models: ModelOption[]
   modelValue: string
   onGroupChange: (value: string) => void
   onModelChange: (value: string) => void
   onStop?: () => void
+  onVideoDurationChange?: (value: string) => void
   text: string
   tools: ReactNode
+  videoDuration?: string
 }
 
 export function PlaygroundInputControls({
@@ -47,13 +50,16 @@ export function PlaygroundInputControls({
   groupValue,
   isGenerating,
   isModelLoading = false,
+  isVideoModel = false,
   models,
   modelValue,
   onGroupChange,
   onModelChange,
   onStop,
+  onVideoDurationChange,
   text,
   tools,
+  videoDuration = '',
 }: PlaygroundInputControlsProps) {
   const { t } = useTranslation()
   const { canSubmit, isSelectorDisabled, shouldShowStop } =
@@ -66,6 +72,24 @@ export function PlaygroundInputControls({
       models,
       text,
     })
+
+  const renderDurationInput = () =>
+    isVideoModel ? (
+      <div className='flex shrink-0 items-center gap-1.5'>
+        <label className='text-muted-foreground shrink-0 text-xs font-medium'>
+          {t('Duration (s)')}
+        </label>
+        <input
+          className='border-border/40 bg-background h-8 w-16 rounded-md border px-2 text-xs'
+          disabled={disabled}
+          min={1}
+          onChange={(e) => onVideoDurationChange?.(e.target.value)}
+          placeholder='5'
+          type='number'
+          value={videoDuration}
+        />
+      </div>
+    ) : null
 
   const renderSelector = () => (
     <ModelGroupSelector
@@ -105,7 +129,8 @@ export function PlaygroundInputControls({
 
   return (
     <div className='flex w-full flex-col gap-2.5 md:flex-row md:items-center md:justify-between'>
-      <div className='flex min-w-0 items-center justify-end md:hidden'>
+      <div className='flex min-w-0 items-center justify-end gap-2 md:hidden'>
+        {renderDurationInput()}
         {renderSelector()}
       </div>
 
@@ -117,6 +142,7 @@ export function PlaygroundInputControls({
       </div>
 
       <div className='hidden min-w-0 items-center gap-2 md:flex'>
+        {renderDurationInput()}
         {renderSelector()}
         {renderSubmitButton()}
       </div>

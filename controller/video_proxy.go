@@ -114,6 +114,15 @@ func VideoProxy(c *gin.Context) {
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	case constant.ChannelTypeSeedance:
+		// seedance-proxy 的视频必须走 /download 端点（代理负责 RSA 解密），且需 ?model= 复用对应 Client
+		videoModel := task.Properties.UpstreamModelName
+		if videoModel == "" {
+			videoModel = task.Properties.OriginModelName
+		}
+		videoURL = fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s/download?model=%s",
+			baseURL, task.GetUpstreamTaskID(), url.QueryEscape(videoModel))
+		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()

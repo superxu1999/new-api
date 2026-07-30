@@ -232,14 +232,14 @@ export function Footer(props: FooterProps) {
       >
         <div className='mx-auto w-full max-w-6xl px-6 py-5'>
           <div className='bg-muted/20 border-border/50 flex flex-col items-center justify-between gap-4 rounded-2xl border px-4 py-4 backdrop-blur-sm sm:flex-row sm:px-5'>
-            <div
-              className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-left'
-              dangerouslySetInnerHTML={{ __html: footerHtml }}
-            />
-            <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
+            <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b pb-4 text-xs sm:w-auto sm:justify-start sm:border-r sm:border-b-0 sm:pr-5 sm:pb-0'>
               <LegalLinks />
               <ProjectAttribution currentYear={currentYear} inline />
             </div>
+            <div
+              className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-right'
+              dangerouslySetInnerHTML={{ __html: footerHtml }}
+            />
           </div>
         </div>
       </footer>

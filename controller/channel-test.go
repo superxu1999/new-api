@@ -81,10 +81,6 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
 		constant.ChannelTypeSunoAPI,
-		constant.ChannelTypeKling,
-		constant.ChannelTypeJimeng,
-		constant.ChannelTypeDoubaoVideo,
-		constant.ChannelTypeVidu,
 	}
 	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
 		channelTypeName := constant.GetChannelTypeName(channel.Type)
@@ -180,6 +176,15 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			localErr:    newAPIError,
 			newAPIError: newAPIError,
 		}
+	}
+
+	// 视频任务渠道使用独立的测试流程（提交视频生成请求，验证 task_id）
+	if channel.Type == constant.ChannelTypeKling ||
+		channel.Type == constant.ChannelTypeJimeng ||
+		channel.Type == constant.ChannelTypeDoubaoVideo ||
+		channel.Type == constant.ChannelTypeSeedance ||
+		channel.Type == constant.ChannelTypeVidu {
+		return testVideoTaskChannel(ctx, c, w, channel, testUserID, testModel)
 	}
 
 	// Determine relay format based on endpoint type or request path
@@ -1061,4 +1066,96 @@ func TestAllChannels(c *gin.Context) {
 			"status":  task.Status,
 		},
 	})
+}
+
+func buildVideoTestRequestBody(model string) []byte {
+	body, _ := common.Marshal(map[string]interface{}{
+		"model":   model,
+		"prompt":  "test",
+	})
+	return body
+}
+
+// testVideoTaskChannel tests video/task channels by submitting a video generation
+// request and verifying a non-empty task_id is returned. Uses the task adaptor
+// flow instead of the chat adaptor flow used by testChannel for regular channels.
+func testVideoTaskChannel(ctx context.Context, c *gin.Context, w *httptest.ResponseRecorder, channel *model.Channel, testUserID int, testModel string) testResult {
+	tik := time.Now()
+
+	// Build a minimal task submit request body
+	testBody := buildVideoTestRequestBody(testModel)
+	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/video/generations", bytes.NewReader(testBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	// Determine platform from channel type (already set in context by SetupContextForSelectedChannel)
+	info, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	if err != nil {
+		return testResult{localErr: err}
+	}
+	info.IsChannelTest = true
+	info.InitChannelMeta(c)
+
+	// Get task adaptor for this platform
+	taskAdaptor := relay.GetTaskAdaptor(relay.GetTaskPlatform(c))
+	if taskAdaptor == nil {
+		return testResult{localErr: fmt.Errorf("no task adaptor for channel type %d", channel.Type)}
+	}
+	taskAdaptor.Init(info)
+
+	// Validate request (parses body, checks prompt/duration bounds, sets action)
+	if taskErr := taskAdaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		return testResult{localErr: fmt.Errorf("validation failed: %s - %s", taskErr.Code, taskErr.Message)}
+	}
+
+	// Apply model mapping
+	info.OriginModelName = testModel
+	info.UpstreamModelName = testModel
+	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+		return testResult{localErr: fmt.Errorf("model mapping failed: %w", err)}
+	}
+
+	// Generate public task ID (used by some adaptors in DoResponse)
+	info.PublicTaskID = model.GenerateTaskID()
+
+	// Build upstream request body via adaptor
+	requestBody, err := taskAdaptor.BuildRequestBody(c, info)
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("build request body failed: %w", err)}
+	}
+
+	// Send request to upstream
+	resp, err := taskAdaptor.DoRequest(c, info, requestBody)
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("request failed: %w", err)}
+	}
+	if resp != nil {
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			errMsg := fmt.Sprintf("upstream returned status %d: %s", resp.StatusCode, string(body))
+			common.SysError(fmt.Sprintf(
+				"channel test (video task) bad response: channel_id=%d name=%s type=%d model=%s status=%d",
+				channel.Id, channel.Name, channel.Type, testModel, resp.StatusCode,
+			))
+			return testResult{
+				localErr:    fmt.Errorf(errMsg),
+				newAPIError: types.NewOpenAIError(fmt.Errorf(errMsg), types.ErrorCodeBadResponse, http.StatusInternalServerError),
+			}
+		}
+	}
+
+	// Parse upstream response — expect a non-empty task ID
+	upstreamTaskID, _, taskErr := taskAdaptor.DoResponse(c, resp, info)
+	if taskErr != nil {
+		return testResult{localErr: fmt.Errorf("response error: %s - %s", taskErr.Code, taskErr.Message)}
+	}
+	if upstreamTaskID == "" {
+		return testResult{localErr: fmt.Errorf("task_id is empty in upstream response")}
+	}
+
+	tok := time.Now()
+	_ = w     // w not needed for success path
+	_ = tik   // timing info ignored (the caller records its own elapsed time)
+	_ = tok
+	return testResult{}
 }

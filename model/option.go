@@ -39,6 +39,9 @@ func InitOptionMap() {
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
+	common.OptionMap["sms.enabled"] = strconv.FormatBool(common.SMSVerificationEnabled)
+	common.OptionMap["sms.login_enabled"] = strconv.FormatBool(common.SMSLoginEnabled)
+	common.OptionMap["sms.register_enabled"] = strconv.FormatBool(common.SMSRegisterEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -66,6 +69,19 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["sms.provider"] = common.SMSProvider
+	common.OptionMap["sms.generic_url"] = ""
+	common.OptionMap["sms.generic_method"] = "POST"
+	common.OptionMap["sms.generic_template"] = ""
+	common.OptionMap["sms.aliyun_access_key_id"] = ""
+	common.OptionMap["sms.aliyun_access_secret"] = ""
+	common.OptionMap["sms.aliyun_sign_name"] = ""
+	common.OptionMap["sms.aliyun_template_code"] = ""
+	common.OptionMap["sms.tencent_secret_id"] = ""
+	common.OptionMap["sms.tencent_secret_key"] = ""
+	common.OptionMap["sms.tencent_sdk_app_id"] = ""
+	common.OptionMap["sms.tencent_sign_name"] = ""
+	common.OptionMap["sms.tencent_template_id"] = ""
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -277,7 +293,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "sms.enabled" || key == "sms.login_enabled" || key == "sms.register_enabled" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -286,6 +302,13 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue
+		case "sms.enabled":
+			common.SMSVerificationEnabled = boolValue
+			common.SMSEnabled = boolValue
+		case "sms.login_enabled":
+			common.SMSLoginEnabled = boolValue
+		case "sms.register_enabled":
+			common.SMSRegisterEnabled = boolValue
 		case "GitHubOAuthEnabled":
 			common.GitHubOAuthEnabled = boolValue
 		case "LinuxDOOAuthEnabled":
@@ -380,6 +403,32 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "sms.provider":
+		common.SMSProvider = value
+	case "sms.generic_url":
+		common.SMSGenericURL = value
+	case "sms.generic_method":
+		common.SMSGenericMethod = value
+	case "sms.generic_template":
+		common.SMSGenericTemplate = value
+	case "sms.aliyun_access_key_id":
+		common.SMSAliyunAccessKeyID = value
+	case "sms.aliyun_access_secret":
+		common.SMSAliyunAccessSecret = value
+	case "sms.aliyun_sign_name":
+		common.SMSAliyunSignName = value
+	case "sms.aliyun_template_code":
+		common.SMSAliyunTemplateCode = value
+	case "sms.tencent_secret_id":
+		common.SMSTencentSecretID = value
+	case "sms.tencent_secret_key":
+		common.SMSTencentSecretKey = value
+	case "sms.tencent_sdk_app_id":
+		common.SMSTencentSDKAppID = value
+	case "sms.tencent_sign_name":
+		common.SMSTencentSignName = value
+	case "sms.tencent_template_id":
+		common.SMSTencentTemplateID = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

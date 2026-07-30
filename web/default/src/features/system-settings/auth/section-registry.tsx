@@ -23,6 +23,7 @@ import { BotProtectionSection } from './bot-protection-section'
 import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
 import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
+import { SmsSection } from './sms-section'
 
 const AUTH_SECTIONS = [
   {
@@ -72,7 +73,6 @@ const AUTH_SECTIONS = [
           WeChatAuthEnabled: settings.WeChatAuthEnabled,
           WeChatServerAddress: settings.WeChatServerAddress,
           WeChatServerToken: settings.WeChatServerToken,
-          WeChatAccountQRCodeImageURL: settings.WeChatAccountQRCodeImageURL,
         }}
       />
     ),
@@ -116,6 +116,32 @@ const AUTH_SECTIONS = [
     id: 'custom-oauth',
     titleKey: 'Custom OAuth',
     build: () => <CustomOAuthSection />,
+  },
+  {
+    id: 'sms',
+    titleKey: 'SMS Verification',
+    build: (settings: AuthSettings) => (
+      <SmsSection
+        defaultValues={{
+          'sms.enabled': settings['sms.enabled'],
+          'sms.login_enabled': settings['sms.login_enabled'],
+          'sms.register_enabled': settings['sms.register_enabled'],
+          'sms.provider': settings['sms.provider'],
+          'sms.generic_url': settings['sms.generic_url'],
+          'sms.generic_method': settings['sms.generic_method'],
+          'sms.generic_template': settings['sms.generic_template'],
+          'sms.aliyun_access_key_id': settings['sms.aliyun_access_key_id'],
+          'sms.aliyun_access_secret': settings['sms.aliyun_access_secret'],
+          'sms.aliyun_sign_name': settings['sms.aliyun_sign_name'],
+          'sms.aliyun_template_code': settings['sms.aliyun_template_code'],
+          'sms.tencent_secret_id': settings['sms.tencent_secret_id'],
+          'sms.tencent_secret_key': settings['sms.tencent_secret_key'],
+          'sms.tencent_sdk_app_id': settings['sms.tencent_sdk_app_id'],
+          'sms.tencent_sign_name': settings['sms.tencent_sign_name'],
+          'sms.tencent_template_id': settings['sms.tencent_template_id'],
+        }}
+      />
+    ),
   },
 ] as const
 

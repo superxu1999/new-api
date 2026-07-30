@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
@@ -283,6 +284,19 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return nil, err
 		}
 		return normalizeModelNames(models), nil
+	}
+
+	// Task/video channels (Kling, Jimeng, DoubaoVideo, Seedance, Vidu)
+	// don't expose a /v1/models endpoint. Return the adaptor's hardcoded model list.
+	if channel.Type == constant.ChannelTypeKling ||
+		channel.Type == constant.ChannelTypeJimeng ||
+		channel.Type == constant.ChannelTypeDoubaoVideo ||
+		channel.Type == constant.ChannelTypeSeedance ||
+		channel.Type == constant.ChannelTypeVidu {
+		adaptor := relay.GetTaskAdaptor(constant.TaskPlatform(fmt.Sprintf("%d", channel.Type)))
+		if adaptor != nil {
+			return normalizeModelNames(adaptor.GetModelList()), nil
+		}
 	}
 
 	var url string

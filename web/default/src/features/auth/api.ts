@@ -35,15 +35,22 @@ import type {
 // Login & Logout
 // ----------------------------------------------------------------------------
 
-// User login with username and password
+// User login with username and password (or phone + verification code)
 export async function login(payload: LoginPayload) {
   const turnstile = payload.turnstile ?? ''
+  const body: Record<string, string> = {}
+  if (payload.phone) {
+    // SMS verification code login
+    body.phone = payload.phone
+    body.code = payload.code || ''
+  } else {
+    // Password login
+    body.username = payload.username || ''
+    body.password = payload.password || ''
+  }
   const res = await api.post<LoginResponse>(
     `/api/user/login?turnstile=${turnstile}`,
-    {
-      username: payload.username,
-      password: payload.password,
-    }
+    body
   )
   return res.data
 }
@@ -106,7 +113,15 @@ export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
+  const body: Record<string, string | undefined> = {
+    username: payload.username,
+    password: payload.password,
+    email: payload.email,
+    phone: payload.phone,
+    verification_code: payload.verification_code,
+    aff_code: payload.aff_code,
+  }
+  const res = await api.post(`/api/user/register`, body, {
     params: { turnstile: payload.turnstile ?? '' },
   })
   return res.data
@@ -119,6 +134,18 @@ export async function sendEmailVerification(
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
+  })
+  return res.data
+}
+
+// Send SMS verification code
+export async function sendSMSVerification(
+  phone: string,
+  purpose: 'login' | 'register',
+  turnstile?: string
+): Promise<ApiResponse> {
+  const res = await api.get('/api/sms/verification', {
+    params: { phone, purpose, turnstile },
   })
   return res.data
 }

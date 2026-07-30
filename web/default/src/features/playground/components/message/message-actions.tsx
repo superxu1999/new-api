@@ -119,7 +119,10 @@ export function MessageActions({
     })
   }
 
-  if (isAssistant && hasContent && !isLoading && onToggleSource) {
+  // 视频消息的内容就是提示词，源码/预览切换没有意义
+  const isVideoMessage = Boolean(message.videoUrl || message.videoTaskId)
+
+  if (isAssistant && hasContent && !isLoading && onToggleSource && !isVideoMessage) {
     actions.push({
       icon: FileCode2,
       label: isSourceVisible

@@ -119,6 +119,7 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  WeChatAccountQRCodeImageURL: string
 }
 
 export type AuthSettings = {
@@ -152,7 +153,6 @@ export type AuthSettings = {
   WeChatAuthEnabled: boolean
   WeChatServerAddress: string
   WeChatServerToken: string
-  WeChatAccountQRCodeImageURL: string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
@@ -163,6 +163,22 @@ export type AuthSettings = {
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
   'passkey.attachment_preference': '' | 'platform' | 'cross-platform'
+  'sms.enabled': boolean
+  'sms.login_enabled': boolean
+  'sms.register_enabled': boolean
+  'sms.provider': string
+  'sms.generic_url': string
+  'sms.generic_method': string
+  'sms.generic_template': string
+  'sms.aliyun_access_key_id': string
+  'sms.aliyun_access_secret': string
+  'sms.aliyun_sign_name': string
+  'sms.aliyun_template_code': string
+  'sms.tencent_secret_id': string
+  'sms.tencent_secret_key': string
+  'sms.tencent_sdk_app_id': string
+  'sms.tencent_sign_name': string
+  'sms.tencent_template_id': string
 }
 
 export type ContentSettings = {

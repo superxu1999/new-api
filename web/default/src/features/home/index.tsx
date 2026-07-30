@@ -26,7 +26,7 @@ import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { Closing, Hero, ProviderMarquee } from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -114,12 +114,22 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+      <div className='relative isolate overflow-hidden'>
+        {/* Backdrop: one soft glow settling at the page bottom */}
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 -z-20 opacity-40 dark:opacity-25'
+          style={{
+            background:
+              'radial-gradient(ellipse 55% 32% at 50% 100%, oklch(0.72 0.12 200 / 35%) 0%, transparent 75%)',
+          }}
+        />
+
+        <Hero isAuthenticated={isAuthenticated} />
+        <ProviderMarquee />
+        <Closing isAuthenticated={isAuthenticated} />
+        <Footer />
+      </div>
     </PublicLayout>
   )
 }

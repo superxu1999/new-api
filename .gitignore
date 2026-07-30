@@ -1,3 +1,7 @@
+tmp/
+.commandcode/
+web/default/src/i18n/locales/_reports/
+
 .idea
 .vscode
 .zed

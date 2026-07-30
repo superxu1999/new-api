@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import { register, sendSMSVerification, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -49,8 +49,11 @@ import {
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
+import { useCountdown } from '@/hooks/use-countdown'
 import { useStatus } from '@/hooks/use-status'
 import { cn } from '@/lib/utils'
+
+const SMS_COUNTDOWN = 60
 
 export function SignUpForm({
   className,
@@ -63,6 +66,13 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [isSendingSms, setIsSendingSms] = useState(false)
+  const {
+    secondsLeft: smsSecondsLeft,
+    isActive: smsIsActive,
+    start: startSmsCountdown,
+  } = useCountdown({ initialSeconds: SMS_COUNTDOWN })
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
@@ -96,6 +106,12 @@ export function SignUpForm({
 
   const emailValue = form.watch('email')
   const emailVerificationRequired = !!status?.email_verification
+  const smsVerificationEnabled = Boolean(
+    status?.sms_verification ?? status?.data?.sms_verification
+  )
+  const smsRegisterEnabled = Boolean(
+    status?.sms_register ?? status?.data?.sms_register
+  )
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -153,6 +169,12 @@ export function SignUpForm({
       }
     }
 
+    // Validate SMS verification if used
+    if (phone && !verificationCode) {
+      toast.error(t('Please enter the verification code'))
+      return
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -161,6 +183,7 @@ export function SignUpForm({
         username: data.username,
         password: data.password,
         email: data.email || undefined,
+        phone: phone || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
@@ -181,6 +204,30 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
+  }
+
+  async function handleSendSmsCode() {
+    if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+      toast.error(t('Please enter a valid phone number'))
+      return
+    }
+
+    if (!validateTurnstile()) return
+
+    setIsSendingSms(true)
+    try {
+      const res = await sendSMSVerification(phone, 'register', turnstileToken)
+      if (res?.success) {
+        startSmsCountdown()
+        toast.success(t('Verification code sent'))
+      } else {
+        toast.error(res?.message || t('Failed to send verification code'))
+      }
+    } catch (_error) {
+      // Errors handled by global interceptor
+    } finally {
+      setIsSendingSms(false)
+    }
   }
 
   const handleOpenWeChatDialog = () => {
@@ -222,6 +269,8 @@ export function SignUpForm({
       setIsWeChatSubmitting(false)
     }
   }
+
+  const showSmsSection = smsVerificationEnabled && smsRegisterEnabled
 
   return (
     <Form {...form}>
@@ -281,7 +330,6 @@ export function SignUpForm({
         {/* Email Verification Section */}
         {emailVerificationRequired && (
           <>
-            {/* Email Field */}
             <FormField
               control={form.control}
               name='email'
@@ -302,7 +350,7 @@ export function SignUpForm({
               )}
             />
 
-            {/* Verification Code Field */}
+            {/* Email Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
                 <Input
@@ -329,6 +377,67 @@ export function SignUpForm({
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (
                   t('Send code')
+                )}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {/* SMS Verification Section */}
+        {showSmsSection && (
+          <>
+            <div className='relative'>
+              <div className='absolute inset-0 flex items-center'>
+                <span className='w-full border-t' />
+              </div>
+              <div className='relative flex justify-center text-xs uppercase'>
+                <span className='bg-background text-muted-foreground px-2'>
+                  {t('Or register with phone')}
+                </span>
+              </div>
+            </div>
+
+            {/* Phone Field */}
+            <FormItem>
+              <FormLabel>{t('Phone number')}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={t('Enter your phone number')}
+                  type='tel'
+                  maxLength={11}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </FormControl>
+            </FormItem>
+
+            {/* SMS Code Field */}
+            <div className='flex items-end gap-2'>
+              <div className='flex-1'>
+                <Input
+                  placeholder={t('Verification code')}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                />
+              </div>
+              <Button
+                variant='outline'
+                type='button'
+                disabled={
+                  isLoading ||
+                  isSendingSms ||
+                  smsIsActive ||
+                  !phone ||
+                  !turnstileReady
+                }
+                onClick={handleSendSmsCode}
+              >
+                {smsIsActive ? (
+                  t('Resend ({{seconds}}s)', { seconds: smsSecondsLeft })
+                ) : isSendingSms ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  t('Send SMS code')
                 )}
               </Button>
             </div>
@@ -383,7 +492,7 @@ export function SignUpForm({
           onOpenChange={handleWeChatDialogChange}
           title={t('WeChat sign in')}
           description={t(
-            'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
+            'Scan the QR code to follow the official account and reply with "验证码" to receive your verification code.'
           )}
           contentClassName='max-w-sm'
           headerClassName='text-left'

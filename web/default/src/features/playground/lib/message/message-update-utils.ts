@@ -61,3 +61,19 @@ export function updateLastAssistantMessage(
   updated[updated.length - 1] = updater(last)
   return updated
 }
+
+/**
+ * Update the message with the given key, preserving the array when absent.
+ */
+export function updateMessageByKey(
+  messages: Message[],
+  key: string,
+  updater: (message: Message) => Message
+): Message[] {
+  const index = messages.findIndex((message) => message.key === key)
+  if (index === -1) return messages
+
+  const updated = [...messages]
+  updated[index] = updater(updated[index])
+  return updated
+}

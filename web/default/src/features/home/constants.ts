@@ -18,46 +18,83 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /**
  * Home page constants
- * All hardcoded data for home page sections
+ * Upstream providers showcased on the default home page
  */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
-// Layout - Main base classes
-export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
+export interface HomeProvider {
+  /** LobeHub icon name, resolved via getLobeIcon */
+  icon: string
+  name: string
+  /** Representative model families shown as chips */
+  models: string[]
+}
 
-// Hero section - AI Applications (Left side)
-export const AI_APPLICATIONS = [
-  'LobeHub.Color',
-  'Dify.Color',
-  'OpenWebUI',
-  'Cline',
-] as const
+export const HOME_PROVIDERS: HomeProvider[] = [
+  { icon: 'OpenAI', name: 'OpenAI', models: ['GPT-4o', 'o3', 'GPT-4.1'] },
+  {
+    icon: 'Claude.Color',
+    name: 'Anthropic',
+    models: ['Claude Opus 4', 'Claude Sonnet 4'],
+  },
+  {
+    icon: 'Gemini.Color',
+    name: 'Google Gemini',
+    models: ['Gemini 2.5 Pro', 'Gemini 2.5 Flash'],
+  },
+  {
+    icon: 'DeepSeek.Color',
+    name: 'DeepSeek',
+    models: ['DeepSeek-V3', 'DeepSeek-R1'],
+  },
+  {
+    icon: 'Qwen.Color',
+    name: 'Alibaba Qwen',
+    models: ['Qwen3', 'Qwen-Max'],
+  },
+  {
+    icon: 'Doubao.Color',
+    name: 'ByteDance Doubao',
+    models: ['Doubao-pro', 'Seed 1.6'],
+  },
+  { icon: 'Moonshot.Color', name: 'Moonshot Kimi', models: ['Kimi K2'] },
+  { icon: 'Grok.Color', name: 'xAI', models: ['Grok 4', 'Grok 3'] },
+  {
+    icon: 'Mistral.Color',
+    name: 'Mistral AI',
+    models: ['Mistral Large', 'Codestral'],
+  },
+  { icon: 'Meta.Color', name: 'Meta Llama', models: ['Llama 4'] },
+  { icon: 'Zhipu.Color', name: 'Zhipu GLM', models: ['GLM-4.5'] },
+  { icon: 'Minimax.Color', name: 'MiniMax', models: ['MiniMax-M1'] },
+  { icon: 'Azure.Color', name: 'Azure OpenAI', models: ['GPT-4o', 'o3'] },
+  {
+    icon: 'Bedrock.Color',
+    name: 'AWS Bedrock',
+    models: ['Claude', 'Llama', 'Nova'],
+  },
+  {
+    icon: 'VertexAI.Color',
+    name: 'Vertex AI',
+    models: ['Gemini', 'Claude'],
+  },
+  {
+    icon: 'Volcengine.Color',
+    name: 'Volcengine',
+    models: ['Doubao', 'DeepSeek'],
+  },
+  {
+    icon: 'Perplexity.Color',
+    name: 'Perplexity',
+    models: ['Sonar', 'Sonar Pro'],
+  },
+  { icon: 'Ollama.Color', name: 'Ollama', models: ['Local Models'] },
+]
 
-// Hero section - AI Models (Right side)
-export const AI_MODELS = [
-  'Qwen.Color',
-  'DeepSeek.Color',
-  'Doubao.Color',
-  'OpenAI',
-  'Claude.Color',
-  'Gemini.Color',
-] as const
+/** Extra providers supported beyond the ones listed above */
+export const MORE_PROVIDERS_COUNT = 30
 
-// Hero section - Gateway Features
-export const GATEWAY_FEATURES = [
-  'Cost Tracking',
-  'Model Access',
-  'Guardrails',
-  'Observability',
-  'Budgets',
-  'Load Balancing',
-  'Rate Limiting',
-  'Token Mgmt',
-  'Prompt Caching',
-  'Pass-Through',
-] as const
-
-// Stats section - Default statistics
+// Stats strip - Default statistics
 export const DEFAULT_STATS = [
   {
     value: '50',
@@ -81,67 +118,9 @@ export const DEFAULT_STATS = [
   },
 ] as const
 
-// Features section - Default features
-export const DEFAULT_FEATURES = [
-  {
-    title: 'Lightning Fast',
-    description:
-      'Optimized network architecture ensures millisecond response times',
-    iconName: 'Zap',
-  },
-  {
-    title: 'Secure & Reliable',
-    description:
-      'Enterprise-grade security with comprehensive permission management',
-    iconName: 'Shield',
-  },
-  {
-    title: 'Global Coverage',
-    description: 'Multi-region deployment for stable global access',
-    iconName: 'Globe',
-  },
-  {
-    title: 'Developer Friendly',
-    description: 'Compatible API routes for common AI application workflows',
-    iconName: 'Code',
-  },
-  {
-    title: 'High Performance',
-    description: 'Support for high concurrency with automatic load balancing',
-    iconName: 'Gauge',
-  },
-  {
-    title: 'Transparent Billing',
-    description: 'Pay-as-you-go with real-time usage monitoring',
-    iconName: 'DollarSign',
-  },
-  {
-    title: 'Team Collaboration',
-    description: 'Multi-user management with flexible permission allocation',
-    iconName: 'Users',
-  },
-  {
-    title: 'Open Source',
-    description: 'Community driven, self-hosted, and extensible',
-    iconName: 'HeartHandshake',
-  },
-] as const
-
-export function getGatewayFeatures(t: TFunction) {
-  return GATEWAY_FEATURES.map((feature) => t(feature))
-}
-
 export function getDefaultStats(t: TFunction) {
   return DEFAULT_STATS.map((stat) => ({
     ...stat,
-    description: stat.description ? t(stat.description) : undefined,
-  }))
-}
-
-export function getDefaultFeatures(t: TFunction) {
-  return DEFAULT_FEATURES.map((feature) => ({
-    ...feature,
-    title: t(feature.title),
-    description: t(feature.description),
+    description: t(stat.description),
   }))
 }

@@ -37,3 +37,22 @@ export interface HomePageContentResult {
   isLoaded: boolean
   isUrl: boolean
 }
+
+/**
+ * A single provider entry from the home providers API
+ */
+export interface HomeProviderItem {
+  /** Backend channel type id (constant/channel.go) */
+  type: number
+  /** Channel type display name from the backend */
+  name: string
+}
+
+/**
+ * Response from the home providers API
+ */
+export interface HomeProvidersResponse {
+  success: boolean
+  message?: string
+  data?: HomeProviderItem[]
+}

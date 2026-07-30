@@ -30,6 +30,14 @@ import {
 } from '../lib'
 import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
 
+/** Models matching these patterns are video/task types, not chat models. */
+const VIDEO_MODEL_RE = /sora|veo|kling|pika|video|wan-|hunyuanvideo|seedance/i
+
+/** Check if a model name is a video/task type. */
+export function isVideoModel(model: string): boolean {
+  return VIDEO_MODEL_RE.test(model)
+}
+
 type UsePlaygroundOptionsParams = {
   currentGroup: string
   currentModel: string

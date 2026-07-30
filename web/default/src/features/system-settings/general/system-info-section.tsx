@@ -67,6 +67,7 @@ const _systemInfoSchema = z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
   }),
+  WeChatAccountQRCodeImageURL: z.string().optional(),
 })
 
 type SystemInfoFormValues = z.infer<typeof _systemInfoSchema>
@@ -99,6 +100,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
     },
+    WeChatAccountQRCodeImageURL: normalizeValue(
+      defaultValues.WeChatAccountQRCodeImageURL
+    ),
   }
 
   const systemInfoSchemaWithI18n = z.object({
@@ -117,6 +121,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
     }),
+    WeChatAccountQRCodeImageURL: z.string().optional(),
   })
 
   const { form, handleSubmit, handleReset, isDirty, isSubmitting } =
@@ -407,6 +412,29 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='WeChatAccountQRCodeImageURL'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Customer Service QR Code')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('https://example.com/qr-code.png')}
+                        autoComplete='off'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'WeChat QR code image URL for the customer service floating widget'
                       )}
                     </FormDescription>
                     <FormMessage />

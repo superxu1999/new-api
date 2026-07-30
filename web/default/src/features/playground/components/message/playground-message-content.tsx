@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Download } from 'lucide-react'
 
 import {
   CodeBlock,
@@ -136,7 +137,28 @@ export function PlaygroundMessageContent({
 
       {!isError && showMessageContent && (
         <>
-          {isSourceVisible ? (
+          {/* Render video content when message has videoUrl */}
+          {message.videoUrl ? (
+            <div className='my-2'>
+              <div className='overflow-hidden rounded-lg'>
+                <video
+                  controls
+                  className='w-full max-w-2xl rounded-md'
+                  src={message.videoUrl}
+                >
+                  <track kind='captions' />
+                </video>
+              </div>
+              <a
+                className='text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1 text-xs'
+                download={`${message.videoUrl.split('/').at(-2) ?? 'video'}.mp4`}
+                href={message.videoUrl}
+              >
+                <Download className='size-3.5' />
+                {t('Download video')}
+              </a>
+            </div>
+          ) : isSourceVisible ? (
             <CodeBlock
               code={versionContent}
               className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'

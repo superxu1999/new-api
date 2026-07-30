@@ -30,6 +30,18 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Phone    string `json:"phone"`
+	Code     string `json:"code"`
+}
+
+type RegisterRequest struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	Phone            string `json:"phone"`
+	VerificationCode string `json:"verification_code"`
+	AffCode          string `json:"aff_code"`
+	Turnstile        string `json:"turnstile"`
 }
 
 var (
@@ -38,7 +50,7 @@ var (
 )
 
 func Login(c *gin.Context) {
-	if !common.PasswordLoginEnabled {
+	if !common.PasswordLoginEnabled && !common.SMSLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
 		return
 	}
@@ -46,6 +58,47 @@ func Login(c *gin.Context) {
 	err := json.NewDecoder(c.Request.Body).Decode(&loginRequest)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// SMS verification code login
+	if loginRequest.Phone != "" {
+		if !common.SMSLoginEnabled {
+			common.ApiErrorI18n(c, i18n.MsgUserSMSLoginDisabled)
+			return
+		}
+		if loginRequest.Code == "" {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		phone := trimPhone(loginRequest.Phone)
+		if !isValidPhone(phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+			return
+		}
+		if !common.VerifyCodeWithKey(phone, loginRequest.Code, common.SMSVerificationPurpose) {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+		// Find user by phone
+		user, err := model.GetUserByPhone(phone)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
+			return
+		}
+		if user.Status != common.UserStatusEnabled {
+			common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+			return
+		}
+		// Delete used code
+		common.DeleteKey(phone, common.SMSVerificationPurpose)
+		setupLogin(user, c)
+		return
+	}
+
+	// Password login
+	if !common.PasswordLoginEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
 		return
 	}
 	username := loginRequest.Username
@@ -185,18 +238,58 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return
 	}
-	if !common.PasswordRegisterEnabled {
+	if !common.PasswordRegisterEnabled && !common.SMSRegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var req RegisterRequest
+	err := json.NewDecoder(c.Request.Body).Decode(&req)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	user.Username = strings.TrimSpace(user.Username)
-	user.Email = model.NormalizeEmail(user.Email)
+	var user model.User
+	user.Username = strings.TrimSpace(req.Username)
+	user.Email = model.NormalizeEmail(req.Email)
+	user.Phone = strings.TrimSpace(req.Phone)
+	user.Password = req.Password
+	user.VerificationCode = req.VerificationCode
+
+	// SMS verification code registration
+	if user.Phone != "" {
+		if !common.SMSRegisterEnabled {
+			common.ApiErrorI18n(c, i18n.MsgUserSMSRegisterDisabled)
+			return
+		}
+		if !isValidPhone(user.Phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+			return
+		}
+		if user.VerificationCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserSMSVerificationRequired)
+			return
+		}
+		if !common.VerifyCodeWithKey(user.Phone, user.VerificationCode, common.SMSVerificationPurpose) {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+		// Use phone as username if username is empty
+		if user.Username == "" {
+			user.Username = user.Phone
+		}
+		// Check phone uniqueness
+		phoneExist, err := model.CheckPhoneExists(user.Phone)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		if phoneExist {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
+	}
+
+	// Standard password+email registration
 	if user.Username == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -227,27 +320,44 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		emailForExistCheck = user.Email
 	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
-		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
-		return
+	// Skip duplicate username check for phone-only registration
+	if user.Phone == "" {
+		exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
+			return
+		}
+		if exist {
+			common.ApiErrorI18n(c, i18n.MsgUserExists)
+			return
+		}
+	} else {
+		// For phone registration, also check username uniqueness
+		exist, err := model.CheckUserExistOrDeleted(user.Username, "")
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		if exist {
+			common.ApiErrorI18n(c, i18n.MsgUserExists)
+			return
+		}
 	}
-	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
-		return
-	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	affCode := req.AffCode
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
 		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Role:        common.RoleCommonUser,
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
+	}
+	if user.Phone != "" {
+		cleanUser.Phone = user.Phone
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {

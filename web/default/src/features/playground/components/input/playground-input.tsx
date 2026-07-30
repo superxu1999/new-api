@@ -33,9 +33,11 @@ import { PlaygroundInputTools } from './playground-input-tools'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
+  onVideoSubmit?: (text: string, duration: number) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
+  isVideoModel?: boolean
   models: ModelOption[]
   modelValue: string
   onModelChange: (value: string) => void
@@ -49,9 +51,11 @@ interface PlaygroundInputProps {
 
 export function PlaygroundInput({
   onSubmit,
+  onVideoSubmit,
   onStop,
   disabled,
   isGenerating,
+  isVideoModel = false,
   models,
   modelValue,
   onModelChange,
@@ -64,11 +68,21 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
+  const [videoDuration, setVideoDuration] = useState('')
 
   const handleSubmit = (message: PromptInputMessage) => {
     const submittableText = getSubmittableInputText(message, disabled)
 
     if (!submittableText) return
+
+    if (isVideoModel && onVideoSubmit) {
+      const seconds = Number(videoDuration)
+      onVideoSubmit(submittableText, Number.isFinite(seconds) && seconds > 0 ? seconds : 0)
+      setText('')
+      setVideoDuration('')
+      return
+    }
+
     onSubmit(submittableText)
     setText('')
   }
@@ -99,12 +113,15 @@ export function PlaygroundInput({
             groupValue={groupValue}
             isGenerating={isGenerating}
             isModelLoading={isModelLoading}
+            isVideoModel={isVideoModel}
             models={models}
             modelValue={modelValue}
             onGroupChange={onGroupChange}
             onModelChange={onModelChange}
             onStop={onStop}
+            onVideoDurationChange={setVideoDuration}
             text={text}
+            videoDuration={videoDuration}
             tools={
               <PlaygroundInputTools
                 disabled={disabled}
