@@ -55,6 +55,17 @@ export interface Message {
   videoTaskId?: string
   /** Duration (seconds) used for a video generation task; reused on regenerate */
   videoDuration?: number
+  /** Model name used to generate the video (origin model name, e.g. doubao-seedance-2.0-baituo) */
+  videoModel?: string
+}
+
+// Video generation parameter options (sent via body.metadata to upstream)
+export interface VideoGenerationParams {
+  ratio?: string
+  resolution?: string
+  watermark?: boolean
+  generateAudio?: boolean
+  seed?: number
 }
 
 // API payload types

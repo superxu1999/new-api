@@ -1,12 +1,16 @@
 package seedance
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,3 +153,68 @@ func TestRequestPayloadMarshalOmitsUnsetOptionals(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// 直连云厂商网关（base_url 以 /v1 结尾，如天翼云息壤）与本地 seedance-proxy
+// 两种形态的 URL 构造差异：直连形态走 /contents/generations/tasks（无 /api/v3 前缀）。
+func TestBuildRequestURLDirectGateway(t *testing.T) {
+	proxyAdaptor := &TaskAdaptor{baseURL: "http://127.0.0.1:8080/aicc/seedance"}
+	url, err := proxyAdaptor.BuildRequestURL(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "http://127.0.0.1:8080/aicc/seedance/api/v3/contents/generations/tasks", url)
+
+	directAdaptor := &TaskAdaptor{baseURL: "https://ai.ctaigw.cn/v1"}
+	url, err = directAdaptor.BuildRequestURL(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "https://ai.ctaigw.cn/v1/contents/generations/tasks", url)
+}
+
+// 直连形态的轮询 URL 不带 ?model= 参数（网关返回 taskid is mismatch），
+// 本地 seedance-proxy 形态必须带 ?model= 复用 SDK Client。
+func TestFetchTaskURLByGatewayMode(t *testing.T) {
+	// FetchTask 使用 service 包启动期初始化的 httpClient，单测需先行初始化
+	service.InitHttpClient()
+
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		w.Write([]byte(`{"id":"c-1","status":"queued"}`))
+	}))
+	defer srv.Close()
+
+	adaptor := &TaskAdaptor{}
+
+	// 直连：无 ?model=
+	resp, err := adaptor.FetchTask(srv.URL+"/v1", "sk-test", map[string]any{"task_id": "c-1", "model": "cdance2.0-0611"}, "")
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	assert.Equal(t, "/v1/contents/generations/tasks/c-1", gotPath)
+
+	// 本地代理：保留 ?model=
+	gotPath = ""
+	resp, err = adaptor.FetchTask(srv.URL+"/aicc/seedance", "maas-key", map[string]any{"task_id": "c-1", "model": "doubao-seedance-2.0"}, "")
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	assert.Equal(t, "/aicc/seedance/api/v3/contents/generations/tasks/c-1?model=doubao-seedance-2.0", gotPath)
+}
+
+// 直连形态成功时保留上游返回的 TOS 签名直链（轮询存入 ResultURL 直传），
+// 本地代理形态仍留空走 /download RSA 解密链路。
+func TestParseTaskResultSucceededDirectGatewayKeepsVideoURL(t *testing.T) {
+	body := `{"id":"c-1","status":"succeeded","content":{"video_url":"https://tos.example.com/v.mp4"},"usage":{"completion_tokens":10,"total_tokens":20}}`
+
+	proxyAdaptor := &TaskAdaptor{baseURL: "http://127.0.0.1:8080/aicc/seedance"}
+	info, err := proxyAdaptor.ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
+	assert.Equal(t, "", info.Url)
+	assert.Equal(t, 20, info.TotalTokens)
+
+	directAdaptor := &TaskAdaptor{baseURL: "https://ai.ctaigw.cn/v1"}
+	info, err = directAdaptor.ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
+	assert.Equal(t, "https://tos.example.com/v.mp4", info.Url)
+	assert.Equal(t, 20, info.TotalTokens)
+}

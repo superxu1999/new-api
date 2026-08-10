@@ -21,6 +21,7 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 )
 
 // TaskPollingAdaptor 定义轮询所需的最小适配器接口，避免 service -> relay 的循环依赖
@@ -480,6 +481,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.TaskID = t.TaskID
 		taskResult.Status = string(t.Status)
 		taskResult.Url = t.GetResultURL()
+		// 兼容上游 new-api 实例（如百拓数据）的查询响应：
+		// result_url 在 data.result_url，但 model.Task 无对应 json 字段，
+		// GetResultURL() 取不到，需从原始响应体中提取。
+		if taskResult.Url == "" {
+			taskResult.Url = gjson.GetBytes(responseBody, "data.result_url").String()
+		}
 		taskResult.Progress = t.Progress
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data

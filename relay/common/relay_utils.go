@@ -83,13 +83,41 @@ func validatePrompt(prompt string) *dto.TaskError {
 // overflow quota calculation into a negative charge.
 const MaxTaskDurationSeconds = 3600
 
+// Seedance 系模型(doubao-seedance-*)上游支持的时长范围(秒)。
+// 移动云 MaaS SDK 与百拓转售文档一致:支持 [SeedanceDurationMin, SeedanceDurationMax]
+// 范围内的整数,或 -1 由模型自动选择;未填时上游默认 5 秒。
+const (
+	SeedanceDurationMin = 4
+	SeedanceDurationMax = 15
+)
+
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
 		seconds, _ = strconv.Atoi(req.Seconds)
 	}
-	if seconds < 0 || seconds > MaxTaskDurationSeconds {
-		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
+	// 允许 0(未填,上游默认)与 -1(由模型自动选择);其余必须落在计费安全上界内
+	if seconds < -1 || seconds > MaxTaskDurationSeconds {
+		return createTaskError(fmt.Errorf("seconds must be -1 or between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
+	}
+	return nil
+}
+
+// ValidateSeedanceDurationBounds 按上游能力校验时长,供 seedance 系适配器调用。
+// 允许:0(未填,上游默认 5)、-1(模型自动选择)、[SeedanceDurationMin, SeedanceDurationMax]。
+// 计费安全上界(3600)已由 validateTaskDurationBounds 在前置校验中保证。
+func ValidateSeedanceDurationBounds(req TaskSubmitReq) *dto.TaskError {
+	seconds := req.Duration
+	if seconds == 0 && req.Seconds != "" {
+		seconds, _ = strconv.Atoi(req.Seconds)
+	}
+	if seconds == 0 || seconds == -1 {
+		return nil
+	}
+	if seconds < SeedanceDurationMin || seconds > SeedanceDurationMax {
+		return createTaskError(
+			fmt.Errorf("视频时长需在 %d-%d 秒之间,或填 -1 由模型自动选择", SeedanceDurationMin, SeedanceDurationMax),
+			"invalid_seconds", http.StatusBadRequest, true)
 	}
 	return nil
 }

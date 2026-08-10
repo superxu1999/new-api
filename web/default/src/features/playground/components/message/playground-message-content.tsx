@@ -149,14 +149,21 @@ export function PlaygroundMessageContent({
                   <track kind='captions' />
                 </video>
               </div>
-              <a
-                className='text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1 text-xs'
-                download={`${message.videoUrl.split('/').at(-2) ?? 'video'}.mp4`}
-                href={message.videoUrl}
-              >
-                <Download className='size-3.5' />
-                {t('Download video')}
-              </a>
+              <div className='mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground'>
+                {message.videoModel && (
+                  <span className='inline-flex items-center gap-1'>
+                    {t('Model')}: {message.videoModel}
+                  </span>
+                )}
+                <a
+                  className='hover:text-foreground inline-flex items-center gap-1'
+                  download={`${message.videoUrl.split('/').at(-2) ?? 'video'}.mp4`}
+                  href={message.videoUrl}
+                >
+                  <Download className='size-3.5' />
+                  {t('Download video')}
+                </a>
+              </div>
             </div>
           ) : isSourceVisible ? (
             <CodeBlock

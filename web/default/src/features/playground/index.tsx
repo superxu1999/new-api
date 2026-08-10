@@ -30,6 +30,7 @@ import {
 import { appendUserMessagePair, getMessageContent } from './lib'
 import { MESSAGE_ROLES } from './constants'
 import { isVideoModel } from './hooks/use-playground-options'
+import type { VideoGenerationParams } from './types'
 
 export function Playground() {
   const {
@@ -70,11 +71,15 @@ export function Playground() {
     resumePendingVideoTasks(messages, updateMessages)
   }, [isLoadingMessages, messages, resumePendingVideoTasks, updateMessages])
 
-  const handleVideoSubmit = (text: string, duration: number) => {
+  const handleVideoSubmit = (
+    text: string,
+    duration: number,
+    params?: VideoGenerationParams
+  ) => {
     const nextMessages = appendUserMessagePair(messages, text)
     updateMessages(nextMessages)
     sendVideoGeneration(
-      { model: config.model, prompt: text, duration },
+      { model: config.model, prompt: text, duration, params },
       updateMessages
     )
   }

@@ -82,9 +82,11 @@ export function PlaygroundInputControls({
         <input
           className='border-border/40 bg-background h-8 w-16 rounded-md border px-2 text-xs'
           disabled={disabled}
-          min={1}
+          max={15}
+          min={-1}
           onChange={(e) => onVideoDurationChange?.(e.target.value)}
-          placeholder='5'
+          placeholder='11'
+          title={t('4-15 seconds, or -1 for automatic')}
           type='number'
           value={videoDuration}
         />

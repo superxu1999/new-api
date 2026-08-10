@@ -32,10 +32,44 @@ import type { Message } from '../types'
 
 const POLL_INTERVAL_MS = 3000
 
+// 上游(移动云 MaaS / 百拓转售)doubao-seedance-* 支持的时长范围(秒);
+// -1 表示由模型自动选择,0 表示未填(上游默认 5)。
+const MIN_VIDEO_DURATION = 4
+const MAX_VIDEO_DURATION = 15
+
+// 上游内容审核拦截(如移动云 MaaS 的 OutputVideoSensitiveContentDetected.PolicyViolation):
+// 任务提交成功但成片被判疑似版权/敏感内容。这类错误给用户展示友好提示,而不是原始英文报错。
+function isContentModerationFailure(
+  data: Record<string, unknown>,
+  failReason: string
+): boolean {
+  const rawData = data.data
+  let errorCode = ''
+  if (typeof rawData === 'string') {
+    try {
+      errorCode =
+        (JSON.parse(rawData)?.error as { code?: string } | undefined)?.code ?? ''
+    } catch {
+      // ignore malformed payload
+    }
+  } else if (rawData && typeof rawData === 'object') {
+    errorCode =
+      ((rawData as { error?: { code?: string } }).error?.code as string) ?? ''
+  }
+  if (
+    errorCode.includes('SensitiveContent') ||
+    errorCode.includes('PolicyViolation')
+  ) {
+    return true
+  }
+  return /copyright|sensitive content/i.test(failReason)
+}
+
 type VideoGenerationOptions = {
   model: string
   prompt: string
   duration?: number
+  params?: import('../types').VideoGenerationParams
 }
 
 type MessageUpdater = (updater: (prev: Message[]) => Message[]) => void
@@ -107,12 +141,19 @@ export function useVideoChatHandler() {
 
             if (status === 'SUCCESS') {
               const videoUrl = `/v1/videos/${taskId}/content`
+              const videoModel =
+                (
+                  data.properties as
+                    | { origin_model_name?: string }
+                    | undefined
+                )?.origin_model_name ?? undefined
               onMessageUpdate((prev) =>
                 updateTarget(prev, (message) =>
                   completeAssistantTiming({
                     ...message,
                     status: MESSAGE_STATUS.COMPLETE,
                     videoUrl,
+                    videoModel,
                     videoTaskId: undefined,
                     versions: [
                       {
@@ -126,6 +167,10 @@ export function useVideoChatHandler() {
               resolve()
             } else if (status === 'FAILURE') {
               const failReason = data.fail_reason || 'Video generation failed'
+              const isModerationBlock = isContentModerationFailure(
+                data,
+                failReason
+              )
               onMessageUpdate((prev) =>
                 updateTarget(prev, (message) =>
                   completeAssistantTiming({
@@ -136,7 +181,11 @@ export function useVideoChatHandler() {
                     versions: [
                       {
                         ...message.versions[0],
-                        content: `Error: ${failReason}`,
+                        content: isModerationBlock
+                          ? t(
+                              'Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.'
+                            )
+                          : `Error: ${failReason}`,
                       },
                     ],
                   })
@@ -164,6 +213,26 @@ export function useVideoChatHandler() {
   const sendVideoGeneration = useCallback(
     (options: VideoGenerationOptions, onMessageUpdate: MessageUpdater) => {
       abortRef.current = false
+
+      // 前端先按上游能力拦截非法时长,后端(适配器层)有同样校验兜底
+      if (
+        options.duration &&
+        options.duration !== -1 &&
+        (options.duration < MIN_VIDEO_DURATION ||
+          options.duration > MAX_VIDEO_DURATION)
+      ) {
+        toast.error(
+          t(
+            'Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.',
+            {
+              min: MIN_VIDEO_DURATION,
+              max: MAX_VIDEO_DURATION,
+            }
+          )
+        )
+        return
+      }
+
       setIsGenerating(true)
 
       const submitTask = async () => {
@@ -174,6 +243,25 @@ export function useVideoChatHandler() {
           }
           if (options.duration && options.duration > 0) {
             body.duration = options.duration
+          }
+          const metadata: Record<string, unknown> = {}
+          if (options.params?.ratio) {
+            metadata.ratio = options.params.ratio
+          }
+          if (options.params?.resolution) {
+            metadata.resolution = options.params.resolution
+          }
+          if (options.params?.watermark !== undefined) {
+            metadata.watermark = options.params.watermark
+          }
+          if (options.params?.generateAudio !== undefined) {
+            metadata.generate_audio = options.params.generateAudio
+          }
+          if (options.params?.seed !== undefined) {
+            metadata.seed = options.params.seed
+          }
+          if (Object.keys(metadata).length > 0) {
+            body.metadata = metadata
           }
 
           const res = await api.post('/pg/video/generations', body)
@@ -232,7 +320,7 @@ export function useVideoChatHandler() {
 
       submitTask()
     },
-    [pollVideoTask]
+    [pollVideoTask, t]
   )
 
   // Resume polling for video tasks that were still in flight when the page

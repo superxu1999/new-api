@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -102,13 +103,35 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); taskErr != nil {
+		return taskErr
+	}
+	// 上游(移动云 MaaS)时长能力 [4,15] 或 -1,超出范围返回明确错误而非上游 4xx
+	if req, err := relaycommon.GetTaskRequest(c); err == nil {
+		if taskErr := relaycommon.ValidateSeedanceDurationBounds(req); taskErr != nil {
+			return taskErr
+		}
+	}
+	return nil
 }
 
 // BuildRequestURL constructs the upstream URL.
-// 渠道的 base_url 应指向代理地址（含 /aicc/seedance 前缀），如 http://proxy-host:8080/aicc/seedance
+// 两种上游形态，由 base_url 结尾判定：
+//  1) 本地 seedance-proxy（移动云 MaaS）：base_url 含 /aicc/seedance 前缀，
+//     走 ARK 原生路径 /api/v3/contents/generations/tasks（下载需 ?model= 复用 Client）。
+//  2) 云厂商网关直连（如天翼云息壤，base_url 以 /v1 结尾）：公开路径为
+//     /v1/contents/generations/tasks（/api/v3 是网关内部前缀，不可直接使用）。
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
+	if isDirectGateway(a.baseURL) {
+		return fmt.Sprintf("%s/contents/generations/tasks", a.baseURL), nil
+	}
 	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+}
+
+// isDirectGateway 判断上游是否为直连云厂商网关（ARK 风格 API 挂在 /v1 下，如天翼云息壤）。
+// 与之相对的是本地 seedance-proxy 形态（base_url 为代理地址，不以此结尾）。
+func isDirectGateway(baseURL string) bool {
+	return strings.HasSuffix(baseURL, "/v1")
 }
 
 // BuildRequestHeader sets required headers.
@@ -196,15 +219,22 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 // FetchTask fetch task status.
 // 代理要求通过 ?model= 传递模型名以复用对应 SDK Client（缺省时使用代理默认模型）。
+// 直连云厂商网关（base_url 以 /v1 结尾）不接受 ?model= 参数（返回 taskid is mismatch），
+// 且公开路径为 /contents/generations/tasks（无 /api/v3 前缀）。
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
-	if modelName, _ := body["model"].(string); modelName != "" {
-		uri += "?model=" + url.QueryEscape(modelName)
+	var uri string
+	if isDirectGateway(baseUrl) {
+		uri = fmt.Sprintf("%s/contents/generations/tasks/%s", baseUrl, taskID)
+	} else {
+		uri = fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+		if modelName, _ := body["model"].(string); modelName != "" {
+			uri += "?model=" + url.QueryEscape(modelName)
+		}
 	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -289,8 +319,13 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		// 不直接使用上游返回的 video_url：视频需经代理 /download 端点解密下载，
+		// 直连云厂商网关（base_url 以 /v1 结尾）直接返回 TOS 签名直链（如天翼云息壤），
+		// 轮询逻辑会存入 PrivateData.ResultURL，VideoProxy default 分支原样直传；
+		// 本地 seedance-proxy 形态的视频必须经代理 /download 端点 RSA 解密，
 		// 留空后由轮询逻辑生成指向本系统内容代理的 URL（VideoProxy 会走 /download）。
+		if isDirectGateway(a.baseURL) {
+			taskResult.Url = resTask.Content.VideoURL
+		}
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
 	case "failed":

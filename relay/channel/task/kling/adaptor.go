@@ -71,6 +71,14 @@ type requestPayload struct {
 	CameraControl  *CameraControl `json:"camera_control,omitempty"`
 	CallbackUrl    string         `json:"callback_url,omitempty"`
 	ExternalTaskId string         `json:"external_task_id,omitempty"`
+	// Seedance 系模型(百拓转售)常用参数:通过 metadata 传入,适配器透传。
+	// 百拓文档:metadata 支持 ratio/resolution/watermark/generate_audio 等。
+	Resolution    string         `json:"resolution,omitempty"`
+	Ratio         string         `json:"ratio,omitempty"`
+	Watermark     *dto.BoolValue `json:"watermark,omitempty"`
+	GenerateAudio *dto.BoolValue `json:"generate_audio,omitempty"`
+	Seed          *dto.IntValue  `json:"seed,omitempty"`
+	N             *dto.IntValue  `json:"n,omitempty"`
 }
 
 type responsePayload struct {
@@ -129,7 +137,23 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Use the standard validation method for TaskSubmitReq
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); taskErr != nil {
+		return taskErr
+	}
+	// 百拓等转售渠道以 Kling 适配器中转 doubao-seedance-* 模型时,
+	// 上游时长能力同为 [4,15] 或 -1;原生 kling 模型不启用此校验。
+	if strings.Contains(strings.ToLower(info.OriginModelName), "seedance") {
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			if taskErr := relaycommon.ValidateSeedanceDurationBounds(req); taskErr != nil {
+				return taskErr
+			}
+			// 上游单次仅支持生成 1 个视频,防止批量生成被滥用
+			if req.N > 1 {
+				return service.TaskErrorWrapperLocal(fmt.Errorf("n must be 1"), "invalid_n", http.StatusBadRequest)
+			}
+		}
+	}
+	return nil
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -211,7 +235,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.CreatedAt = time.Now().Unix()
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
-	return kResp.Data.TaskId, responseBody, nil
+
+	// 兼容 new-api relay 上游（如百拓数据）：task_id 在顶层，
+	// 而非 kling 原生响应的 data.task_id。
+	taskID = kResp.TaskId
+	if taskID == "" {
+		taskID = kResp.Data.TaskId
+	}
+	return taskID, responseBody, nil
 }
 
 // FetchTask fetch task status
@@ -285,6 +316,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	}
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, &r); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
+	}
+	// 顶层 n(生成数量)映射;上游仅支持 1,>1 已在校验层拒绝
+	if req.N > 0 {
+		r.N = lo.ToPtr(dto.IntValue(req.N))
 	}
 	return &r, nil
 }
@@ -398,6 +433,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		if video.Duration != "" {
 			openAIVideo.Seconds = video.Duration
 		}
+	} else if resultURL := originTask.GetResultURL(); resultURL != "" {
+		// 兼容 new-api relay 上游（如百拓数据）：task.Data 中无 kling 原生
+		// task_result 结构，视频 URL 由轮询写入 ResultURL（TOS 直链），直接回退。
+		openAIVideo.SetMetadata("url", resultURL)
 	}
 
 	if klingResp.Code != 0 && klingResp.Message != "" {
