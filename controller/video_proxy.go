@@ -115,9 +115,10 @@ func VideoProxy(c *gin.Context) {
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	case constant.ChannelTypeSeedance:
-		// seedance-proxy 的视频必须走 /download 端点（代理负责 RSA 解密），且需 ?model= 复用对应 Client；
-		// 直连云厂商网关（base_url 以 /v1 结尾，如天翼云息壤）则直接使用上游返回的 TOS 签名直链。
-		if strings.HasSuffix(baseURL, "/v1") {
+		// 直连云厂商网关（base_url 以 /v1 或 /api/v3 结尾，如天翼云息壤、移动云 MaaS）
+		// 直接使用上游返回的 TOS 签名直链/明文直链（明文模式无需 RSA 解密）；
+		// 本地 seedance-proxy 的视频必须走 /download 端点（代理负责 RSA 解密），且需 ?model= 复用对应 Client。
+		if strings.HasSuffix(baseURL, "/v1") || strings.HasSuffix(baseURL, "/api/v3") {
 			videoURL = task.GetResultURL()
 			break
 		}

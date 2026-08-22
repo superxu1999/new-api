@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -154,8 +155,8 @@ func TestRequestPayloadMarshalOmitsUnsetOptionals(t *testing.T) {
 
 func boolPtr(b bool) *bool { return &b }
 
-// 直连云厂商网关（base_url 以 /v1 结尾，如天翼云息壤）与本地 seedance-proxy
-// 两种形态的 URL 构造差异：直连形态走 /contents/generations/tasks（无 /api/v3 前缀）。
+// 直连云厂商网关（base_url 以 /v1 或 /api/v3 结尾，如天翼云息壤、移动云 MaaS）与本地
+// seedance-proxy 两种形态的 URL 构造差异：直连形态走 /contents/generations/tasks（无 /api/v3 前缀）。
 func TestBuildRequestURLDirectGateway(t *testing.T) {
 	proxyAdaptor := &TaskAdaptor{baseURL: "http://127.0.0.1:8080/aicc/seedance"}
 	url, err := proxyAdaptor.BuildRequestURL(nil)
@@ -166,6 +167,12 @@ func TestBuildRequestURLDirectGateway(t *testing.T) {
 	url, err = directAdaptor.BuildRequestURL(nil)
 	require.NoError(t, err)
 	assert.Equal(t, "https://ai.ctaigw.cn/v1/contents/generations/tasks", url)
+
+	// 移动云 MaaS 直连：base_url 已含 /api/v3 版本前缀，不再追加
+	cmccAdaptor := &TaskAdaptor{baseURL: "https://zhenze-huhehaote.cmecloud.cn/api/v3"}
+	url, err = cmccAdaptor.BuildRequestURL(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "https://zhenze-huhehaote.cmecloud.cn/api/v3/contents/generations/tasks", url)
 }
 
 // 直连形态的轮询 URL 不带 ?model= 参数（网关返回 taskid is mismatch），
@@ -217,4 +224,92 @@ func TestParseTaskResultSucceededDirectGatewayKeepsVideoURL(t *testing.T) {
 	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
 	assert.Equal(t, "https://tos.example.com/v.mp4", info.Url)
 	assert.Equal(t, 20, info.TotalTokens)
+}
+
+// 移动云 MaaS 直连（base_url 以 /api/v3 结尾）也被视为直连形态：
+// 轮询 URL 不带 ?model=，成功时保留上游返回的明文/签名视频直链。
+func TestCMCCMaaSURLsAndResult(t *testing.T) {
+	service.InitHttpClient()
+
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		w.Write([]byte(`{"id":"c-1","status":"queued"}`))
+	}))
+	defer srv.Close()
+
+	adaptor := &TaskAdaptor{baseURL: srv.URL + "/api/v3"}
+	resp, err := adaptor.FetchTask(srv.URL+"/api/v3", "maas-key", map[string]any{"task_id": "c-1", "model": "doubao-seedance-2.0"}, "")
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	assert.Equal(t, "/api/v3/contents/generations/tasks/c-1", gotPath)
+
+	// 成功时保留视频直链（明文模式）
+	body := `{"id":"c-1","status":"succeeded","content":{"video_url":"https://tos.example.com/v.mp4"},"usage":{"total_tokens":20}}`
+	info, err := adaptor.ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
+	assert.Equal(t, "https://tos.example.com/v.mp4", info.Url)
+	assert.Equal(t, 20, info.TotalTokens)
+}
+
+func TestHasVideoInput(t *testing.T) {
+	assert.False(t, hasVideoInput(relaycommon.TaskSubmitReq{Metadata: map[string]interface{}{}}))
+	assert.False(t, hasVideoInput(relaycommon.TaskSubmitReq{Metadata: map[string]interface{}{
+		"content": []interface{}{map[string]interface{}{"type": "image_url"}},
+	}}))
+	assert.True(t, hasVideoInput(relaycommon.TaskSubmitReq{Metadata: map[string]interface{}{
+		"content": []interface{}{map[string]interface{}{"type": "video_url", "video_url": map[string]interface{}{"url": "http://x/v.mp4"}}},
+	}}))
+}
+
+func TestResolveModelMapping(t *testing.T) {
+	service.InitHttpClient()
+	var gotPath, gotAuth, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.Write([]byte(`{"endpoint":"cdance2.0-0611"}`))
+	}))
+	defer srv.Close()
+
+	adaptor := &TaskAdaptor{baseURL: srv.URL + "/api/v3", apiKey: "maas-key"}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	endpoint, err := adaptor.resolveModelMapping(info, "doubao-seedance-2.0")
+	require.NoError(t, err)
+	assert.Equal(t, "cdance2.0-0611", endpoint)
+	assert.Equal(t, "/api/v3/mapping/query", gotPath)
+	assert.Equal(t, "Bearer maas-key", gotAuth)
+	assert.Contains(t, gotBody, "doubao-seedance-2.0")
+}
+
+// 移动云 MaaS 直连时，BuildRequestBody 会先经 /mapping/query 把友好模型名解析为
+// 网关内部 endpoint，并作为请求体 model 字段。
+func TestBuildRequestBodyCMCCMaaSResolvesMapping(t *testing.T) {
+	service.InitHttpClient()
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		w.Write([]byte(`{"endpoint":"cdance2.0-0611"}`))
+	}))
+	defer srv.Close()
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", relaycommon.TaskSubmitReq{
+		Prompt:  "日落时分的海边",
+		Model:   "doubao-seedance-2.0",
+		Seconds: "5",
+	})
+
+	adaptor := &TaskAdaptor{baseURL: srv.URL + "/api/v3", apiKey: "maas-key"}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	reader, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	body, _ := io.ReadAll(reader)
+	assert.Contains(t, string(body), `"model":"cdance2.0-0611"`)
+	assert.Equal(t, "/api/v3/mapping/query", path)
 }

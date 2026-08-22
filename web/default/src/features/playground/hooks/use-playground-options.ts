@@ -38,6 +38,15 @@ export function isVideoModel(model: string): boolean {
   return VIDEO_MODEL_RE.test(model)
 }
 
+/**
+ * 游乐场模型选择按名称自然排序：数字按数值比较（model-2 排在 model-10 前）、忽略大小写。
+ * 上游 /api/user/models 返回的模型顺序不固定，这里统一排序以保证下拉列表稳定可读。
+ */
+const modelCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+})
+
 type UsePlaygroundOptionsParams = {
   currentGroup: string
   currentModel: string
@@ -103,15 +112,18 @@ export function usePlaygroundOptions({
   useEffect(() => {
     if (!modelsData) return
 
-    setModels(modelsData)
-    const fallback = getModelFallback(modelsData, currentModel)
+    const sortedModels = [...modelsData].sort((a, b) =>
+      modelCollator.compare(a.label, b.label)
+    )
+    setModels(sortedModels)
+    const fallback = getModelFallback(sortedModels, currentModel)
 
     if (fallback) {
       updateConfig('model', fallback)
       return
     }
 
-    if (shouldClearModelForGroup(modelsData, currentModel)) {
+    if (shouldClearModelForGroup(sortedModels, currentModel)) {
       updateConfig('model', '')
     }
   }, [modelsData, currentModel, setModels, updateConfig])

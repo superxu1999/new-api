@@ -116,11 +116,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 // BuildRequestURL constructs the upstream URL.
-// 两种上游形态，由 base_url 结尾判定：
-//  1) 本地 seedance-proxy（移动云 MaaS）：base_url 含 /aicc/seedance 前缀，
+// 上游形态由 base_url 结尾判定：
+//  1) 本地 seedance-proxy：base_url 含 /aicc/seedance 前缀（或为纯代理地址），
 //     走 ARK 原生路径 /api/v3/contents/generations/tasks（下载需 ?model= 复用 Client）。
-//  2) 云厂商网关直连（如天翼云息壤，base_url 以 /v1 结尾）：公开路径为
-//     /v1/contents/generations/tasks（/api/v3 是网关内部前缀，不可直接使用）。
+//  2) 云厂商网关直连（base_url 已含 API 版本前缀）：公开路径直接拼接
+//     /contents/generations/tasks。包括两种：
+//     - ARK 风格网关挂在 /v1 下（如天翼云息壤，base_url 以 /v1 结尾）；
+//     - 移动云 MaaS 网关（base_url 以 /api/v3 结尾），/api/v3 即其版本前缀。
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
 	if isDirectGateway(a.baseURL) {
 		return fmt.Sprintf("%s/contents/generations/tasks", a.baseURL), nil
@@ -128,17 +130,31 @@ func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) 
 	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
 }
 
-// isDirectGateway 判断上游是否为直连云厂商网关（ARK 风格 API 挂在 /v1 下，如天翼云息壤）。
-// 与之相对的是本地 seedance-proxy 形态（base_url 为代理地址，不以此结尾）。
+// isDirectGateway 判断上游是否为直连云厂商网关（base_url 已含 API 版本前缀）。
+// 命中时直接拼接 /contents/generations/tasks，不再追加 /api/v3，也无需 ?model= 参数。
 func isDirectGateway(baseURL string) bool {
-	return strings.HasSuffix(baseURL, "/v1")
+	return strings.HasSuffix(baseURL, "/v1") || strings.HasSuffix(baseURL, "/api/v3")
+}
+
+// isCMCCMaaS 判断上游是否为移动云 MaaS 直连网关（base_url 以 /api/v3 结尾）。
+// 移动云网关要求创建任务前通过 POST /mapping/query 把控制台订购的友好模型名
+// （如 doubao-seedance-2.0）解析为网关内部真实 endpoint，作为请求体 model 字段。
+func isCMCCMaaS(baseURL string) bool {
+	return strings.HasSuffix(baseURL, "/api/v3")
 }
 
 // BuildRequestHeader sets required headers.
-func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	// 移动云 MaaS 直连：当输入含参考视频时，官方 SDK 会附带 Input-Has-Video 头，
+	// 网关据此路由多模态参考视频输入。
+	if isCMCCMaaS(a.baseURL) {
+		if taskReq, err := relaycommon.GetTaskRequest(c); err == nil && hasVideoInput(taskReq) {
+			req.Header.Set("Input-Has-Video", "true")
+		}
+	}
 	return nil
 }
 
@@ -174,6 +190,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		body.Model = info.UpstreamModelName
 	} else {
 		info.UpstreamModelName = body.Model
+	}
+	// 移动云 MaaS 直连：创建前用 /mapping/query 把友好模型名解析为网关内部真实 endpoint。
+	// 解析失败（或返回空 endpoint）时回退使用友好模型名，与官方 SDK 行为一致。
+	if isCMCCMaaS(a.baseURL) {
+		if resolved, err := a.resolveModelMapping(info, body.Model); err == nil && resolved != "" {
+			body.Model = resolved
+		}
 	}
 	data, err := common.Marshal(body)
 	if err != nil {
@@ -218,8 +241,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 }
 
 // FetchTask fetch task status.
-// 代理要求通过 ?model= 传递模型名以复用对应 SDK Client（缺省时使用代理默认模型）。
-// 直连云厂商网关（base_url 以 /v1 结尾）不接受 ?model= 参数（返回 taskid is mismatch），
+// 本地 seedance-proxy 要求通过 ?model= 传递模型名以复用对应 SDK Client（缺省时使用代理默认模型）。
+// 直连云厂商网关（base_url 以 /v1 或 /api/v3 结尾）不接受 ?model= 参数（返回 taskid is mismatch），
 // 且公开路径为 /contents/generations/tasks（无 /api/v3 前缀）。
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
@@ -299,6 +322,73 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	return &r, nil
 }
 
+type mappingQueryResponse struct {
+	Endpoint string `json:"endpoint"`
+}
+
+// resolveModelMapping 调用移动云 MaaS 的 /mapping/query 接口，把控制台友好模型名
+// （如 doubao-seedance-2.0）解析为网关内部真实 endpoint。解析失败返回错误，
+// 由调用方回退使用友好模型名。
+func (a *TaskAdaptor) resolveModelMapping(info *relaycommon.RelayInfo, model string) (string, error) {
+	if model == "" {
+		return "", nil
+	}
+	base := strings.TrimSuffix(a.baseURL, "/")
+	payload, err := common.Marshal(map[string]string{"model": model})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, base+"/mapping/query", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+
+	client, err := service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
+	if err != nil {
+		return "", fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("mapping query failed with status %d: %s", resp.StatusCode, respBody)
+	}
+	var m mappingQueryResponse
+	if err := common.Unmarshal(respBody, &m); err != nil {
+		return "", errors.Wrapf(err, "unmarshal mapping response failed: %s", respBody)
+	}
+	return m.Endpoint, nil
+}
+
+// hasVideoInput 判断任务请求是否包含参考视频输入（content 中 type == "video_url"）。
+func hasVideoInput(req relaycommon.TaskSubmitReq) bool {
+	content, ok := req.Metadata["content"]
+	if !ok {
+		return false
+	}
+	list, ok := content.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range list {
+		if m, ok := item.(map[string]interface{}); ok {
+			if t, _ := m["type"].(string); t == "video_url" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	resTask := responseTask{}
 	if err := common.Unmarshal(respBody, &resTask); err != nil {
@@ -319,8 +409,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		// 直连云厂商网关（base_url 以 /v1 结尾）直接返回 TOS 签名直链（如天翼云息壤），
-		// 轮询逻辑会存入 PrivateData.ResultURL，VideoProxy default 分支原样直传；
+		// 直连云厂商网关（base_url 以 /v1 或 /api/v3 结尾，如天翼云息壤、移动云 MaaS）
+		// 直接返回可下载的视频直链（明文模式 / TOS 签名直链），轮询逻辑会存入
+		// PrivateData.ResultURL，VideoProxy default 分支原样直传；
 		// 本地 seedance-proxy 形态的视频必须经代理 /download 端点 RSA 解密，
 		// 留空后由轮询逻辑生成指向本系统内容代理的 URL（VideoProxy 会走 /download）。
 		if isDirectGateway(a.baseURL) {
