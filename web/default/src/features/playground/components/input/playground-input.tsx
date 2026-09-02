@@ -129,8 +129,11 @@ export function PlaygroundInput({
         {isVideoModel && (
           <VideoParameterControls
             disabled={disabled}
+            model={modelValue}
             onChange={setVideoParams}
+            onVideoDurationChange={setVideoDuration}
             value={videoParams}
+            videoDuration={videoDuration}
           />
         )}
 
@@ -141,15 +144,12 @@ export function PlaygroundInput({
             groupValue={groupValue}
             isGenerating={isGenerating}
             isModelLoading={isModelLoading}
-            isVideoModel={isVideoModel}
             models={models}
             modelValue={modelValue}
             onGroupChange={onGroupChange}
             onModelChange={onModelChange}
             onStop={onStop}
-            onVideoDurationChange={setVideoDuration}
             text={text}
-            videoDuration={videoDuration}
             tools={
               <PlaygroundInputTools
                 disabled={disabled}

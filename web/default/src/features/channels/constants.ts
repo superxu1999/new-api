@@ -78,6 +78,8 @@ export const CHANNEL_TYPES = {
   57: 'ChatGPT Subscription (Codex)',
   58: 'Advanced Custom',
   59: 'Seedance',
+  60: 'GlobalAiOpc Seedance',
+  61: 'Foxtoken',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [

@@ -241,7 +241,8 @@ export function useVideoChatHandler() {
             model: options.model,
             prompt: options.prompt,
           }
-          if (options.duration && options.duration > 0) {
+          // duration 为 -1(自动) 时也要发送,让上游自行选择;仅 0/未填时不传(上游默认)
+          if (options.duration && options.duration !== 0) {
             body.duration = options.duration
           }
           const metadata: Record<string, unknown> = {}

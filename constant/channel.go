@@ -57,6 +57,8 @@ const (
 	ChannelTypeCodex          = 57
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSeedance       = 59
+	ChannelTypeGlobalaiopc    = 60
+	ChannelTypeFoxtoken       = 61
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -122,6 +124,8 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"",                                          //58
 	"",                                          //59
+	"https://zcbservice.aizfw.cn/kyyReactApiServer", //60 GlobalAiOpc
+	"https://ai.hwdrama.com",                    //61 Foxtoken (适配器拼 /v1/video/generations)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +185,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeSeedance:       "Seedance",
+	ChannelTypeGlobalaiopc:    "GlobalAiOpc Seedance",
+	ChannelTypeFoxtoken:       "Foxtoken",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -21,29 +21,55 @@ import { useTranslation } from 'react-i18next'
 import type { VideoGenerationParams } from '../../types'
 
 const RATIO_OPTIONS = ['', '16:9', '9:16', '1:1', '4:3', '3:4', '21:9']
+// 各上游支持的分辨率不同:多数 seedance 源支持 480p/720p/1080p,GlobalAiOpc 只认 720p/1080p/2k/4k
 const RESOLUTION_OPTIONS = ['', '480p', '720p', '1080p']
+const GLOBALAIOPC_RESOLUTION_OPTIONS = ['', '720p', '1080p', '2k', '4k']
+// Seed 为非负随机种子;留空表示随机,相同 seed + prompt 结果更接近
+const SEED_MIN = 0
+const SEED_MAX = 2147483647
+
+function resolutionOptionsFor(model?: string): string[] {
+  return model?.includes('globalaiopc')
+    ? GLOBALAIOPC_RESOLUTION_OPTIONS
+    : RESOLUTION_OPTIONS
+}
 
 type VideoParameterControlsProps = {
   disabled?: boolean
+  model?: string
   value: VideoGenerationParams
   onChange: (params: VideoGenerationParams) => void
+  videoDuration?: string
+  onVideoDurationChange?: (value: string) => void
 }
 
+/** 时长为选中项之一;其它取值(如空串)时回退到 11,避免显示为空 */
+const DURATION_OPTIONS = [-1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
 /**
- * 视频生成参数行(仅视频模型显示):比例/分辨率/水印/音频/seed。
- * 值通过 body.metadata 透传给上游(移动云/百拓)。
+ * 视频生成参数行(仅视频模型显示):时长/比例/分辨率/水印/音频/seed。
+ * 值通过 body.metadata 透传给上游(移动云/百拓/GlobalAiOpc)。
  */
 export function VideoParameterControls({
   disabled,
+  model,
   value,
   onChange,
+  videoDuration = '11',
+  onVideoDurationChange,
 }: VideoParameterControlsProps) {
   const { t } = useTranslation()
 
   const set = (patch: Partial<VideoGenerationParams>) =>
     onChange({ ...value, ...patch })
 
-  // 控件统一 h-8,与 footer 时长输入/按钮同高,保证整条输入区基准线一致
+  // 当前模型对应的合法分辨率选项;若已选值不在其中,回退到默认(空=上游默认)
+  const resolutionOptions = resolutionOptionsFor(model)
+  const curResolution = resolutionOptions.includes(value.resolution ?? '')
+    ? (value.resolution ?? '')
+    : ''
+
+  // 控件统一 h-8,与 footer 输入/按钮同高,保证整条输入区基准线一致
   const controlCls =
     'border-border/40 bg-background h-8 rounded-md border px-2 text-xs'
 
@@ -58,14 +84,34 @@ export function VideoParameterControls({
 
   return (
     <div className='border-border/40 bg-muted/10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3 py-2 text-xs text-muted-foreground'>
-      {/* 输入型参数:比例 / 分辨率 / 随机种子 */}
+      {/* 输入型参数:时长 / 比例 / 分辨率 / 随机种子 */}
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+        <label className='flex items-center gap-1.5'>
+          <span className='shrink-0'>{t('Duration (s)')}</span>
+          <select
+            className={selectCls}
+            disabled={disabled}
+            onChange={(e) => onVideoDurationChange?.(e.target.value)}
+            title={t('4-15 seconds, or -1 for automatic')}
+            value={DURATION_OPTIONS.includes(Number(videoDuration))
+              ? videoDuration
+              : '11'}
+          >
+            {DURATION_OPTIONS.map((s) => (
+              <option key={s} value={String(s)}>
+                {s === -1 ? t('Auto') : s}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label className='flex items-center gap-1.5'>
           <span className='shrink-0'>{t('Aspect ratio')}</span>
           <select
             className={selectCls}
             disabled={disabled}
             onChange={(e) => set({ ratio: e.target.value || undefined })}
+            title={t('Aspect ratio of the generated video')}
             value={value.ratio ?? ''}
           >
             {RATIO_OPTIONS.map((r) => (
@@ -82,9 +128,10 @@ export function VideoParameterControls({
             className={selectCls}
             disabled={disabled}
             onChange={(e) => set({ resolution: e.target.value || undefined })}
-            value={value.resolution ?? ''}
+            title={t('Resolution of the generated video')}
+            value={curResolution}
           >
-            {RESOLUTION_OPTIONS.map((r) => (
+            {resolutionOptions.map((r) => (
               <option key={r} value={r}>
                 {r === '' ? t('Default') : r}
               </option>
@@ -97,12 +144,20 @@ export function VideoParameterControls({
           <input
             className={`${controlCls} w-20`}
             disabled={disabled}
-            min={-1}
+            max={SEED_MAX}
+            min={SEED_MIN}
             onChange={(e) => {
               const raw = e.target.value
-              set({ seed: raw === '' ? undefined : Number(raw) })
+              if (raw === '') {
+                set({ seed: undefined })
+                return
+              }
+              const num = Number(raw)
+              set({ seed: Number.isNaN(num) ? undefined : Math.trunc(num) })
             }}
-            placeholder='-1'
+            placeholder='0'
+            step={1}
+            title={t('Random seed; leave empty for random')}
             type='number'
             value={value.seed ?? ''}
           />

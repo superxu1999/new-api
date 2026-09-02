@@ -34,6 +34,8 @@ import (
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
+	taskfoxtoken "github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
+	taskglobalaiopc "github.com/QuantumNous/new-api/relay/channel/task/globalaiopc"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
@@ -159,6 +161,10 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskdoubao.TaskAdaptor{}
 		case constant.ChannelTypeSeedance:
 			return &taskseedance.TaskAdaptor{}
+		case constant.ChannelTypeGlobalaiopc:
+			return &taskglobalaiopc.TaskAdaptor{}
+		case constant.ChannelTypeFoxtoken:
+			return &taskfoxtoken.TaskAdaptor{}
 		case constant.ChannelTypeSora, constant.ChannelTypeOpenAI:
 			return &tasksora.TaskAdaptor{}
 		case constant.ChannelTypeGemini:
