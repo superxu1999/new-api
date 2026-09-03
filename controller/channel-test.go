@@ -185,7 +185,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		channel.Type == constant.ChannelTypeSeedance ||
 		channel.Type == constant.ChannelTypeVidu ||
 		channel.Type == constant.ChannelTypeGlobalaiopc ||
-		channel.Type == constant.ChannelTypeFoxtoken {
+		channel.Type == constant.ChannelTypeFoxtoken ||
+		channel.Type == constant.ChannelTypeCyai {
 		return testVideoTaskChannel(ctx, c, w, channel, testUserID, testModel)
 	}
 

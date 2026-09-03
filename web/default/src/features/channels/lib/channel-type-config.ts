@@ -144,6 +144,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://www.cyai.club',
+    hints: {
+      baseUrl: 'Default: https://www.cyai.club',
+      key: 'CyAI API Key',
+      models: 'doubao-seedance-2-0-260128,doubao-seedance-2-0-fast-260128,doubao-seedance-2-0-mini-260615,doubao-seedance-2-5-260628',
+    },
+  },
 }
 
 /**

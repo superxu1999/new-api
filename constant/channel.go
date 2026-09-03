@@ -59,6 +59,7 @@ const (
 	ChannelTypeSeedance       = 59
 	ChannelTypeGlobalaiopc    = 60
 	ChannelTypeFoxtoken       = 61
+	ChannelTypeCyai           = 62
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -126,6 +127,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //59
 	"https://zcbservice.aizfw.cn/kyyReactApiServer", //60 GlobalAiOpc
 	"https://ai.hwdrama.com",                    //61 Foxtoken (适配器拼 /v1/video/generations)
+	"https://www.cyai.club",                     //62 CyAI Seedance (适配器拼 /v1/video/generations)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -187,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSeedance:       "Seedance",
 	ChannelTypeGlobalaiopc:    "GlobalAiOpc Seedance",
 	ChannelTypeFoxtoken:       "Foxtoken",
+	ChannelTypeCyai:           "CyAI Seedance",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -105,6 +105,7 @@ export function getChannelTypeIcon(type: number): string {
     59: 'Doubao', // Seedance
     60: 'Doubao', // GlobalAiOpc Seedance
     61: 'Doubao', // Foxtoken
+     62: 'Doubao', // CyAI Seedance
 
     // Tools & Platforms
     37: 'Dify', // Dify
