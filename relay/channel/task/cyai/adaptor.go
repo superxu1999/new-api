@@ -48,11 +48,23 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		body.Duration = lo.ToPtr(req.Duration)
 	}
 	// CyAI 上游不接受 -1(自动) 时长:此处省略 duration,交由上游默认(5s)
-	body.Metadata = req.Metadata
+	// CyAI 上游必须携带非空 resolution,否则 400(does not support resolution "")
+	body.Metadata = normalizeResolution(req.Metadata)
 
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal request body failed")
 	}
 	return bytes.NewReader(data), nil
+}
+
+// normalizeResolution 保证 CyAI 请求携带非空清晰度;缺省或为空统一用 720p。
+func normalizeResolution(meta map[string]any) map[string]any {
+	if meta == nil {
+		meta = map[string]any{}
+	}
+	if r, _ := meta["resolution"].(string); r == "" {
+		meta["resolution"] = "720p"
+	}
+	return meta
 }
