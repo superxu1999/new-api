@@ -21,17 +21,18 @@ import { useTranslation } from 'react-i18next'
 import type { VideoGenerationParams } from '../../types'
 
 const RATIO_OPTIONS = ['', '16:9', '9:16', '1:1', '4:3', '3:4', '21:9']
-// 各上游支持的分辨率不同:多数 seedance 源支持 480p/720p/1080p,GlobalAiOpc 只认 720p/1080p/2k/4k
+// 各上游支持的分辨率不同:多数 seedance 源支持 480p/720p/1080p,GlobalAiOpc 只认 720p/1080p/2k/4k,CyAI 只认 480p/720p/1080p/4k(不接受 2k)
 const RESOLUTION_OPTIONS = ['', '480p', '720p', '1080p']
 const GLOBALAIOPC_RESOLUTION_OPTIONS = ['', '720p', '1080p', '2k', '4k']
+const CYAI_RESOLUTION_OPTIONS = ['', '480p', '720p', '1080p', '4k']
 // Seed 为非负随机种子;留空表示随机,相同 seed + prompt 结果更接近
 const SEED_MIN = 0
 const SEED_MAX = 2147483647
 
 function resolutionOptionsFor(model?: string): string[] {
-  return model?.includes('globalaiopc')
-    ? GLOBALAIOPC_RESOLUTION_OPTIONS
-    : RESOLUTION_OPTIONS
+  if (model?.includes('globalaiopc')) return GLOBALAIOPC_RESOLUTION_OPTIONS
+  if (model?.includes('cyai')) return CYAI_RESOLUTION_OPTIONS
+  return RESOLUTION_OPTIONS
 }
 
 type VideoParameterControlsProps = {
@@ -45,6 +46,12 @@ type VideoParameterControlsProps = {
 
 /** 时长为选中项之一;其它取值(如空串)时回退到 11,避免显示为空 */
 const DURATION_OPTIONS = [-1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+// CyAI 上游不支持 -1(自动) 时长,去掉该项,避免上报 400 invalid_seconds
+const CYAI_DURATION_OPTIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+function durationOptionsFor(model?: string): number[] {
+  return model?.includes('cyai') ? CYAI_DURATION_OPTIONS : DURATION_OPTIONS
+}
 
 /**
  * 视频生成参数行(仅视频模型显示):时长/比例/分辨率/水印/音频/seed。
@@ -68,6 +75,9 @@ export function VideoParameterControls({
   const curResolution = resolutionOptions.includes(value.resolution ?? '')
     ? (value.resolution ?? '')
     : ''
+
+  // 当前模型对应的合法时长选项(CyAI 不支持 -1 自动)
+  const durationOptions = durationOptionsFor(model)
 
   // 控件统一 h-8,与 footer 输入/按钮同高,保证整条输入区基准线一致
   const controlCls =
@@ -93,11 +103,11 @@ export function VideoParameterControls({
             disabled={disabled}
             onChange={(e) => onVideoDurationChange?.(e.target.value)}
             title={t('4-15 seconds, or -1 for automatic')}
-            value={DURATION_OPTIONS.includes(Number(videoDuration))
+            value={durationOptions.includes(Number(videoDuration))
               ? videoDuration
               : '11'}
           >
-            {DURATION_OPTIONS.map((s) => (
+            {durationOptions.map((s) => (
               <option key={s} value={String(s)}>
                 {s === -1 ? t('Auto') : s}
               </option>
