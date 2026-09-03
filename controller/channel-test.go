@@ -1072,9 +1072,15 @@ func TestAllChannels(c *gin.Context) {
 }
 
 func buildVideoTestRequestBody(model string) []byte {
+	// 视频任务渠道测试:统一带上默认时长与清晰度,避免 GlobalAiOpc 等要求必填 duration 的适配器报缺少参数。
 	body, _ := common.Marshal(map[string]interface{}{
-		"model":   model,
-		"prompt":  "test",
+		"model":    model,
+		"prompt":   "test",
+		"duration": 5,
+		"metadata": map[string]interface{}{
+			"resolution": "720p",
+			"ratio":      "16:9",
+		},
 	})
 	return body
 }
