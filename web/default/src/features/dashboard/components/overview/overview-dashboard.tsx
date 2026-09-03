@@ -170,6 +170,18 @@ function buildCurlCommand(args: {
   apiKey: string
   model: string
 }): string {
+  // 视频/任务模型(seedance/kling/veo/sora/vidu 等)只能走视频接口,示例需用 video/generations
+  if (/sora|veo|kling|pika|video|wan-|hunyuanvideo|seedance/i.test(args.model)) {
+    const videoEndpoint = args.endpoint
+      .replace(/\/v1\/chat\/completions$/, '/v1/video/generations')
+      .replace(/\/chat\/completions$/, '/v1/video/generations')
+    return [
+      `curl -X POST ${videoEndpoint} \\`,
+      '  -H "Content-Type: application/json" \\',
+      `  -H "Authorization: Bearer ${args.apiKey}" \\`,
+      `  -d '{"model":"${args.model}","prompt":"a cat running on green grass","duration":5,"metadata":{"resolution":"720p","ratio":"16:9"}}'`,
+    ].join('\n')
+  }
   return [
     `curl ${args.endpoint} \\`,
     '  -H "Content-Type: application/json" \\',
