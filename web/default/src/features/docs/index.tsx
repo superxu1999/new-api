@@ -47,8 +47,8 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
 
 function Section(props: { id: string; title: string; children: ReactNode }) {
   return (
-    <section id={props.id} className='scroll-mt-20 space-y-3'>
-      <h2 className='text-lg font-semibold'>{props.title}</h2>
+    <section id={props.id} className='scroll-mt-20 space-y-4'>
+      <h2 className='text-xl font-semibold'>{props.title}</h2>
       {props.children}
     </section>
   )
@@ -56,8 +56,8 @@ function Section(props: { id: string; title: string; children: ReactNode }) {
 
 function Sub(props: { id?: string; title: string; children: ReactNode }) {
   return (
-    <div id={props.id} className='scroll-mt-20 space-y-2'>
-      <h3 className='text-sm font-semibold'>{props.title}</h3>
+    <div id={props.id} className='scroll-mt-20 space-y-2.5'>
+      <h3 className='text-base font-semibold'>{props.title}</h3>
       {props.children}
     </div>
   )
@@ -65,14 +65,14 @@ function Sub(props: { id?: string; title: string; children: ReactNode }) {
 
 function Code(props: { children: string }) {
   return (
-    <pre className='bg-muted/60 overflow-x-auto rounded-lg border p-3 text-xs leading-relaxed'>
+    <pre className='bg-muted/60 overflow-x-auto rounded-lg border p-4 text-[13px] leading-6'>
       <code>{props.children}</code>
     </pre>
   )
 }
 
 function ET(props: { title: string }) {
-  return <p className='text-xs font-medium'>{props.title}</p>
+  return <p className='text-[13px] font-medium'>{props.title}</p>
 }
 
 /** 方法徽章（GET 蓝 / POST 绿 / DELETE 红） */
@@ -97,7 +97,7 @@ function Endpoint(props: { method: 'GET' | 'POST' | 'DELETE'; path: string }) {
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <MethodChip method={props.method} />
-      <code className='text-xs font-medium break-all'>{props.path}</code>
+      <code className='text-[13px] font-medium break-all'>{props.path}</code>
     </div>
   )
 }
@@ -106,8 +106,8 @@ function Endpoint(props: { method: 'GET' | 'POST' | 'DELETE'; path: string }) {
 function Callout(props: { title?: string; children: ReactNode }) {
   return (
     <div className='border-primary/25 bg-primary/5 rounded-lg border-l-2 border-l-primary px-3 py-2'>
-      {props.title && <p className='text-primary text-xs font-semibold'>{props.title}</p>}
-      <div className='text-xs'>{props.children}</div>
+      {props.title && <p className='text-primary text-[13px] font-semibold'>{props.title}</p>}
+      <div className='text-[13px]'>{props.children}</div>
     </div>
   )
 }
@@ -115,11 +115,11 @@ function Callout(props: { title?: string; children: ReactNode }) {
 function T(props: { headers: string[]; rows: string[][] }) {
   return (
     <div className='overflow-x-auto rounded-lg border'>
-      <table className='w-full text-xs'>
+      <table className='w-full text-[13px]'>
         <thead className='bg-muted/60'>
           <tr>
             {props.headers.map((h) => (
-              <th key={h} className='px-3 py-2 text-left font-medium'>
+              <th key={h} className='px-4 py-2.5 text-left font-medium'>
                 {h}
               </th>
             ))}
@@ -129,7 +129,7 @@ function T(props: { headers: string[]; rows: string[][] }) {
           {props.rows.map((row, i) => (
             <tr key={i} className='hover:bg-muted/30 border-t'>
               {row.map((cell, j) => (
-                <td key={j} className='px-3 py-2 align-top'>
+                <td key={j} className='px-4 py-2.5 align-top'>
                   {cell}
                 </td>
               ))}
@@ -171,10 +171,10 @@ export function Docs() {
   }
 
   return (
-    <div className='mx-auto max-w-6xl px-4 py-8'>
+    <div className='mx-auto max-w-6xl px-4 py-10'>
       <div className='flex gap-10'>
         <nav className='sticky top-20 hidden h-fit shrink-0 lg:block'>
-          <p className='text-muted-foreground mb-3 px-3 text-xs font-medium tracking-wider uppercase'>
+          <p className='text-muted-foreground mb-3 px-3 text-[13px] font-medium tracking-wider uppercase'>
             {t('目录')}
           </p>
           <ul className='space-y-0.5 text-sm'>
@@ -202,7 +202,7 @@ export function Docs() {
                             type='button'
                             onClick={() => scrollTo(s.id)}
                             className={cn(
-                              'hover:text-primary hover:bg-muted/60 w-full rounded-md px-3 py-1 text-left text-xs transition-colors',
+                              'hover:text-primary hover:bg-muted/60 w-full rounded-md px-3 py-1 text-left text-[13px] transition-colors',
                               activeId === s.id
                                 ? 'text-primary bg-muted/60 font-medium'
                                 : 'text-muted-foreground'
@@ -220,8 +220,8 @@ export function Docs() {
           </ul>
         </nav>
 
-        <div className='min-w-0 flex-1 space-y-8'>
-          <div className='bg-card/60 space-y-4 rounded-2xl border p-6'>
+        <div className='min-w-0 flex-1 space-y-10'>
+          <div className='bg-card/60 space-y-5 rounded-2xl border p-8'>
             <div className='space-y-1'>
               <h1 className='text-2xl font-bold'>{t('基加BASEADD 接口指引')}</h1>
               <p className='text-muted-foreground text-sm'>
@@ -239,7 +239,7 @@ export function Docs() {
                   <p className='text-muted-foreground text-[10px] tracking-wide uppercase'>
                     {k}
                   </p>
-                  <p className='font-mono text-xs font-medium'>{v}</p>
+                  <p className='font-mono text-[13px] font-medium'>{v}</p>
                 </div>
               ))}
             </div>
@@ -255,19 +255,19 @@ export function Docs() {
                 ['Content-Type', 'application/json（音频上传为 multipart/form-data）'],
               ]}
             />
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('所有接口都需要携带 API Key，否则返回 401。API Key 与账号额度、可用模型绑定。')}
             </p>
           </Section>
 
           <Section id='sec-2' title={t('2. 快速开始')}>
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('第 1 步：查询可用模型，获取 model id。')}
             </p>
             <ET title={t('请求示例')} />
             <Code>{`GET /v1/models
 Authorization: Bearer sk-...`}</Code>
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('第 2 步：用获取的 model id 发起一次视频任务。')}
             </p>
             <ET title={t('请求示例')} />
@@ -294,13 +294,13 @@ Authorization: Bearer sk-...`}</Code>
                 ['模型', 'GET /v1/models', '查询当前可用模型'],
               ]}
             />
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('各能力接口相互独立，按需调用。同一能力内，传不同的模型 ID 即可使用不同的模型/规格。')}
             </p>
           </Section>
 
           <Section id='sec-4' title={t('4. 查询可用模型')}>
-            <p className='text-xs'>{t('模型会随平台上架/下架变化，请以本接口返回为准。')}</p>
+            <p className='text-[13px]'>{t('模型会随平台上架/下架变化，请以本接口返回为准。')}</p>
             <Endpoint method='GET' path='/v1/models' />
             <ET title={t('请求示例')} />
             <Code>{`curl https://baseadd.vip/v1/models \\
@@ -331,7 +331,7 @@ Authorization: Bearer sk-...`}</Code>
 
           <Section id='sec-5' title={t('5. 对话（Chat）')}>
             <Endpoint method='POST' path='/v1/chat/completions' />
-            <p className='text-xs'>{t('支持流式返回（stream:true，SSE）与非流式返回。')}</p>
+            <p className='text-[13px]'>{t('支持流式返回（stream:true，SSE）与非流式返回。')}</p>
             <ET title={t('请求参数')} />
             <T
               headers={['字段', '类型', '必填', '说明']}
@@ -381,7 +381,7 @@ Authorization: Bearer sk-...`}</Code>
               />
             </Sub>
             <Sub title={t('5.2 流式（SSE）')}>
-              <p className='text-xs'>{t('stream 传 true，返回 text/event-stream，逐段输出 data: {...}。')}</p>
+              <p className='text-[13px]'>{t('stream 传 true，返回 text/event-stream，逐段输出 data: {...}。')}</p>
               <ET title={t('请求示例')} />
               <Code>{`curl -N -X POST https://baseadd.vip/v1/chat/completions \\
   -H "Content-Type: application/json" \\
@@ -457,7 +457,7 @@ data: [DONE]`}</Code>
               />
             </Sub>
             <Sub id='sec-6-2' title={t('6.2 图生视频')}>
-              <p className='text-xs'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
+              <p className='text-[13px]'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
@@ -477,7 +477,7 @@ data: [DONE]`}</Code>
 }`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
-              <p className='text-xs'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
+              <p className='text-[13px]'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
               <ET title={t('请求示例（video_url 方式）')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
@@ -509,7 +509,7 @@ data: [DONE]`}</Code>
   "completed_at": 1788491754,
   "metadata": { "url": "https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content" }
 }`}</Code>
-              <p className='text-xs'>
+              <p className='text-[13px]'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
               <ET title={t('状态说明')} />
@@ -530,7 +530,7 @@ data: [DONE]`}</Code>
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
               <ET title={t('响应说明')} />
-              <p className='text-xs'>{t('任务完成后返回 video/mp4 二进制内容；未完成时返回错误 JSON。')}</p>
+              <p className='text-[13px]'>{t('任务完成后返回 video/mp4 二进制内容；未完成时返回错误 JSON。')}</p>
             </Sub>
           </Section>
 
@@ -564,7 +564,7 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-8' title={t('8. 向量（Embeddings）')}>
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('把文本转换为向量，用于语义搜索、知识库检索（RAG）、推荐、聚类等场景。')}
             </p>
             <Endpoint method='POST' path='/v1/embeddings' />
@@ -618,10 +618,10 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-10' title={t('10. 其它兼容接口')}>
-            <p className='text-xs'>{t('以下接口为按需提供的兼容接口，模型上线后即可使用。')}</p>
+            <p className='text-[13px]'>{t('以下接口为按需提供的兼容接口，模型上线后即可使用。')}</p>
             <Sub title={t('10.1 Response API')}>
-              <p className='text-xs'>POST /v1/responses　·　POST /v1/responses/compact</p>
-              <p className='text-xs'>{t('输出结构化响应，支持 reasoning、输出 schema（JSON）等）。')}</p>
+              <p className='text-[13px]'>POST /v1/responses　·　POST /v1/responses/compact</p>
+              <p className='text-[13px]'>{t('输出结构化响应，支持 reasoning、输出 schema（JSON）等）。')}</p>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/responses \\
   -H "Content-Type: application/json" \\
@@ -629,7 +629,7 @@ data: [DONE]`}</Code>
   -d '{"model":"<model-id>","input":"who won the world cup in 2018?"}'`}</Code>
             </Sub>
             <Sub title={t('10.2 Claude 兼容（Anthropic）')}>
-              <p className='text-xs'>POST /v1/messages</p>
+              <p className='text-[13px]'>POST /v1/messages</p>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/messages \\
   -H "Content-Type: application/json" \\
@@ -637,14 +637,14 @@ data: [DONE]`}</Code>
   -d '{"model":"<model-id>","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'`}</Code>
             </Sub>
             <Sub title={t('10.3 Gemini 兼容')}>
-              <p className='text-xs'>POST /v1beta/models/*path　·　GET /v1beta/models</p>
+              <p className='text-[13px]'>POST /v1beta/models/*path　·　GET /v1beta/models</p>
             </Sub>
             <Sub title={t('10.4 重排（Rerank）')}>
-              <p className='text-xs'>POST /v1/rerank</p>
-              <p className='text-xs'>{t('对候选文档按与查询的相关度重排，常用于检索增强。')}</p>
+              <p className='text-[13px]'>POST /v1/rerank</p>
+              <p className='text-[13px]'>{t('对候选文档按与查询的相关度重排，常用于检索增强。')}</p>
             </Sub>
             <Sub title={t('10.5 内容审核（Moderations）')}>
-              <p className='text-xs'>POST /v1/moderations</p>
+              <p className='text-[13px]'>POST /v1/moderations</p>
             </Sub>
             <Sub title={t('10.6 扩展工具（按需开通）')}>
               <T
@@ -655,7 +655,7 @@ data: [DONE]`}</Code>
                   ['实时语音', '/v1/realtime（WebSocket）'],
                 ]}
               />
-              <p className='text-xs'>{t('以上为专用工具接口，需平台开通对应能力后可用；具体请求格式可另行咨询。')}</p>
+              <p className='text-[13px]'>{t('以上为专用工具接口，需平台开通对应能力后可用；具体请求格式可另行咨询。')}</p>
             </Sub>
           </Section>
 
@@ -672,7 +672,7 @@ data: [DONE]`}</Code>
                 ['invalid_response', '400', '缺少必填参数', '按参数表补全必填项'],
               ]}
             />
-            <p className='text-xs'>
+            <p className='text-[13px]'>
               {t('错误响应结构：{"error": {"message": "...", "code": "...", "type": "new_api_error"}}。')}
             </p>
           </Section>
