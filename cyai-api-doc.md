@@ -6,7 +6,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| **Base URL** | `https://<你的接入域名>` |
+| **Base URL** | `https://baseadd.vip` |
 | **认证方式** | 请求头 `Authorization: Bearer <API Key>` |
 | **API Key** | `sk-...`（由平台分配） |
 | **Content-Type** | `application/json` |
@@ -58,7 +58,7 @@
 ### 请求示例
 
 ```bash
-curl -X POST "https://<你的接入域名>/v1/video/generations" \
+curl -X POST "https://baseadd.vip/v1/video/generations" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer sk-..." \
   -d '{
@@ -87,7 +87,7 @@ curl -X POST "https://<你的接入域名>/v1/video/generations" \
 **`GET /v1/video/generations/{task_id}`**
 
 ```bash
-curl "https://<你的接入域名>/v1/video/generations/task_xxx" \
+curl "https://baseadd.vip/v1/video/generations/task_xxx" \
   -H "Authorization: Bearer sk-..."
 ```
 
@@ -98,7 +98,7 @@ curl "https://<你的接入域名>/v1/video/generations/task_xxx" \
 **`GET /v1/videos/{task_id}/content`**
 
 ```bash
-curl -L "https://<你的接入域名>/v1/videos/task_xxx/content" \
+curl -L "https://baseadd.vip/v1/videos/task_xxx/content" \
   -H "Authorization: Bearer sk-..." \
   -o output.mp4
 ```

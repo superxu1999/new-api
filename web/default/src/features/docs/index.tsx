@@ -82,7 +82,7 @@ export function Docs() {
           <DocTable
             headers={['项', '值']}
             rows={[
-              ['Base URL', 'https://<你的接入域名>'],
+              ['Base URL', 'https://baseadd.vip'],
               ['认证方式', 'Authorization: Bearer <API Key>'],
               ['API Key', 'sk-...（由平台分配）'],
               ['Content-Type', 'application/json'],
@@ -122,7 +122,7 @@ export function Docs() {
               ['metadata.seed', 'integer', '否', '随机种子'],
             ]}
           />
-          <CodeBlock>{`curl -X POST "https://<你的接入域名>/v1/video/generations" \\
+          <CodeBlock>{`curl -X POST "https://baseadd.vip/v1/video/generations" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -144,7 +144,7 @@ export function Docs() {
 
         <Section title={t('4. 查询任务状态')}>
           <p className='text-xs font-medium'>GET /v1/video/generations/&#123;task_id&#125;</p>
-          <CodeBlock>{`curl "https://<你的接入域名>/v1/video/generations/task_xxx" \\
+          <CodeBlock>{`curl "https://baseadd.vip/v1/video/generations/task_xxx" \\
   -H "Authorization: Bearer sk-..."`}</CodeBlock>
           <p className='text-xs'>
             {t('状态流转：QUEUED → IN_PROGRESS → SUCCESS / FAILURE。SUCCESS 后可从 result_url 获取成片。')}
@@ -153,7 +153,7 @@ export function Docs() {
 
         <Section title={t('5. 下载成片')}>
           <p className='text-xs font-medium'>GET /v1/videos/&#123;task_id&#125;/content</p>
-          <CodeBlock>{`curl -L "https://<你的接入域名>/v1/videos/task_xxx/content" \\
+          <CodeBlock>{`curl -L "https://baseadd.vip/v1/videos/task_xxx/content" \\
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</CodeBlock>
         </Section>
