@@ -21,16 +21,15 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-// 文档目录（与下方 Section id 对应；sub 为二级目录）
 const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[] = [
   { id: 'sec-1', label: '1. 接入与认证' },
   { id: 'sec-2', label: '2. 快速开始' },
-  { id: 'sec-3', label: '3. 查询可用模型' },
-  { id: 'sec-4', label: '4. 统一接口与能力说明' },
-  { id: 'sec-5', label: '5. AI 对话' },
+  { id: 'sec-3', label: '3. 接口总览' },
+  { id: 'sec-4', label: '4. 查询可用模型' },
+  { id: 'sec-5', label: '5. 对话（Chat）' },
   {
     id: 'sec-6',
-    label: '6. AI 视频（任务式）',
+    label: '6. 视频生成（任务式）',
     sub: [
       { id: 'sec-6-1', label: '6.1 创建视频任务' },
       { id: 'sec-6-2', label: '6.2 图生视频' },
@@ -39,9 +38,9 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-6-5', label: '6.5 下载成片' },
     ],
   },
-  { id: 'sec-7', label: '7. AI 图片' },
-  { id: 'sec-8', label: '8. 向量 Embeddings' },
-  { id: 'sec-9', label: '9. AI 音频' },
+  { id: 'sec-7', label: '7. 图像生成' },
+  { id: 'sec-8', label: '8. 向量（Embeddings）' },
+  { id: 'sec-9', label: '9. 音频' },
   { id: 'sec-10', label: '10. 其它兼容接口' },
   { id: 'sec-11', label: '11. 错误码' },
 ]
@@ -70,6 +69,10 @@ function Code(props: { children: string }) {
       <code>{props.children}</code>
     </pre>
   )
+}
+
+function ET(props: { title: string }) {
+  return <p className='text-xs font-medium'>{props.title}</p>
 }
 
 function T(props: { headers: string[]; rows: string[][] }) {
@@ -105,9 +108,8 @@ export function Docs() {
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string>('')
 
-  // 滚动监听：高亮当前所在章节
   useEffect(() => {
-    const sectionIds = TOC.flatMap((item) => [
+    const ids = TOC.flatMap((item) => [
       item.id,
       ...(item.sub?.map((s) => s.id) ?? []),
     ])
@@ -120,7 +122,7 @@ export function Docs() {
       },
       { rootMargin: '-15% 0px -70% 0px', threshold: [0, 0.25, 0.5] }
     )
-    sectionIds.forEach((id) => {
+    ids.forEach((id) => {
       const el = document.getElementById(id)
       if (el) observer.observe(el)
     })
@@ -134,7 +136,6 @@ export function Docs() {
   return (
     <div className='mx-auto max-w-6xl px-4 py-8'>
       <div className='flex gap-10'>
-        {/* 左侧粘性目录 */}
         <nav className='sticky top-20 hidden h-fit shrink-0 lg:block'>
           <p className='text-muted-foreground mb-3 px-3 text-xs font-medium tracking-wider uppercase'>
             {t('目录')}
@@ -182,15 +183,14 @@ export function Docs() {
           </ul>
         </nav>
 
-        {/* 内容区 */}
         <div className='min-w-0 flex-1 space-y-8'>
           <div className='space-y-2 border-b pb-6'>
             <h1 className='text-2xl font-bold'>{t('基加BASEADD API 接口文档')}</h1>
             <p className='text-muted-foreground text-xs'>
-              Doc Version: 1.0.0 ｜ 适用平台：基加BASEADD 聚合型 AI 接口网关 ｜ 接口风格：OpenAI 兼容
+              Doc Version: 1.0.0 ｜ 适用平台：基加BASEADD ｜ 接口风格：OpenAI 兼容
             </p>
             <p className='text-muted-foreground text-sm'>
-              {t('基加BASEADD 为聚合型 AI 接口网关，对 OpenAI 兼容接口提供统一转发，支持对话、图像、视频、向量、音频等多模态；不同能力对应不同模型，可用模型请通过查询模型接口获取。')}
+              {t('基加BASEADD 提供对话、视频、图像、向量、音频等 AI 能力的统一 API。所有接口遵循 OpenAI 兼容格式，接入简单、各能力独立。')}
             </p>
           </div>
 
@@ -200,17 +200,26 @@ export function Docs() {
               rows={[
                 ['Base URL', 'https://baseadd.vip'],
                 ['认证方式', '请求头 Authorization: Bearer <API Key>'],
-                ['API Key', '在基加BASEADD 控制台创建，绑定账号/分组/额度/模型'],
+                ['API Key', '在基加BASEADD 控制台创建'],
                 ['Content-Type', 'application/json（音频上传为 multipart/form-data）'],
               ]}
             />
+            <p className='text-xs'>
+              {t('所有接口都需要携带 API Key，否则返回 401。API Key 与账号额度、可用模型绑定。')}
+            </p>
           </Section>
 
           <Section id='sec-2' title={t('2. 快速开始')}>
-            <p className='text-xs'>{t('第 1 步：查询可用模型，取 model id。')}</p>
-            <Code>{`curl https://baseadd.vip/v1/models \\
-  -H "Authorization: Bearer sk-..."`}</Code>
-            <p className='text-xs'>{t('第 2 步：用任意模型 id 发起一个视频任务。')}</p>
+            <p className='text-xs'>
+              {t('第 1 步：查询可用模型，获取 model id。')}
+            </p>
+            <ET title={t('请求示例')} />
+            <Code>{`GET /v1/models
+Authorization: Bearer sk-...`}</Code>
+            <p className='text-xs'>
+              {t('第 2 步：用获取的 model id 发起一次视频任务。')}
+            </p>
+            <ET title={t('请求示例')} />
             <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -222,76 +231,70 @@ export function Docs() {
   }'`}</Code>
           </Section>
 
-          <Section id='sec-3' title={t('3. 查询可用模型')}>
-            <p className='text-xs'>{t('模型与能力动态变化，请始终通过本接口查询，勿硬编码。')}</p>
-            <Sub title={t('请求')}>
-              <Code>{`GET /v1/models`}</Code>
-              <Code>{`curl https://baseadd.vip/v1/models \\
+          <Section id='sec-3' title={t('3. 接口总览')}>
+            <T
+              headers={['能力', '接口', '说明']}
+              rows={[
+                ['对话', 'POST /v1/chat/completions', '支持流式（stream）与非流式'],
+                ['视频', 'POST /v1/videos（任务式）', '异步任务：创建→查询→下载；支持图/视频生视频'],
+                ['图像', 'POST /v1/images/generations、POST /v1/images/edits', '文生图、图编辑'],
+                ['向量', 'POST /v1/embeddings', '文本向量化'],
+                ['音频', 'POST /v1/audio/transcriptions、/translations、/speech', '语音转写、翻译、合成'],
+                ['模型', 'GET /v1/models', '查询当前可用模型'],
+              ]}
+            />
+            <p className='text-xs'>
+              {t('各能力接口相互独立，按需调用。同一能力内，传不同的模型 ID 即可使用不同的模型/规格。')}
+            </p>
+          </Section>
+
+          <Section id='sec-4' title={t('4. 查询可用模型')}>
+            <p className='text-xs'>{t('模型会随平台上架/下架变化，请以本接口返回为准。')}</p>
+            <p className='text-xs'>GET /v1/models</p>
+            <ET title={t('请求示例')} />
+            <Code>{`curl https://baseadd.vip/v1/models \\
   -H "Authorization: Bearer sk-..."`}</Code>
-            </Sub>
-            <Sub title={t('响应示例（真实）')}>
-              <Code>{`HTTP/1.1 200 OK
+            <ET title={t('响应示例')} />
+            <Code>{`HTTP/1.1 200 OK
 {
   "data": [
     { "id": "seedance2.0-cyai-25-260628", "object": "model",
-      "created": 1626777600, "owned_by": "cyai seedance",
-      "supported_endpoint_types": ["openai"] },
-    { "id": "seedance2.0-cyai-260128", "object": "model",
       "created": 1626777600, "owned_by": "cyai seedance",
       "supported_endpoint_types": ["openai"] }
   ],
   "object": "list",
   "success": true
 }`}</Code>
-            </Sub>
-            <Sub title={t('响应字段')}>
-              <T
-                headers={['字段', '类型', '说明']}
-                rows={[
-                  ['data[].id', 'string', '模型 ID，调用时使用'],
-                  ['data[].object', 'string', '固定 model'],
-                  ['data[].supported_endpoint_types', 'string[]', '支持的端点类型'],
-                  ['object', 'string', '固定 list'],
-                  ['success', 'boolean', '请求是否成功'],
-                ]}
-              />
-            </Sub>
-          </Section>
-
-          <Section id='sec-4' title={t('4. 统一接口与能力说明')}>
-            <p className='text-xs'>
-              {t('本平台为聚合型 AI 接口网关：背后可能接入多家供应商、多种适配器，但对用户而言，同一能力的接入方式完全统一。用户只需按能力调用对应接口并传入模型 ID 即可，无需感知底层供应商差异。')}
-            </p>
+            <ET title={t('响应字段')} />
             <T
-              headers={['能力', '用户调用接口（统一）', '说明']}
+              headers={['字段', '类型', '说明']}
               rows={[
-                ['AI 对话', 'POST /v1/chat/completions', '各对话供应商统一'],
-                ['AI 视频', 'POST /v1/videos（任务式）+ 查询 + 下载', '各视频适配器统一'],
-                ['AI 图片', 'POST /v1/images/generations、/v1/images/edits', '各图片供应商统一'],
-                ['向量', 'POST /v1/embeddings', '统一'],
-                ['AI 音频', 'POST /v1/audio/*', '统一'],
+                ['data[].id', 'string', '模型 ID，后续调用时传入'],
+                ['data[].object', 'string', '固定为 model'],
+                ['data[].supported_endpoint_types', 'string[]', '该模型支持的端点类型'],
+                ['object', 'string', '固定为 list'],
+                ['success', 'boolean', '请求是否成功'],
               ]}
             />
-            <p className='text-xs'>
-              {t('模型 ID 通过 GET /v1/models 查询；同一能力下选择不同的模型 ID 即可切换到不同供应商/型号，调用方式不变。')}
-            </p>
           </Section>
 
-          <Section id='sec-5' title={t('5. AI 对话')}>
-            <p className='text-xs font-medium'>POST /v1/chat/completions</p>
-            <Sub title={t('请求参数')}>
-              <T
-                headers={['字段', '类型', '必填', '说明']}
-                rows={[
-                  ['model', 'string', '是', '模型 ID，来自 /v1/models'],
-                  ['messages', 'array', '是', '消息列表 [{role, content}, ...]'],
-                  ['stream', 'boolean', '否', '是否流式返回'],
-                  ['temperature', 'number', '否', '采样温度'],
-                  ['max_tokens', 'integer', '否', '最大输出 token 数'],
-                ]}
-              />
-            </Sub>
-            <Sub title={t('请求示例')}>
+          <Section id='sec-5' title={t('5. 对话（Chat）')}>
+            <p className='text-xs'>POST /v1/chat/completions</p>
+            <p className='text-xs'>{t('支持流式返回（stream:true，SSE）与非流式返回。')}</p>
+            <ET title={t('请求参数')} />
+            <T
+              headers={['字段', '类型', '必填', '说明']}
+              rows={[
+                ['model', 'string', '是', '模型 ID，来自 /v1/models'],
+                ['messages', 'array', '是', '消息列表：[{role, content}, ...]，role 为 system/user/assistant'],
+                ['stream', 'boolean', '否', '是否流式返回，默认 false'],
+                ['temperature', 'number', '否', '采样温度，一般 0-2'],
+                ['max_tokens', 'integer', '否', '最大输出 token 数'],
+                ['top_p', 'number', '否', '核采样参数'],
+              ]}
+            />
+            <Sub title={t('5.1 非流式')}>
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -299,52 +302,79 @@ export function Docs() {
     "model": "<model-id>",
     "messages": [
       { "role": "system", "content": "You are a helpful assistant." },
-      { "role": "user", "content": "Say hello in one sentence." }
+      { "role": "user", "content": "用一句话介绍人工智能。" }
     ],
     "stream": false
   }'`}</Code>
-            </Sub>
-            <Sub title={t('响应示例（OpenAI 格式）')}>
+              <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
-  "choices": [
-    { "message": { "role": "assistant", "content": "Hello! How can I help you today?" },
-      "finish_reason": "stop", "index": 0 }
-  ],
+  "id": "chatcmpl-xxxx",
   "object": "chat.completion",
-  "usage": { "prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20 },
-  "model": "<model-id>"
+  "created": 1788490000,
+  "model": "<model-id>",
+  "choices": [
+    { "index": 0, "finish_reason": "stop",
+      "message": { "role": "assistant", "content": "人工智能是使机器具备类似人类智能的技术。" } }
+  ],
+  "usage": { "prompt_tokens": 12, "completion_tokens": 30, "total_tokens": 42 }
 }`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '说明']}
+                rows={[
+                  ['choices[0].message.content', '助手回复内容'],
+                  ['choices[0].finish_reason', '结束原因（stop/length 等）'],
+                  ['usage', 'token 消耗（计费依据）'],
+                ]}
+              />
+            </Sub>
+            <Sub title={t('5.2 流式（SSE）')}>
+              <p className='text-xs'>{t('stream 传 true，返回 text/event-stream，逐段输出 data: {...}。')}</p>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -N -X POST https://baseadd.vip/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","messages":[{"role":"user","content":"你好"}],"stream":true}'`}</Code>
+              <ET title={t('响应示例（SSE 片段）')} />
+              <Code>{`data: {"id":"chatcmpl-xxxx","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"你好"},"index":0}]}
+
+data: {"id":"chatcmpl-xxxx","object":"chat.completion.chunk","choices":[{"delta":{"content":"，有什么可以帮你？"},"index":0}]}
+
+data: [DONE]`}</Code>
             </Sub>
           </Section>
 
-          <Section id='sec-6' title={t('6. AI 视频（任务式）')}>
+          <Section id='sec-6' title={t('6. 视频生成（任务式）')}>
             <p className='text-xs'>
-              {t('视频生成是异步任务：创建返回 task_id → 轮询查询 → 成功后下载成片。')}
+              {t('视频生成是异步任务：创建接口返回 task_id → 轮询查询接口 → 状态成功后通过下载接口获取成片。')}
             </p>
             <Sub id='sec-6-1' title={t('6.1 创建视频任务（文本生视频）')}>
-              <p className='text-xs font-medium'>POST /v1/videos</p>
+              <p className='text-xs'>POST /v1/videos</p>
+              <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '说明']}
                 rows={[
                   ['model', 'string', '是', '视频模型 ID'],
                   ['prompt', 'string', '是', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）'],
                   ['duration', 'integer', '否', '时长（秒），不支持 0 与 -1'],
-                  ['metadata', 'object', '否', '扩展参数'],
+                  ['metadata', 'object', '否', '扩展参数，见下表'],
                 ]}
               />
+              <ET title={t('metadata 字段')} />
               <T
                 headers={['字段', '类型', '说明']}
                 rows={[
-                  ['metadata.resolution', 'string', '480p/720p/1080p/4k（不支持 2k）'],
-                  ['metadata.ratio', 'string', '16:9/9:16/4:3/3:4/21:9/1:1'],
-                  ['metadata.generate_audio', 'boolean', '是否生成音频'],
-                  ['metadata.watermark', 'boolean', '是否带水印'],
-                  ['metadata.seed', 'integer', '随机种子'],
-                  ['metadata.image_url', 'string', '图生视频'],
-                  ['metadata.video_url', 'string', '视频生视频'],
+                  ['resolution', 'string', '480p/720p/1080p/4k（不支持 2k）'],
+                  ['ratio', 'string', '16:9/9:16/4:3/3:4/21:9/1:1'],
+                  ['generate_audio', 'boolean', '是否生成音频，默认 true'],
+                  ['watermark', 'boolean', '是否带水印'],
+                  ['seed', 'integer', '随机种子'],
+                  ['image_url', 'string', '图生视频：输入图片公网 URL'],
+                  ['video_url', 'string', '视频生视频：输入视频公网 URL'],
                 ]}
               />
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -354,6 +384,7 @@ export function Docs() {
     "duration": 5,
     "metadata": { "resolution": "720p", "ratio": "16:9" }
   }'`}</Code>
+              <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
   "id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
@@ -364,8 +395,19 @@ export function Docs() {
   "progress": 0,
   "created_at": 1788491705
 }`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '说明']}
+                rows={[
+                  ['task_id', '任务 ID，用于查询与下载'],
+                  ['status', '任务状态（queued 表示已排队）'],
+                  ['progress', '进度（0-100）'],
+                ]}
+              />
             </Sub>
             <Sub id='sec-6-2' title={t('6.2 图生视频')}>
+              <p className='text-xs'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -374,8 +416,18 @@ export function Docs() {
     "prompt": "让图片里的猫动起来",
     "metadata": { "resolution": "720p", "ratio": "16:9", "image_url": "https://example.com/cat.jpg" }
   }'`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "task_id": "task_rzBa6A4nhqiM8u61oreSYxkcJilyCxMM",
+  "object": "video",
+  "model": "seedance2.0-cyai-mini-260615",
+  "status": "queued"
+}`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
+              <p className='text-xs'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
+              <ET title={t('请求示例（video_url 方式）')} />
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -384,11 +436,18 @@ export function Docs() {
     "prompt": "调整为电影感",
     "metadata": { "resolution": "720p", "ratio": "16:9", "video_url": "https://example.com/input.mp4" }
   }'`}</Code>
+              <ET title={t('请求示例（Remix 方式）')} />
+              <Code>{`curl -X POST https://baseadd.vip/v1/videos/video_xxx/remix \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model": "seedance2.0-cyai-mini-260615", "prompt": "调整为电影感"}'`}</Code>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 查询任务状态')}>
-              <Code>{`GET /v1/videos/{task_id}`}</Code>
+              <p className='text-xs'>GET /v1/videos/&#123;task_id&#125;</p>
+              <ET title={t('请求示例')} />
               <Code>{`curl https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
   -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('响应示例（生成中）')} />
               <Code>{`HTTP/1.1 200 OK
 {
   "id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
@@ -402,53 +461,151 @@ export function Docs() {
               <p className='text-xs'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
+              <ET title={t('状态说明')} />
+              <T
+                headers={['status', '说明']}
+                rows={[
+                  ['queued', '已提交，排队中'],
+                  ['in_progress', '生成中（progress 显示进度）'],
+                  ['completed', '已完成，可取成片'],
+                  ['failed', '失败，可查看错误信息'],
+                ]}
+              />
             </Sub>
             <Sub id='sec-6-5' title={t('6.5 下载成片')}>
+              <p className='text-xs'>GET /v1/videos/&#123;task_id&#125;/content</p>
+              <ET title={t('请求示例')} />
               <Code>{`curl -L https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
-              <p className='text-xs'>{t('返回 video/mp4 二进制内容；任务未完成时返回错误 JSON。')}</p>
+              <ET title={t('响应说明')} />
+              <p className='text-xs'>{t('任务完成后返回 video/mp4 二进制内容；未完成时返回错误 JSON。')}</p>
             </Sub>
           </Section>
 
-          <Section id='sec-7' title={t('7. AI 图片')}>
-            <p className='text-xs font-medium'>POST /v1/images/generations　·　POST /v1/images/edits</p>
+          <Section id='sec-7' title={t('7. 图像生成')}>
+            <p className='text-xs'>POST /v1/images/generations（文生图）　·　POST /v1/images/edits（图编辑）</p>
+            <ET title={t('请求参数')} />
+            <T
+              headers={['字段', '类型', '必填', '说明']}
+              rows={[
+                ['model', 'string', '是', '图像模型 ID'],
+                ['prompt', 'string', '是', '画面描述'],
+                ['size', 'string', '否', '尺寸，如 1024x1024'],
+                ['n', 'integer', '否', '生成张数'],
+                ['response_format', 'string', '否', 'url 或 b64_json'],
+              ]}
+            />
+            <ET title={t('请求示例')} />
             <Code>{`curl -X POST https://baseadd.vip/v1/images/generations \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
-  -d '{"model": "<model-id>", "prompt": "a red sunset over the sea", "size": "1024x1024", "n": 1}'`}</Code>
+  -d '{"model":"<model-id>","prompt":"a red sunset over the sea","size":"1024x1024","n":1}'`}</Code>
+            <ET title={t('响应示例')} />
+            <Code>{`HTTP/1.1 200 OK
+{
+  "created": 1788490000,
+  "data": [
+    { "url": "https://baseadd.vip/files/xxxx.png",
+      "revised_prompt": "a red sunset over the sea" }
+  ]
+}`}</Code>
           </Section>
 
-          <Section id='sec-8' title={t('8. 向量 Embeddings')}>
-            <p className='text-xs font-medium'>POST /v1/embeddings</p>
+          <Section id='sec-8' title={t('8. 向量（Embeddings）')}>
+            <p className='text-xs'>
+              {t('把文本转换为向量，用于语义搜索、知识库检索（RAG）、推荐、聚类等场景。')}
+            </p>
+            <p className='text-xs'>POST /v1/embeddings</p>
+            <ET title={t('请求参数')} />
+            <T
+              headers={['字段', '类型', '必填', '说明']}
+              rows={[
+                ['model', 'string', '是', '向量模型 ID'],
+                ['input', 'string/array', '是', '待向量化文本，支持批量（数组）'],
+              ]}
+            />
+            <ET title={t('请求示例')} />
             <Code>{`curl -X POST https://baseadd.vip/v1/embeddings \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
-  -d '{"model": "<model-id>", "input": "hello world"}'`}</Code>
+  -d '{"model":"<model-id>","input":"hello world"}'`}</Code>
+            <ET title={t('响应示例')} />
+            <Code>{`HTTP/1.1 200 OK
+{
+  "object": "list",
+  "data": [
+    { "index": 0, "embedding": [0.0123, -0.0456, 0.0789] }
+  ],
+  "model": "<model-id>",
+  "usage": { "prompt_tokens": 2, "total_tokens": 2 }
+}`}</Code>
+            <ET title={t('响应字段')} />
+            <T
+              headers={['字段', '说明']}
+              rows={[
+                ['data[].embedding', '向量数组（维度因模型而异）'],
+                ['usage.prompt_tokens', '输入 token 数（计费依据）'],
+              ]}
+            />
           </Section>
 
-          <Section id='sec-9' title={t('9. AI 音频')}>
-            <p className='text-xs font-medium'>
-              POST /v1/audio/transcriptions　·　POST /v1/audio/translations　·　POST /v1/audio/speech
-            </p>
-            <p className='text-xs'>{t('语音转写/翻译/合成（TTS），模型 ID 通过 /v1/models 查询。')}</p>
+          <Section id='sec-9' title={t('9. 音频')}>
+            <T
+              headers={['能力', '接口', '说明']}
+              rows={[
+                ['语音转写', 'POST /v1/audio/transcriptions', '音频 → 文本（multipart/form-data）'],
+                ['语音翻译', 'POST /v1/audio/translations', '外语音频 → 英文文本'],
+                ['语音合成（TTS）', 'POST /v1/audio/speech', '文本 → 语音'],
+              ]}
+            />
+            <ET title={t('请求示例（转写）')} />
+            <Code>{`curl -X POST https://baseadd.vip/v1/audio/transcriptions \\
+  -H "Authorization: Bearer sk-..." \\
+  -F "model=<model-id>" \\
+  -F "file=@audio.mp3"`}</Code>
           </Section>
 
           <Section id='sec-10' title={t('10. 其它兼容接口')}>
-            <T
-              headers={['能力', '端点']}
-              rows={[
-                ['补全', 'POST /v1/completions'],
-                ['Responses', 'POST /v1/responses，POST /v1/responses/compact'],
-                ['Claude', 'POST /v1/messages'],
-                ['Gemini', 'POST /v1beta/models/*path'],
-                ['重排', 'POST /v1/rerank'],
-                ['审核', 'POST /v1/moderations'],
-                ['Midjourney', '/mj/submit/*，/mj/task/*，/mj/image/*'],
-                ['Suno（音乐）', '/suno/submit/:action，/suno/fetch'],
-                ['实时', '/v1/realtime（WebSocket）'],
-              ]}
-            />
+            <p className='text-xs'>{t('以下接口为按需提供的兼容接口，模型上线后即可使用。')}</p>
+            <Sub title={t('10.1 Response API')}>
+              <p className='text-xs'>POST /v1/responses　·　POST /v1/responses/compact</p>
+              <p className='text-xs'>{t('输出结构化响应，支持 reasoning、输出 schema（JSON）等）。')}</p>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://baseadd.vip/v1/responses \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","input":"who won the world cup in 2018?"}'`}</Code>
+            </Sub>
+            <Sub title={t('10.2 Claude 兼容（Anthropic）')}>
+              <p className='text-xs'>POST /v1/messages</p>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://baseadd.vip/v1/messages \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'`}</Code>
+            </Sub>
+            <Sub title={t('10.3 Gemini 兼容')}>
+              <p className='text-xs'>POST /v1beta/models/*path　·　GET /v1beta/models</p>
+            </Sub>
+            <Sub title={t('10.4 重排（Rerank）')}>
+              <p className='text-xs'>POST /v1/rerank</p>
+              <p className='text-xs'>{t('对候选文档按与查询的相关度重排，常用于检索增强。')}</p>
+            </Sub>
+            <Sub title={t('10.5 内容审核（Moderations）')}>
+              <p className='text-xs'>POST /v1/moderations</p>
+            </Sub>
+            <Sub title={t('10.6 扩展工具（按需开通）')}>
+              <T
+                headers={['能力', '接口']}
+                rows={[
+                  ['Midjourney 绘图', '/mj/submit/*，/mj/task/*，/mj/image/*'],
+                  ['Suno 音乐', '/suno/submit/:action，/suno/fetch'],
+                  ['实时语音', '/v1/realtime（WebSocket）'],
+                ]}
+              />
+              <p className='text-xs'>{t('以上为专用工具接口，需平台开通对应能力后可用；具体请求格式可另行咨询。')}</p>
+            </Sub>
           </Section>
 
           <Section id='sec-11' title={t('11. 错误码')}>
@@ -461,6 +618,7 @@ export function Docs() {
                 ['invalid_seconds', '400', '时长非法', '传固定秒数'],
                 ['invalid_api_platform', '400', '调用了不支持的接口/模型类型', '改用对应能力接口'],
                 ['task_not_exist', '400', '任务不存在', '核对 task_id'],
+                ['invalid_response', '400', '缺少必填参数', '按参数表补全必填项'],
               ]}
             />
             <p className='text-xs'>
