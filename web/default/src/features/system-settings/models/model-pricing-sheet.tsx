@@ -654,9 +654,13 @@ export const ModelPricingEditorPanel = forwardRef<
                   </TabsContent>
                 </Tabs>
 
-                <FieldGroup>
-                  <VideoResolutionMultiplierEditor model={watchedValues.name} />
-                </FieldGroup>
+                {/sora|veo|kling|pika|video|wan-|hunyuanvideo|seedance/i.test(
+                  watchedValues.name
+                ) ? (
+                  <FieldGroup>
+                    <VideoResolutionMultiplierEditor model={watchedValues.name} />
+                  </FieldGroup>
+                ) : null}
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
