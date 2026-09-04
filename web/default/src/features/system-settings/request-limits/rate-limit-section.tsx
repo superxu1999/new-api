@@ -72,6 +72,7 @@ const createRateLimitSchema = (t: (key: string) => string) =>
     ModelRequestRateLimitDurationMinutes: z.number().min(0),
     ModelRequestRateLimitCount: z.number().min(0).max(100000000),
     ModelRequestRateLimitSuccessCount: z.number().min(1).max(100000000),
+    ModelRequestConcurrencyLimit: z.number().min(0).max(100000000),
     ModelRequestRateLimitGroup: z
       .string()
       .optional()
@@ -233,6 +234,37 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                   </FormControl>
                   <FormDescription>
                     {t('Only successful requests')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='ModelRequestConcurrencyLimit'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Max concurrent requests (per user)')}</FormLabel>
+                  <FormControl>
+                    <div className='flex items-center gap-2'>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100000000}
+                        step={1}
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value) || 0)
+                        }
+                      />
+                      <span className='text-muted-foreground text-sm'>
+                        {t('times')}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    {t('Simultaneous in-flight requests per user, 0 = unlimited')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
