@@ -16,6 +16,9 @@ var ModelRequestRateLimitSuccessCount = 1000
 var ModelRequestRateLimitGroup = map[string][2]int{}
 var ModelRequestRateLimitMutex sync.RWMutex
 
+// ModelRequestConcurrencyLimit 单用户同时进行中的最大请求数（并发上限）。
+var ModelRequestConcurrencyLimit = 100
+
 func ModelRequestRateLimitGroup2JSONString() string {
 	ModelRequestRateLimitMutex.RLock()
 	defer ModelRequestRateLimitMutex.RUnlock()

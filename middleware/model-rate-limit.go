@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -196,5 +197,51 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		} else {
 			memoryRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 并发限制：单用户同时进行中的请求数上限（超过返回 429）。
+// ---------------------------------------------------------------------------
+
+var (
+	concurrencyMutex   sync.Mutex
+	concurrencyCount   = map[int]int{}
+)
+
+func acquireConcurrencySlot(userID, max int) bool {
+	concurrencyMutex.Lock()
+	defer concurrencyMutex.Unlock()
+	if concurrencyCount[userID] >= max {
+		return false
+	}
+	concurrencyCount[userID]++
+	return true
+}
+
+func releaseConcurrencySlot(userID int) {
+	concurrencyMutex.Lock()
+	defer concurrencyMutex.Unlock()
+	if concurrencyCount[userID] > 0 {
+		concurrencyCount[userID]--
+	}
+}
+
+// ConcurrencyLimit 限制单用户同时进行的请求数。
+func ConcurrencyLimit() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		max := setting.ModelRequestConcurrencyLimit
+		if max <= 0 {
+			c.Next()
+			return
+		}
+		userID := c.GetInt("id")
+		if !acquireConcurrencySlot(userID, max) {
+			abortWithOpenAiMessage(c, http.StatusTooManyRequests,
+				fmt.Sprintf("您已达到并发请求数限制：最多同时 %d 个请求，请稍后再试", max))
+			return
+		}
+		defer releaseConcurrencySlot(userID)
+		c.Next()
 	}
 }
