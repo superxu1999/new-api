@@ -73,7 +73,18 @@ export function Docs() {
       <div className='mb-6 space-y-2'>
         <h1 className='text-2xl font-bold'>{t('Seedance 视频生成 API 对接文档')}</h1>
         <p className='text-muted-foreground text-sm'>
-          {t('本页说明如何调用 Seedance 系列视频模型生成视频。')}
+          {t('本页说明如何调用 Seedance 系列视频模型生成视频。上游为 Seedance CyAI（中转），接口协议参考上游文档。')}
+        </p>
+        <p className='text-xs'>
+          {t('上游文档：')}
+          <a
+            href='https://test.cyai.club/apidoc'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-primary hover:underline'
+          >
+            https://test.cyai.club/apidoc
+          </a>
         </p>
       </div>
 
@@ -82,10 +93,11 @@ export function Docs() {
           <DocTable
             headers={['项', '值']}
             rows={[
-              ['Base URL', 'https://baseadd.vip'],
+              ['Base URL', 'https://<你的接入域名>'],
               ['认证方式', 'Authorization: Bearer <API Key>'],
-              ['API Key', 'sk-7xaUSwSniio8hM1owqazSH4llFg2ibeU9YAO5KAzyNWZVa6B'],
+              ['API Key', 'sk-...（由平台分配）'],
               ['Content-Type', 'application/json'],
+              ['上游文档', 'https://test.cyai.club/apidoc'],
             ]}
           />
         </Section>
@@ -122,9 +134,9 @@ export function Docs() {
               ['metadata.seed', 'integer', '否', '随机种子'],
             ]}
           />
-          <CodeBlock>{`curl -X POST "https://baseadd.vip/v1/video/generations" \\
+          <CodeBlock>{`curl -X POST "https://<你的接入域名>/v1/video/generations" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-7xaUSwSniio8hM1owqazSH4llFg2ibeU9YAO5KAzyNWZVa6B" \\
+  -H "Authorization: Bearer sk-..." \\
   -d '{
     "model": "seedance2.0-cyai-25-260628",
     "prompt": "一只猫在草地上奔跑，电影感，镜头缓慢推进",
@@ -144,8 +156,8 @@ export function Docs() {
 
         <Section title={t('4. 查询任务状态')}>
           <p className='text-xs font-medium'>GET /v1/video/generations/&#123;task_id&#125;</p>
-          <CodeBlock>{`curl "https://baseadd.vip/v1/video/generations/task_xxx" \\
-  -H "Authorization: Bearer sk-7xaUSwSniio8hM1owqazSH4llFg2ibeU9YAO5KAzyNWZVa6B"`}</CodeBlock>
+          <CodeBlock>{`curl "https://<你的接入域名>/v1/video/generations/task_xxx" \\
+  -H "Authorization: Bearer sk-..."`}</CodeBlock>
           <p className='text-xs'>
             {t('状态流转：QUEUED → IN_PROGRESS → SUCCESS / FAILURE。SUCCESS 后可从 result_url 获取成片。')}
           </p>
@@ -153,8 +165,8 @@ export function Docs() {
 
         <Section title={t('5. 下载成片')}>
           <p className='text-xs font-medium'>GET /v1/videos/&#123;task_id&#125;/content</p>
-          <CodeBlock>{`curl -L "https://baseadd.vip/v1/videos/task_xxx/content" \\
-  -H "Authorization: Bearer sk-7xaUSwSniio8hM1owqazSH4llFg2ibeU9YAO5KAzyNWZVa6B" \\
+          <CodeBlock>{`curl -L "https://<你的接入域名>/v1/videos/task_xxx/content" \\
+  -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</CodeBlock>
         </Section>
 
