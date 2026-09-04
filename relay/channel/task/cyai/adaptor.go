@@ -24,6 +24,41 @@ type TaskAdaptor struct {
 func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
 
+// 上游 CyAI 按时长×清晰度 tiered 计费；为对齐上游价格，按清晰度附加相对倍率
+// （实测上游 720p≈¥18.4、1080p≈¥22.6(×1.23)、4k≈¥5.88(×0.32)）。
+var resolutionRatio = map[string]float64{
+	"480p":  1.0,
+	"720p":  1.0,
+	"1080p": 1.25,
+	"4k":    0.32,
+}
+
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	seconds := req.Duration
+	if seconds <= 0 {
+		seconds, _ = strconv.Atoi(req.Seconds)
+	}
+	ratios := map[string]float64{}
+	if seconds > 0 {
+		ratios["seconds"] = float64(seconds)
+	}
+	if req.Metadata != nil {
+		if res, _ := req.Metadata["resolution"].(string); res != "" {
+			if r, ok := resolutionRatio[res]; ok {
+				ratios["resolution"] = r
+			}
+		}
+	}
+	if len(ratios) == 0 {
+		return nil
+	}
+	return ratios
+}
+
 type requestPayload struct {
 	Model    string         `json:"model"`
 	Prompt   string         `json:"prompt"`
