@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -24,9 +25,9 @@ type TaskAdaptor struct {
 func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
 
-// 上游 CyAI 按时长×清晰度 tiered 计费；为对齐上游价格，按清晰度附加相对倍率
-// （实测上游 720p≈¥18.4、1080p≈¥22.6(×1.23)、4k≈¥5.88(×0.32)）。
-var resolutionRatio = map[string]float64{
+// 上游 CyAI 按时长×清晰度 tiered 计费；为对齐上游价格，按清晰度附加相对倍率。
+// 系数可从后台配置（video_pricing_setting.resolution_ratio），缺省用下方默认。
+var defaultResolutionRatio = map[string]float64{
 	"480p":  1.0,
 	"720p":  1.0,
 	"1080p": 1.25,
@@ -46,9 +47,12 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if seconds > 0 {
 		ratios["seconds"] = float64(seconds)
 	}
+	cfg := operation_setting.GetVideoResolutionRatio()
 	if req.Metadata != nil {
 		if res, _ := req.Metadata["resolution"].(string); res != "" {
-			if r, ok := resolutionRatio[res]; ok {
+			if r, ok := cfg[res]; ok {
+				ratios["resolution"] = r
+			} else if r, ok := defaultResolutionRatio[res]; ok {
 				ratios["resolution"] = r
 			}
 		}
