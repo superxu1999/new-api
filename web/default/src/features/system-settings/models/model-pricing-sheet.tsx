@@ -82,6 +82,7 @@ import {
 import { PriceInput, PriceLane } from './model-pricing-inputs'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
+import { VideoResolutionMultiplierEditor } from './video-resolution-multiplier-editor'
 
 export type { ModelRatioData } from './model-pricing-core'
 
@@ -652,6 +653,10 @@ export const ModelPricingEditorPanel = forwardRef<
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>
+
+                <FieldGroup>
+                  <VideoResolutionMultiplierEditor model={watchedValues.name} />
+                </FieldGroup>
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
