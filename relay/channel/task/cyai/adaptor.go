@@ -47,10 +47,13 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if seconds > 0 {
 		ratios["seconds"] = float64(seconds)
 	}
-	cfg := operation_setting.GetVideoResolutionRatio()
+	model := info.UpstreamModelName
+	if model == "" {
+		model = info.OriginModelName
+	}
 	if req.Metadata != nil {
 		if res, _ := req.Metadata["resolution"].(string); res != "" {
-			if r, ok := cfg[res]; ok {
+			if r, ok := operation_setting.GetVideoResolutionRatioForModel(model, res); ok {
 				ratios["resolution"] = r
 			} else if r, ok := defaultResolutionRatio[res]; ok {
 				ratios["resolution"] = r

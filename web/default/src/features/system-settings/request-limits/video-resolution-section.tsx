@@ -28,16 +28,32 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const RES_KEYS = ['480p', '720p', '1080p', '4k'] as const
 
+type ModelResolution = Record<string, number>
+
 type VideoResolutionSectionProps = {
-  defaultValue: string
+  byModelJSON: string
+  globalJSON: string
 }
 
-function parseRatios(raw: string): Record<string, number> {
+function parseMap(raw: string): Record<string, ModelResolution> {
   try {
-    const obj = JSON.parse(raw || '{}')
-    const out: Record<string, number> = {}
+    const obj = JSON.parse(raw || '{}') as Record<string, ModelResolution>
+    const out: Record<string, ModelResolution> = {}
+    for (const [m, v] of Object.entries(obj)) {
+      if (v && typeof v === 'object') out[m] = { ...v }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function parseRatios(raw: string): ModelResolution {
+  try {
+    const obj = JSON.parse(raw || '{}') as ModelResolution
+    const out: ModelResolution = {}
     for (const k of RES_KEYS) {
-      const v = (obj as Record<string, number>)[k]
+      const v = obj[k]
       out[k] = typeof v === 'number' ? v : 1
     }
     return out
@@ -47,24 +63,39 @@ function parseRatios(raw: string): Record<string, number> {
 }
 
 export function VideoResolutionSection({
-  defaultValue,
+  byModelJSON,
+  globalJSON,
 }: VideoResolutionSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const initial = useMemo(() => parseRatios(defaultValue), [defaultValue])
-  const [values, setValues] = useState<Record<string, number>>(initial)
+  const initial = useMemo(() => parseMap(byModelJSON), [byModelJSON])
+  const globalDefault = useMemo(() => parseRatios(globalJSON), [globalJSON])
+  const [map, setMap] = useState<Record<string, ModelResolution>>(initial)
+  const [model, setModel] = useState<string>('')
+  const [values, setValues] = useState<ModelResolution>({ ...globalDefault })
   const [saving, setSaving] = useState(false)
 
+  const selectModel = (m: string) => {
+    setModel(m)
+    setValues(map[m] ? { ...map[m] } : { ...globalDefault })
+  }
+
   const onSave = async () => {
+    if (!model.trim()) {
+      toast.error(t('Enter a model name first'))
+      return
+    }
+    const next: Record<string, ModelResolution> = {
+      ...map,
+      [model.trim()]: Object.fromEntries(RES_KEYS.map((k) => [k, values[k] ?? 1])),
+    }
     setSaving(true)
     try {
-      const payload = Object.fromEntries(
-        RES_KEYS.map((k) => [k, values[k] ?? 1])
-      )
       await updateOption.mutateAsync({
-        key: 'video_pricing_setting.resolution_ratio',
-        value: JSON.stringify(payload),
+        key: 'video_pricing_setting.resolution_ratio_by_model',
+        value: JSON.stringify(next),
       })
+      setMap(next)
       toast.success(t('Saved'))
     } catch {
       toast.error(t('Failed to save'))
@@ -74,36 +105,51 @@ export function VideoResolutionSection({
   }
 
   return (
-    <SettingsSection title={t('Video resolution pricing')}>
+    <SettingsSection title={t('Video resolution pricing (per model)')}>
       <div className='space-y-4'>
         <p className='text-muted-foreground text-xs'>
           {t(
-            'Per-resolution multiplier applied to video billing on top of duration. Aligns customer price with upstream cost (relative to 720p).'
+            'Per-resolution multiplier applied to video billing on top of duration, overridable per model. Leave a model unset to use its global default.'
           )}
         </p>
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-          {RES_KEYS.map((k) => (
-            <div key={k} className='space-y-1.5'>
-              <Label className='text-xs'>{k}</Label>
-              <Input
-                type='number'
-                step={0.01}
-                min={0}
-                value={values[k] ?? 1}
-                onChange={(e) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [k]: Number(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
-          ))}
+        <div className='flex flex-wrap items-end gap-3'>
+          <div className='min-w-64 flex-1 space-y-1.5'>
+            <Label className='text-xs'>{t('Model')}</Label>
+            <Input
+              placeholder={t('e.g. seedance2.0-cyai-260128')}
+              value={model}
+              onChange={(e) => selectModel(e.target.value)}
+            />
+          </div>
         </div>
-        <Button onClick={onSave} disabled={saving}>
-          {saving ? t('Saving...') : t('Save')}
-        </Button>
+        {model && (
+          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+            {RES_KEYS.map((k) => (
+              <div key={k} className='space-y-1.5'>
+                <Label className='text-xs'>{k}</Label>
+                <Input
+                  type='number'
+                  step={0.01}
+                  min={0}
+                  value={values[k] ?? 1}
+                  onChange={(e) =>
+                    setValues((prev) => ({
+                      ...prev,
+                      [k]: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        {model && (
+          <Button onClick={onSave} disabled={saving}>
+            {saving ? t('Saving...') : t('Save')}
+          </Button>
+        )}
       </div>
     </SettingsSection>
   )
 }
+

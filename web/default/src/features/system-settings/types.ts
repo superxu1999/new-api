@@ -273,6 +273,8 @@ export type BillingSettings = {
   'general_setting.quota_display_type': string
   'general_setting.custom_currency_symbol': string
   'general_setting.custom_currency_exchange_rate': number
+  'video_pricing_setting.resolution_ratio': string
+  'video_pricing_setting.resolution_ratio_by_model': string
   DisplayInCurrencyEnabled: boolean
   DisplayTokenStatEnabled: boolean
   ModelPrice: string
@@ -384,7 +386,6 @@ export type SecuritySettings = {
   ModelRequestRateLimitDurationMinutes: number
   ModelRequestConcurrencyLimit: number
   ModelRequestRateLimitGroup: string
-  ['video_pricing_setting.resolution_ratio']: string
   CheckSensitiveEnabled: boolean
   CheckSensitiveOnPromptEnabled: boolean
   SensitiveWords: string
