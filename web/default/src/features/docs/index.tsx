@@ -75,6 +75,43 @@ function ET(props: { title: string }) {
   return <p className='text-xs font-medium'>{props.title}</p>
 }
 
+/** 方法徽章（GET 蓝 / POST 绿 / DELETE 红） */
+function MethodChip(props: { method: 'GET' | 'POST' | 'DELETE' }) {
+  const cls =
+    props.method === 'GET'
+      ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+      : props.method === 'POST'
+        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+        : 'bg-red-500/15 text-red-600 dark:text-red-400'
+  return (
+    <span
+      className={cn('rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold', cls)}
+    >
+      {props.method}
+    </span>
+  )
+}
+
+/** 接口行：方法徽章 + 路径 */
+function Endpoint(props: { method: 'GET' | 'POST' | 'DELETE'; path: string }) {
+  return (
+    <div className='flex flex-wrap items-center gap-2'>
+      <MethodChip method={props.method} />
+      <code className='text-xs font-medium break-all'>{props.path}</code>
+    </div>
+  )
+}
+
+/** 提示框 */
+function Callout(props: { title?: string; children: ReactNode }) {
+  return (
+    <div className='border-primary/25 bg-primary/5 rounded-lg border-l-2 border-l-primary px-3 py-2'>
+      {props.title && <p className='text-primary text-xs font-semibold'>{props.title}</p>}
+      <div className='text-xs'>{props.children}</div>
+    </div>
+  )
+}
+
 function T(props: { headers: string[]; rows: string[][] }) {
   return (
     <div className='overflow-x-auto rounded-lg border'>
@@ -90,7 +127,7 @@ function T(props: { headers: string[]; rows: string[][] }) {
         </thead>
         <tbody>
           {props.rows.map((row, i) => (
-            <tr key={i} className='border-t'>
+            <tr key={i} className='hover:bg-muted/30 border-t'>
               {row.map((cell, j) => (
                 <td key={j} className='px-3 py-2 align-top'>
                   {cell}
@@ -184,14 +221,28 @@ export function Docs() {
         </nav>
 
         <div className='min-w-0 flex-1 space-y-8'>
-          <div className='space-y-2 border-b pb-6'>
-            <h1 className='text-2xl font-bold'>{t('基加BASEADD 接口指引')}</h1>
-            <p className='text-muted-foreground text-xs'>
-              Doc Version: 1.0.0 ｜ 适用平台：基加BASEADD ｜ 接口风格：OpenAI 兼容
-            </p>
-            <p className='text-muted-foreground text-sm'>
-              {t('基加BASEADD 提供对话、视频、图像、向量、音频等 AI 能力的统一 API。所有接口遵循 OpenAI 兼容格式，接入简单、各能力独立。')}
-            </p>
+          <div className='bg-card/60 space-y-4 rounded-2xl border p-6'>
+            <div className='space-y-1'>
+              <h1 className='text-2xl font-bold'>{t('基加BASEADD 接口指引')}</h1>
+              <p className='text-muted-foreground text-sm'>
+                {t('基加BASEADD 提供对话、视频、图像、向量、音频等 AI 能力的统一 API。所有接口遵循 OpenAI 兼容格式，接入简单、各能力独立。')}
+              </p>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+              {[
+                ['Base URL', 'https://baseadd.vip'],
+                ['认证', 'Authorization: Bearer <API Key>'],
+                ['风格', 'OpenAI 兼容'],
+                ['版本', 'v1.0.0'],
+              ].map(([k, v]) => (
+                <div key={k} className='bg-muted/50 rounded-lg border px-2.5 py-1.5'>
+                  <p className='text-muted-foreground text-[10px] tracking-wide uppercase'>
+                    {k}
+                  </p>
+                  <p className='font-mono text-xs font-medium'>{v}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <Section id='sec-1' title={t('1. 接入与认证')}>
@@ -250,7 +301,7 @@ Authorization: Bearer sk-...`}</Code>
 
           <Section id='sec-4' title={t('4. 查询可用模型')}>
             <p className='text-xs'>{t('模型会随平台上架/下架变化，请以本接口返回为准。')}</p>
-            <p className='text-xs'>GET /v1/models</p>
+            <Endpoint method='GET' path='/v1/models' />
             <ET title={t('请求示例')} />
             <Code>{`curl https://baseadd.vip/v1/models \\
   -H "Authorization: Bearer sk-..."`}</Code>
@@ -279,7 +330,7 @@ Authorization: Bearer sk-...`}</Code>
           </Section>
 
           <Section id='sec-5' title={t('5. 对话（Chat）')}>
-            <p className='text-xs'>POST /v1/chat/completions</p>
+            <Endpoint method='POST' path='/v1/chat/completions' />
             <p className='text-xs'>{t('支持流式返回（stream:true，SSE）与非流式返回。')}</p>
             <ET title={t('请求参数')} />
             <T
@@ -346,11 +397,11 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-6' title={t('6. 视频生成（任务式）')}>
-            <p className='text-xs'>
+            <Callout title={t('异步任务说明')}>
               {t('视频生成是异步任务：创建接口返回 task_id → 轮询查询接口 → 状态成功后通过下载接口获取成片。')}
-            </p>
+            </Callout>
             <Sub id='sec-6-1' title={t('6.1 创建视频任务（文本生视频）')}>
-              <p className='text-xs'>POST /v1/videos</p>
+              <Endpoint method='POST' path='/v1/videos' />
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '说明']}
@@ -443,7 +494,7 @@ data: [DONE]`}</Code>
   -d '{"model": "seedance2.0-cyai-mini-260615", "prompt": "调整为电影感"}'`}</Code>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 查询任务状态')}>
-              <p className='text-xs'>GET /v1/videos/&#123;task_id&#125;</p>
+              <Endpoint method='GET' path='/v1/videos/{task_id}' />
               <ET title={t('请求示例')} />
               <Code>{`curl https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
   -H "Authorization: Bearer sk-..."`}</Code>
@@ -473,7 +524,7 @@ data: [DONE]`}</Code>
               />
             </Sub>
             <Sub id='sec-6-5' title={t('6.5 下载成片')}>
-              <p className='text-xs'>GET /v1/videos/&#123;task_id&#125;/content</p>
+              <Endpoint method='GET' path='/v1/videos/{task_id}/content' />
               <ET title={t('请求示例')} />
               <Code>{`curl -L https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
   -H "Authorization: Bearer sk-..." \\
@@ -484,7 +535,7 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-7' title={t('7. 图像生成')}>
-            <p className='text-xs'>POST /v1/images/generations（文生图）　·　POST /v1/images/edits（图编辑）</p>
+            <Endpoint method='POST' path='/v1/images/generations　·　POST /v1/images/edits' />
             <ET title={t('请求参数')} />
             <T
               headers={['字段', '类型', '必填', '说明']}
@@ -516,7 +567,7 @@ data: [DONE]`}</Code>
             <p className='text-xs'>
               {t('把文本转换为向量，用于语义搜索、知识库检索（RAG）、推荐、聚类等场景。')}
             </p>
-            <p className='text-xs'>POST /v1/embeddings</p>
+            <Endpoint method='POST' path='/v1/embeddings' />
             <ET title={t('请求参数')} />
             <T
               headers={['字段', '类型', '必填', '说明']}
