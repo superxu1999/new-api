@@ -73,18 +73,7 @@ export function Docs() {
       <div className='mb-6 space-y-2'>
         <h1 className='text-2xl font-bold'>{t('Seedance 视频生成 API 对接文档')}</h1>
         <p className='text-muted-foreground text-sm'>
-          {t('本页说明如何调用 Seedance 系列视频模型生成视频。上游为 Seedance CyAI（中转），接口协议参考上游文档。')}
-        </p>
-        <p className='text-xs'>
-          {t('上游文档：')}
-          <a
-            href='https://test.cyai.club/apidoc'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-primary hover:underline'
-          >
-            https://test.cyai.club/apidoc
-          </a>
+          {t('本页说明如何调用 Seedance 系列视频模型生成视频。')}
         </p>
       </div>
 
@@ -97,7 +86,6 @@ export function Docs() {
               ['认证方式', 'Authorization: Bearer <API Key>'],
               ['API Key', 'sk-...（由平台分配）'],
               ['Content-Type', 'application/json'],
-              ['上游文档', 'https://test.cyai.club/apidoc'],
             ]}
           />
         </Section>
