@@ -185,7 +185,7 @@ export function Docs() {
 
         <div className='min-w-0 flex-1 space-y-8'>
           <div className='space-y-2 border-b pb-6'>
-            <h1 className='text-2xl font-bold'>{t('基加BASEADD API 接口文档')}</h1>
+            <h1 className='text-2xl font-bold'>{t('基加BASEADD 接口指引')}</h1>
             <p className='text-muted-foreground text-xs'>
               Doc Version: 1.0.0 ｜ 适用平台：基加BASEADD ｜ 接口风格：OpenAI 兼容
             </p>
