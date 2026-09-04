@@ -26,23 +26,24 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
   { id: 'sec-1', label: '1. 接入与认证' },
   { id: 'sec-2', label: '2. 快速开始' },
   { id: 'sec-3', label: '3. 查询可用模型' },
-  { id: 'sec-4', label: '4. 对话' },
+  { id: 'sec-4', label: '4. 统一接口与能力说明' },
+  { id: 'sec-5', label: '5. AI 对话' },
   {
-    id: 'sec-5',
-    label: '5. 视频生成（任务式）',
+    id: 'sec-6',
+    label: '6. AI 视频（任务式）',
     sub: [
-      { id: 'sec-5-1', label: '5.1 创建视频任务' },
-      { id: 'sec-5-2', label: '5.2 图生视频' },
-      { id: 'sec-5-3', label: '5.3 视频生视频 / Remix' },
-      { id: 'sec-5-4', label: '5.4 查询任务状态' },
-      { id: 'sec-5-5', label: '5.5 下载成片' },
+      { id: 'sec-6-1', label: '6.1 创建视频任务' },
+      { id: 'sec-6-2', label: '6.2 图生视频' },
+      { id: 'sec-6-3', label: '6.3 视频生视频 / Remix' },
+      { id: 'sec-6-4', label: '6.4 查询任务状态' },
+      { id: 'sec-6-5', label: '6.5 下载成片' },
     ],
   },
-  { id: 'sec-6', label: '6. 图像生成' },
-  { id: 'sec-7', label: '7. 向量 Embeddings' },
-  { id: 'sec-8', label: '8. 音频' },
-  { id: 'sec-9', label: '9. 其它兼容接口' },
-  { id: 'sec-10', label: '10. 错误码' },
+  { id: 'sec-7', label: '7. AI 图片' },
+  { id: 'sec-8', label: '8. 向量 Embeddings' },
+  { id: 'sec-9', label: '9. AI 音频' },
+  { id: 'sec-10', label: '10. 其它兼容接口' },
+  { id: 'sec-11', label: '11. 错误码' },
 ]
 
 function Section(props: { id: string; title: string; children: ReactNode }) {
@@ -257,7 +258,26 @@ export function Docs() {
             </Sub>
           </Section>
 
-          <Section id='sec-4' title={t('4. 对话')}>
+          <Section id='sec-4' title={t('4. 统一接口与能力说明')}>
+            <p className='text-xs'>
+              {t('本平台为聚合型 AI 接口网关：背后可能接入多家供应商、多种适配器，但对用户而言，同一能力的接入方式完全统一。用户只需按能力调用对应接口并传入模型 ID 即可，无需感知底层供应商差异。')}
+            </p>
+            <T
+              headers={['能力', '用户调用接口（统一）', '说明']}
+              rows={[
+                ['AI 对话', 'POST /v1/chat/completions', '各对话供应商统一'],
+                ['AI 视频', 'POST /v1/videos（任务式）+ 查询 + 下载', '各视频适配器统一'],
+                ['AI 图片', 'POST /v1/images/generations、/v1/images/edits', '各图片供应商统一'],
+                ['向量', 'POST /v1/embeddings', '统一'],
+                ['AI 音频', 'POST /v1/audio/*', '统一'],
+              ]}
+            />
+            <p className='text-xs'>
+              {t('模型 ID 通过 GET /v1/models 查询；同一能力下选择不同的模型 ID 即可切换到不同供应商/型号，调用方式不变。')}
+            </p>
+          </Section>
+
+          <Section id='sec-5' title={t('5. AI 对话')}>
             <p className='text-xs font-medium'>POST /v1/chat/completions</p>
             <Sub title={t('请求参数')}>
               <T
@@ -298,11 +318,11 @@ export function Docs() {
             </Sub>
           </Section>
 
-          <Section id='sec-5' title={t('5. 视频生成（任务式）')}>
+          <Section id='sec-6' title={t('6. AI 视频（任务式）')}>
             <p className='text-xs'>
               {t('视频生成是异步任务：创建返回 task_id → 轮询查询 → 成功后下载成片。')}
             </p>
-            <Sub id='sec-5-1' title={t('5.1 创建视频任务（文本生视频）')}>
+            <Sub id='sec-6-1' title={t('6.1 创建视频任务（文本生视频）')}>
               <p className='text-xs font-medium'>POST /v1/videos</p>
               <T
                 headers={['字段', '类型', '必填', '说明']}
@@ -345,7 +365,7 @@ export function Docs() {
   "created_at": 1788491705
 }`}</Code>
             </Sub>
-            <Sub id='sec-5-2' title={t('5.2 图生视频')}>
+            <Sub id='sec-6-2' title={t('6.2 图生视频')}>
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -355,7 +375,7 @@ export function Docs() {
     "metadata": { "resolution": "720p", "ratio": "16:9", "image_url": "https://example.com/cat.jpg" }
   }'`}</Code>
             </Sub>
-            <Sub id='sec-5-3' title={t('5.3 视频生视频 / Remix')}>
+            <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
               <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -365,7 +385,7 @@ export function Docs() {
     "metadata": { "resolution": "720p", "ratio": "16:9", "video_url": "https://example.com/input.mp4" }
   }'`}</Code>
             </Sub>
-            <Sub id='sec-5-4' title={t('5.4 查询任务状态')}>
+            <Sub id='sec-6-4' title={t('6.4 查询任务状态')}>
               <Code>{`GET /v1/videos/{task_id}`}</Code>
               <Code>{`curl https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
   -H "Authorization: Bearer sk-..."`}</Code>
@@ -383,7 +403,7 @@ export function Docs() {
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
             </Sub>
-            <Sub id='sec-5-5' title={t('5.5 下载成片')}>
+            <Sub id='sec-6-5' title={t('6.5 下载成片')}>
               <Code>{`curl -L https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
@@ -391,7 +411,7 @@ export function Docs() {
             </Sub>
           </Section>
 
-          <Section id='sec-6' title={t('6. 图像生成')}>
+          <Section id='sec-7' title={t('7. AI 图片')}>
             <p className='text-xs font-medium'>POST /v1/images/generations　·　POST /v1/images/edits</p>
             <Code>{`curl -X POST https://baseadd.vip/v1/images/generations \\
   -H "Content-Type: application/json" \\
@@ -399,7 +419,7 @@ export function Docs() {
   -d '{"model": "<model-id>", "prompt": "a red sunset over the sea", "size": "1024x1024", "n": 1}'`}</Code>
           </Section>
 
-          <Section id='sec-7' title={t('7. 向量 Embeddings')}>
+          <Section id='sec-8' title={t('8. 向量 Embeddings')}>
             <p className='text-xs font-medium'>POST /v1/embeddings</p>
             <Code>{`curl -X POST https://baseadd.vip/v1/embeddings \\
   -H "Content-Type: application/json" \\
@@ -407,14 +427,14 @@ export function Docs() {
   -d '{"model": "<model-id>", "input": "hello world"}'`}</Code>
           </Section>
 
-          <Section id='sec-8' title={t('8. 音频')}>
+          <Section id='sec-9' title={t('9. AI 音频')}>
             <p className='text-xs font-medium'>
               POST /v1/audio/transcriptions　·　POST /v1/audio/translations　·　POST /v1/audio/speech
             </p>
             <p className='text-xs'>{t('语音转写/翻译/合成（TTS），模型 ID 通过 /v1/models 查询。')}</p>
           </Section>
 
-          <Section id='sec-9' title={t('9. 其它兼容接口')}>
+          <Section id='sec-10' title={t('10. 其它兼容接口')}>
             <T
               headers={['能力', '端点']}
               rows={[
@@ -431,7 +451,7 @@ export function Docs() {
             />
           </Section>
 
-          <Section id='sec-10' title={t('10. 错误码')}>
+          <Section id='sec-11' title={t('11. 错误码')}>
             <T
               headers={['code', 'HTTP', '说明', '处理建议']}
               rows={[
