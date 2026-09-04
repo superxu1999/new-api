@@ -384,6 +384,7 @@ export type SecuritySettings = {
   ModelRequestRateLimitDurationMinutes: number
   ModelRequestConcurrencyLimit: number
   ModelRequestRateLimitGroup: string
+  ['video_pricing_setting.resolution_ratio']: string
   CheckSensitiveEnabled: boolean
   CheckSensitiveOnPromptEnabled: boolean
   SensitiveWords: string

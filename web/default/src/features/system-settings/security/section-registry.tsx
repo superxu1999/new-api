@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { RateLimitSection } from '../request-limits/rate-limit-section'
+import { VideoResolutionSection } from '../request-limits/video-resolution-section'
 import { SensitiveWordsSection } from '../request-limits/sensitive-words-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
@@ -39,6 +40,15 @@ const SECURITY_SECTIONS = [
           ModelRequestConcurrencyLimit: settings.ModelRequestConcurrencyLimit,
           ModelRequestRateLimitGroup: settings.ModelRequestRateLimitGroup,
         }}
+      />
+    ),
+  },
+  {
+    id: 'video-pricing',
+    titleKey: 'Video Resolution Pricing',
+    build: (settings: SecuritySettings) => (
+      <VideoResolutionSection
+        defaultValue={settings['video_pricing_setting.resolution_ratio']}
       />
     ),
   },
