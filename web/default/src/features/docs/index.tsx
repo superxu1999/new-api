@@ -438,21 +438,9 @@ data: [DONE]`}</Code>
                   ['seed', 'integer', '否', '随机', '随机种子'],
                   ['image_url', 'string', '否', '—', '图生视频：输入图片公网 URL'],
                   ['video_url', 'string', '否', '—', '视频生视频：输入视频公网 URL'],
-                  ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）：见下方「多模态参考」说明'],
+                  ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）：见 6.4 多模态参考'],
                 ]}
               />
-              <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
-                <p className='font-medium'>{t('多模态参考')}</p>
-                <p className='mt-1 text-muted-foreground'>
-                  {t('通过 metadata.content 传入参考图、参考视频、参考音频。每项用 type 区分，图/视频/音频必须带 role。参考项数量上限由所使用的模型规格决定（例如 Seedance 2.0 支持 9 图 + 3 视频 + 3 音频，Seedance 2.5 支持 30 图 + 10 视频 + 10 音频），以实际模型为准。')}
-                </p>
-                <ul className='mt-2 list-disc pl-5 space-y-1'>
-                  <li>{t('文本提示词：{ "type": "text", "text": "..." }')}</li>
-                  <li>{t('参考图：{ "type": "image_url", "image_url": { "url": "..." } }')}</li>
-                  <li>{t('参考视频：{ "type": "video_url", "video_url": { "url": "..." }, "role": "reference_video" }')}</li>
-                  <li>{t('参考音频：{ "type": "audio_url", "audio_url": { "url": "..." }, "role": "reference_audio" }')}</li>
-                </ul>
-              </div>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
@@ -466,21 +454,25 @@ data: [DONE]`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
-  "id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
-  "task_id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
+  "id": "<task_id>",
+  "task_id": "<task_id>",
   "object": "video",
   "model": "<model-id>",
   "status": "queued",
   "progress": 0,
-  "created_at": 1788491705
+  "created_at": 1788598144
 }`}</Code>
               <ET title={t('响应字段')} />
               <T
                 headers={['字段', '类型', '说明']}
                 rows={[
+                  ['id', 'string', '任务 ID（与 task_id 一致）'],
                   ['task_id', 'string', '任务 ID，用于查询与下载'],
-                  ['status', 'string', '任务状态（queued 表示已排队）'],
+                  ['object', 'string', '固定为 video'],
+                  ['model', 'string', '本次请求使用的模型'],
+                  ['status', 'string', '任务状态：queued 表示已排队'],
                   ['progress', 'number', '进度（0-100）'],
+                  ['created_at', 'integer', '任务创建时间戳（秒）'],
                 ]}
               />
             </Sub>
@@ -509,7 +501,7 @@ data: [DONE]`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
-  "task_id": "task_rzBa6A4nhqiM8u61oreSYxkcJilyCxMM",
+  "task_id": "<task_id>",
   "object": "video",
   "model": "<model-id>",
   "status": "queued"
@@ -544,7 +536,15 @@ data: [DONE]`}</Code>
   -d '{"model": "<model-id>", "prompt": "调整为电影感"}'`}</Code>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
-              <p className='text-[13px]'>{t('在 metadata.content 传入参考图、参考视频、参考音频。图/视频/音频必须带 role。参考项数量上限由模型规格决定，以实际模型为准。')}</p>
+              <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
+                <p className='font-medium'>{t('多模态参考约定')}</p>
+                <ul className='mt-2 list-disc pl-5 space-y-1'>
+                  <li>{t('单图/单视频也可用扁平写法：metadata.image_url（图生视频）、metadata.video_url（视频生视频），见 6.2 / 6.3。多图、多视频、多模态混搭请用 content 数组。')}</li>
+                  <li>{t('content 数组至少包含 1 条 type=text 的元素。')}</li>
+                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频。')}</li>
+                  <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
+                </ul>
+              </div>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
@@ -557,7 +557,7 @@ data: [DONE]`}</Code>
                   ['metadata.content', 'array', '是', '—', '多模态参考数组，元素结构见下表'],
                 ]}
               />
-              <ET title={t('metadata.content 数组元素')} />
+              <ET title={t('metadata.content 数组元素（至少包含 1 条 type=text）')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
@@ -569,15 +569,6 @@ data: [DONE]`}</Code>
                   ['role', 'string', 'type 为 image_url/video_url/audio_url 时必填', '—', 'reference_image / reference_video / reference_audio'],
                 ]}
               />
-              <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
-                <p className='font-medium'>{t('多模态参考约定')}</p>
-                <ul className='mt-2 list-disc pl-5 space-y-1'>
-                  <li>{t('单图/单视频也可用扁平写法：metadata.image_url（图生视频）、metadata.video_url（视频生视频），见 6.2 / 6.3。多图、多视频、多模态混搭请用 content 数组。')}</li>
-                  <li>{t('content 数组至少包含 1 条 type=text 的元素。')}</li>
-                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频。')}</li>
-                  <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
-                </ul>
-              </div>
               <ET title={t('role 字段说明（图/视频/音频参考必填）')} />
               <p className='text-[13px]'>
                 {t('role 标识参考素材的用途，告诉上游把它当作「参考图」「参考视频」还是「参考音频」。取值与素材类型一一绑定，填错会返回 400。不带 role 的 image_url 会被当作「首帧图片」（首帧最多 1 张），多图参考必须带 role。')}
@@ -612,7 +603,7 @@ data: [DONE]`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
-  "task_id": "task_rzBa6A4nhqiM8u61oreSYxkcJilyCxMM",
+  "task_id": "<task_id>",
   "object": "video",
   "model": "<model-id>",
   "status": "queued"
@@ -621,22 +612,41 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-5' title={t('6.5 查询任务状态')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}' />
               <ET title={t('请求示例')} />
-              <Code>{`curl https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
+              <Code>{`curl https://ghyc.top/v1/videos/<task_id> \\
   -H "Authorization: Bearer sk-..."`}</Code>
               <ET title={t('响应示例（生成中）')} />
               <Code>{`HTTP/1.1 200 OK
 {
-  "id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
+  "id": "<task_id>",
+  "task_id": "<task_id>",
   "object": "video",
+  "model": "<model-id>",
   "status": "in_progress",
   "progress": 50,
-  "created_at": 1788491705,
-  "completed_at": 1788491754,
-  "metadata": { "url": "https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content" }
+  "created_at": 1788598144,
+  "completed_at": 1788598270,
+  "metadata": {
+    "url": "https://ghyc.top/v1/videos/<task_id>/content"
+  }
 }`}</Code>
               <p className='text-[13px]'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['id', 'string', '任务 ID（与 task_id 一致）'],
+                  ['task_id', 'string', '任务 ID，用于查询与下载'],
+                  ['object', 'string', '固定为 video'],
+                  ['model', 'string', '本次请求使用的模型'],
+                  ['status', 'string', '任务状态：queued / in_progress / completed / failed'],
+                  ['progress', 'number', '进度（0-100），completed 时为 100'],
+                  ['created_at', 'integer', '任务创建时间戳（秒）'],
+                  ['completed_at', 'integer', '任务完成时间戳（秒），未完成时可能为空'],
+                  ['metadata.url', 'string', '成片下载地址（completed 后有效，见 6.6）'],
+                ]}
+              />
               <ET title={t('状态说明')} />
               <T
                 headers={['status', '说明']}
@@ -651,7 +661,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-6' title={t('6.6 下载成片')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}/content' />
               <ET title={t('请求示例')} />
-              <Code>{`curl -L https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
+              <Code>{`curl -L https://ghyc.top/v1/videos/<task_id>/content \\
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
               <ET title={t('响应说明')} />
