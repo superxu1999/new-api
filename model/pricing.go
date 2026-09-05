@@ -199,8 +199,11 @@ func updatePricing() {
 		groups.Add(ability.Group)
 	}
 
-	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
+	// 这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
 	modelSupportEndpointsStr := make(map[string][]string)
+
+	// model -> 首个渠道类型（用于模型广场的渠道图标）
+	modelChannelType := make(map[string]int)
 
 	// 先根据已有能力填充原生端点
 	for _, ability := range enableAbilities {
@@ -212,6 +215,9 @@ func updatePricing() {
 			}
 		}
 		modelSupportEndpointsStr[ability.Model] = endpoints
+		if _, ok := modelChannelType[ability.Model]; !ok {
+			modelChannelType[ability.Model] = ability.ChannelType
+		}
 	}
 
 	// 再补充模型自定义端点：若配置有效则替换默认端点，不做合并
@@ -303,6 +309,12 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+		}
+		// 若模型元数据未配置图标，则回退到其渠道对应图标
+		if pricing.Icon == "" {
+			if ct, ok := modelChannelType[model]; ok {
+				pricing.Icon = common.GetChannelTypeIconName(ct)
+			}
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {

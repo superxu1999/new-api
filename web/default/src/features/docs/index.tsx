@@ -230,7 +230,7 @@ export function Docs() {
             </div>
             <div className='flex flex-wrap gap-2'>
               {[
-                ['Base URL', 'https://baseadd.vip'],
+                ['Base URL', 'https://ghyc.top'],
                 ['认证', 'Authorization: Bearer <API Key>'],
                 ['风格', 'OpenAI 兼容'],
                 ['版本', 'v1.0.0'],
@@ -249,7 +249,7 @@ export function Docs() {
             <T
               headers={['项', '值']}
               rows={[
-                ['Base URL', 'https://baseadd.vip'],
+                ['Base URL', 'https://ghyc.top'],
                 ['认证方式', '请求头 Authorization: Bearer <API Key>'],
                 ['API Key', '在基加BASEADD 控制台创建'],
                 ['Content-Type', 'application/json（音频上传为 multipart/form-data）'],
@@ -271,7 +271,7 @@ Authorization: Bearer sk-...`}</Code>
               {t('第 2 步：用获取的 model id 发起一次视频任务。')}
             </p>
             <ET title={t('请求示例')} />
-            <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
+            <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -303,7 +303,7 @@ Authorization: Bearer sk-...`}</Code>
             <p className='text-[13px]'>{t('模型会随平台上架/下架变化，请以本接口返回为准。')}</p>
             <Endpoint method='GET' path='/v1/models' />
             <ET title={t('请求示例')} />
-            <Code>{`curl https://baseadd.vip/v1/models \\
+            <Code>{`curl https://ghyc.top/v1/models \\
   -H "Authorization: Bearer sk-..."`}</Code>
             <ET title={t('响应示例')} />
             <Code>{`HTTP/1.1 200 OK
@@ -346,7 +346,7 @@ Authorization: Bearer sk-...`}</Code>
             />
             <Sub title={t('5.1 非流式')}>
               <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/chat/completions \\
+              <Code>{`curl -X POST https://ghyc.top/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -383,7 +383,7 @@ Authorization: Bearer sk-...`}</Code>
             <Sub title={t('5.2 流式（SSE）')}>
               <p className='text-[13px]'>{t('stream 传 true，返回 text/event-stream，逐段输出 data: {...}。')}</p>
               <ET title={t('请求示例')} />
-              <Code>{`curl -N -X POST https://baseadd.vip/v1/chat/completions \\
+              <Code>{`curl -N -X POST https://ghyc.top/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model":"<model-id>","messages":[{"role":"user","content":"你好"}],"stream":true}'`}</Code>
@@ -426,7 +426,7 @@ data: [DONE]`}</Code>
                 ]}
               />
               <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
+              <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -459,7 +459,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-2' title={t('6.2 图生视频')}>
               <p className='text-[13px]'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
               <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
+              <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -479,7 +479,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
               <p className='text-[13px]'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
               <ET title={t('请求示例（video_url 方式）')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/videos \\
+              <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -488,7 +488,7 @@ data: [DONE]`}</Code>
     "metadata": { "resolution": "720p", "ratio": "16:9", "video_url": "https://example.com/input.mp4" }
   }'`}</Code>
               <ET title={t('请求示例（Remix 方式）')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/videos/video_xxx/remix \\
+              <Code>{`curl -X POST https://ghyc.top/v1/videos/video_xxx/remix \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model": "seedance2.0-cyai-mini-260615", "prompt": "调整为电影感"}'`}</Code>
@@ -496,7 +496,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-4' title={t('6.4 查询任务状态')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}' />
               <ET title={t('请求示例')} />
-              <Code>{`curl https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
+              <Code>{`curl https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
   -H "Authorization: Bearer sk-..."`}</Code>
               <ET title={t('响应示例（生成中）')} />
               <Code>{`HTTP/1.1 200 OK
@@ -507,7 +507,7 @@ data: [DONE]`}</Code>
   "progress": 50,
   "created_at": 1788491705,
   "completed_at": 1788491754,
-  "metadata": { "url": "https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content" }
+  "metadata": { "url": "https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content" }
 }`}</Code>
               <p className='text-[13px]'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
@@ -526,7 +526,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-6-5' title={t('6.5 下载成片')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}/content' />
               <ET title={t('请求示例')} />
-              <Code>{`curl -L https://baseadd.vip/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
+              <Code>{`curl -L https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
               <ET title={t('响应说明')} />
@@ -548,7 +548,7 @@ data: [DONE]`}</Code>
               ]}
             />
             <ET title={t('请求示例')} />
-            <Code>{`curl -X POST https://baseadd.vip/v1/images/generations \\
+            <Code>{`curl -X POST https://ghyc.top/v1/images/generations \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model":"<model-id>","prompt":"a red sunset over the sea","size":"1024x1024","n":1}'`}</Code>
@@ -557,7 +557,7 @@ data: [DONE]`}</Code>
 {
   "created": 1788490000,
   "data": [
-    { "url": "https://baseadd.vip/files/xxxx.png",
+    { "url": "https://ghyc.top/files/xxxx.png",
       "revised_prompt": "a red sunset over the sea" }
   ]
 }`}</Code>
@@ -577,7 +577,7 @@ data: [DONE]`}</Code>
               ]}
             />
             <ET title={t('请求示例')} />
-            <Code>{`curl -X POST https://baseadd.vip/v1/embeddings \\
+            <Code>{`curl -X POST https://ghyc.top/v1/embeddings \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model":"<model-id>","input":"hello world"}'`}</Code>
@@ -611,7 +611,7 @@ data: [DONE]`}</Code>
               ]}
             />
             <ET title={t('请求示例（转写）')} />
-            <Code>{`curl -X POST https://baseadd.vip/v1/audio/transcriptions \\
+            <Code>{`curl -X POST https://ghyc.top/v1/audio/transcriptions \\
   -H "Authorization: Bearer sk-..." \\
   -F "model=<model-id>" \\
   -F "file=@audio.mp3"`}</Code>
@@ -623,7 +623,7 @@ data: [DONE]`}</Code>
               <p className='text-[13px]'>POST /v1/responses　·　POST /v1/responses/compact</p>
               <p className='text-[13px]'>{t('输出结构化响应，支持 reasoning、输出 schema（JSON）等）。')}</p>
               <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/responses \\
+              <Code>{`curl -X POST https://ghyc.top/v1/responses \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model":"<model-id>","input":"who won the world cup in 2018?"}'`}</Code>
@@ -631,7 +631,7 @@ data: [DONE]`}</Code>
             <Sub title={t('10.2 Claude 兼容（Anthropic）')}>
               <p className='text-[13px]'>POST /v1/messages</p>
               <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://baseadd.vip/v1/messages \\
+              <Code>{`curl -X POST https://ghyc.top/v1/messages \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model":"<model-id>","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'`}</Code>

@@ -31,8 +31,6 @@ const defaultSecuritySettings: SecuritySettings = {
   ModelRequestRateLimitDurationMinutes: 1,
   ModelRequestConcurrencyLimit: 100,
   ModelRequestRateLimitGroup: '',
-  'video_pricing_setting.resolution_ratio':
-    '{"480p":1,"720p":1,"1080p":1.25,"4k":0.32}',
   CheckSensitiveEnabled: false,
   CheckSensitiveOnPromptEnabled: false,
   SensitiveWords: '',

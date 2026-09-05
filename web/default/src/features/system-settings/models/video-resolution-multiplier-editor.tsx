@@ -27,12 +27,15 @@ import { api } from '@/lib/api'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const RES_KEYS = ['480p', '720p', '1080p', '4k'] as const
-const GLOBAL_DEFAULT: Record<string, number> = {
+const BUILTIN_FALLBACK: Record<string, number> = {
   '480p': 1,
   '720p': 1,
   '1080p': 1.25,
   '4k': 0.32,
 }
+
+const GLOBAL_KEY = 'video_pricing_setting.resolution_ratio'
+const BY_MODEL_KEY = 'video_pricing_setting.resolution_ratio_by_model'
 
 type Props = {
   model: string
@@ -40,15 +43,21 @@ type Props = {
 
 /**
  * 视频模型的分辨率倍率编辑器（用于模型定价编辑面板内）。
- * 无值则显示全局缺省（GLOBAL_DEFAULT），保存到 video_pricing_setting.resolution_ratio_by_model。
+ * 提供两块：
+ *  1) 全局默认值（video_pricing_setting.resolution_ratio）：对所有模型生效，
+ *     模型未单独覆盖时使用。缺省回退到 BUILTIN_FALLBACK。
+ *  2) 按模型覆盖（video_pricing_setting.resolution_ratio_by_model）：仅对当前模型覆盖全局。
  */
 export function VideoResolutionMultiplierEditor({ model }: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const [map, setMap] = useState<Record<string, Record<string, number>>>({})
+  const [globalMap, setGlobalMap] = useState<Record<string, number>>({ ...BUILTIN_FALLBACK })
+  const [byModelMap, setByModelMap] = useState<Record<string, Record<string, number>>>({})
   const [loaded, setLoaded] = useState(false)
-  const [values, setValues] = useState<Record<string, number>>({ ...GLOBAL_DEFAULT })
-  const [saving, setSaving] = useState(false)
+  const [globalValues, setGlobalValues] = useState<Record<string, number>>({ ...BUILTIN_FALLBACK })
+  const [modelValues, setModelValues] = useState<Record<string, number>>({ ...BUILTIN_FALLBACK })
+  const [savingGlobal, setSavingGlobal] = useState(false)
+  const [savingModel, setSavingModel] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -56,10 +65,13 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
       .get('/api/option/')
       .then((res) => {
         if (cancelled) return
-        const item = (res.data || []).find(
-          (it: { key?: string }) => it.key === 'video_pricing_setting.resolution_ratio_by_model'
-        )
-        setMap(parseByModel(item?.value ?? ''))
+        const items = (res.data || []) as Array<{ key?: string; value?: string }>
+        const globalRaw = items.find((it) => it.key === GLOBAL_KEY)?.value ?? ''
+        const byModelRaw = items.find((it) => it.key === BY_MODEL_KEY)?.value ?? ''
+        const parsedGlobal = parseGlobal(globalRaw)
+        setGlobalMap(parsedGlobal)
+        setGlobalValues(parsedGlobal)
+        setByModelMap(parseByModel(byModelRaw))
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -70,63 +82,148 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
 
   useEffect(() => {
     if (!loaded) return
-    setValues(map[model] ? { ...map[model] } : { ...GLOBAL_DEFAULT })
-  }, [map, model, loaded])
+    setModelValues(byModelMap[model] ? { ...byModelMap[model] } : { ...globalMap })
+  }, [byModelMap, model, loaded, globalMap])
 
-  const save = async () => {
-    const next = {
-      ...map,
-      [model]: Object.fromEntries(RES_KEYS.map((k) => [k, values[k] ?? 1])),
-    }
-    setSaving(true)
+  const updateGlobalValue = (key: string, value: number) => {
+    setGlobalValues((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const updateModelValue = (key: string, value: number) => {
+    setModelValues((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const saveGlobal = async () => {
+    const next = sanitizeMap(globalValues)
+    setSavingGlobal(true)
     try {
-      await updateOption.mutateAsync({
-        key: 'video_pricing_setting.resolution_ratio_by_model',
-        value: JSON.stringify(next),
-      })
-      setMap(next)
+      await updateOption.mutateAsync({ key: GLOBAL_KEY, value: JSON.stringify(next) })
+      setGlobalMap(next)
+      // 未覆盖的模型跟随新的全局默认
+      setModelValues((prev) => ({ ...prev, ...next }))
       toast.success(t('Saved'))
     } catch {
       toast.error(t('Failed to save'))
     } finally {
-      setSaving(false)
+      setSavingGlobal(false)
+    }
+  }
+
+  const saveModel = async () => {
+    const next = {
+      ...byModelMap,
+      [model]: sanitizeMap(modelValues),
+    }
+    setSavingModel(true)
+    try {
+      await updateOption.mutateAsync({ key: BY_MODEL_KEY, value: JSON.stringify(next) })
+      setByModelMap(next)
+      toast.success(t('Saved'))
+    } catch {
+      toast.error(t('Failed to save'))
+    } finally {
+      setSavingModel(false)
     }
   }
 
   return (
     <FieldGroup>
-      <div className='space-y-2'>
-        <p className='text-sm font-medium'>{t('Video resolution pricing (multipliers)')}</p>
-        <p className='text-muted-foreground text-xs'>
-          {t(
-            'Applied on top of duration for video billing. Unset values use the global default shown.'
-          )}
-        </p>
-        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-          {RES_KEYS.map((k) => (
-            <div key={k} className='space-y-1'>
-              <span className='text-muted-foreground text-xs'>{k}</span>
-              <Input
-                type='number'
-                step={0.01}
-                min={0}
-                value={values[k] ?? 1}
-                onChange={(e) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [k]: Number(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
-          ))}
+      <div className='space-y-4'>
+        {/* 全局默认值 */}
+        <div className='space-y-2'>
+          <p className='text-sm font-medium'>{t('Video resolution pricing (global default)')}</p>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Default per-resolution multipliers for all video models. Models without an override use these.'
+            )}
+          </p>
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+            {RES_KEYS.map((k) => (
+              <div key={k} className='space-y-1'>
+                <span className='text-muted-foreground text-xs'>{k}</span>
+                <Input
+                  type='number'
+                  step={0.01}
+                  min={0}
+                  value={globalValues[k] ?? BUILTIN_FALLBACK[k]}
+                  onChange={(e) => updateGlobalValue(k, Number(e.target.value) || 0)}
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={saveGlobal}
+            disabled={savingGlobal}
+          >
+            {savingGlobal ? t('Saving...') : t('Save global resolution pricing')}
+          </Button>
         </div>
-        <Button type='button' variant='outline' size='sm' onClick={save} disabled={saving}>
-          {saving ? t('Saving...') : t('Save resolution pricing')}
-        </Button>
+
+        <div className='border-t pt-4'>
+          {/* 按模型覆盖 */}
+          <div className='space-y-2'>
+            <p className='text-sm font-medium'>
+              {t('Video resolution pricing ({{model}})', { model })}
+            </p>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Applies only to this model. Leave a field blank to use the global default.'
+              )}
+            </p>
+            <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+              {RES_KEYS.map((k) => (
+                <div key={k} className='space-y-1'>
+                  <span className='text-muted-foreground text-xs'>{k}</span>
+                  <Input
+                    type='number'
+                    step={0.01}
+                    min={0}
+                    value={modelValues[k] ?? globalMap[k] ?? BUILTIN_FALLBACK[k]}
+                    onChange={(e) => updateModelValue(k, Number(e.target.value) || 0)}
+                  />
+                </div>
+              ))}
+            </div>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={saveModel}
+              disabled={savingModel}
+            >
+              {savingModel ? t('Saving...') : t('Save resolution pricing')}
+            </Button>
+          </div>
+        </div>
       </div>
     </FieldGroup>
   )
+}
+
+function sanitizeMap(raw: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(raw)) {
+    const actual = typeof v === 'number' && Number.isFinite(v) ? v : 1
+    out[k] = actual <= 0 ? 1 : actual
+  }
+  return out
+}
+
+function parseGlobal(raw: string): Record<string, number> {
+  try {
+    const obj = JSON.parse(raw || '{}') as Record<string, number>
+    const out: Record<string, number> = {}
+    for (const k of RES_KEYS) {
+      const v = obj[k]
+      out[k] = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : BUILTIN_FALLBACK[k]
+    }
+    return out
+  } catch {
+    return { ...BUILTIN_FALLBACK }
+  }
 }
 
 function parseByModel(raw: string): Record<string, Record<string, number>> {

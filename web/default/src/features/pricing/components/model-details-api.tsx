@@ -423,6 +423,89 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+function buildVideoSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const prompt = 'A cat running on the grass.'
+
+  const bodyJson = JSON.stringify(
+    {
+      model: ctx.modelName,
+      prompt,
+      duration: 5,
+      metadata: { resolution: '720p', ratio: '16:9' },
+    },
+    null,
+    2
+  )
+
+  if (lang === 'curl') {
+    return [
+      `curl ${url} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+    ].join('\n')
+  }
+
+  if (lang === 'python') {
+    return [
+      'import requests',
+      '',
+      'url = f"{base_url}/v1/videos"',
+      'headers = {',
+      '    "Authorization": f"Bearer {api_key}",',
+      '    "Content-Type": "application/json",',
+      '}',
+      '',
+      'payload = {',
+      `    "model": "${ctx.modelName}",`,
+      `    "prompt": "${prompt}",`,
+      '    "duration": 5,',
+      '    "metadata": { "resolution": "720p", "ratio": "16:9" },',
+      '}',
+      '',
+      'response = requests.post(url, json=payload, headers=headers, timeout=120)',
+      'task = response.json()  # contains task_id / status',
+      'print(task)',
+    ].join('\n')
+  }
+
+  if (lang === 'typescript') {
+    return [
+      "const response = await fetch(`${baseUrl}/v1/videos`, {",
+      "  method: 'POST',",
+      '  headers: {',
+      '    Authorization: `Bearer ${process.env.NEW_API_KEY}`,',
+      "    'Content-Type': 'application/json',",
+      '  },',
+      '  body: JSON.stringify({',
+      `    model: '${ctx.modelName}',`,
+      `    prompt: '${prompt}',`,
+      '    duration: 5,',
+      '    metadata: { resolution: \'720p\', ratio: \'16:9\' },',
+      '  }),',
+      '})',
+      '',
+      'const task = await response.json()',
+      'console.log(task)',
+    ].join('\n')
+  }
+
+  return [
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify(${bodyJson}),`,
+    `})`,
+    '',
+    `const task = await response.json()`,
+    `console.log(task)`,
+  ].join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
@@ -433,6 +516,8 @@ function buildSample(
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
     return buildEmbeddingSample(lang, ctx)
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
+  if (endpointType === 'openai-video' || endpointType === 'video')
+    return buildVideoSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
 
