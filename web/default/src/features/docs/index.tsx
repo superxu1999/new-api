@@ -34,8 +34,9 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-6-1', label: '6.1 创建视频任务' },
       { id: 'sec-6-2', label: '6.2 图生视频' },
       { id: 'sec-6-3', label: '6.3 视频生视频 / Remix' },
-      { id: 'sec-6-4', label: '6.4 查询任务状态' },
-      { id: 'sec-6-5', label: '6.5 下载成片' },
+      { id: 'sec-6-4', label: '6.4 多模态参考' },
+      { id: 'sec-6-5', label: '6.5 查询任务状态' },
+      { id: 'sec-6-6', label: '6.6 下载成片' },
     ],
   },
   { id: 'sec-7', label: '7. 图像生成' },
@@ -275,7 +276,7 @@ Authorization: Bearer sk-...`}</Code>
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
-    "model": "seedance2.0-cyai-mini-260615",
+    "model": "<model-id>",
     "prompt": "一只猫在草地上奔跑",
     "duration": 5,
     "metadata": { "resolution": "720p", "ratio": "16:9" }
@@ -309,7 +310,7 @@ Authorization: Bearer sk-...`}</Code>
             <Code>{`HTTP/1.1 200 OK
 {
   "data": [
-    { "id": "seedance2.0-cyai-25-260628", "object": "model",
+    { "id": "<model-id>", "object": "model",
       "created": 1626777600, "owned_by": "cyai seedance",
       "supported_endpoint_types": ["openai"] }
   ],
@@ -334,14 +335,19 @@ Authorization: Bearer sk-...`}</Code>
             <p className='text-[13px]'>{t('支持流式返回（stream:true，SSE）与非流式返回。')}</p>
             <ET title={t('请求参数')} />
             <T
-              headers={['字段', '类型', '必填', '说明']}
+              headers={['字段', '类型', '必填', '默认值', '说明']}
               rows={[
-                ['model', 'string', '是', '模型 ID，来自 /v1/models'],
-                ['messages', 'array', '是', '消息列表：[{role, content}, ...]，role 为 system/user/assistant'],
-                ['stream', 'boolean', '否', '是否流式返回，默认 false'],
-                ['temperature', 'number', '否', '采样温度，一般 0-2'],
-                ['max_tokens', 'integer', '否', '最大输出 token 数'],
-                ['top_p', 'number', '否', '核采样参数'],
+                ['model', 'string', '是', '—', '模型 ID，来自 /v1/models'],
+                ['messages', 'array', '是', '—', '消息列表：[{role, content}, ...]，role 为 system/user/assistant'],
+                ['stream', 'boolean', '否', 'false', '是否流式返回'],
+                ['temperature', 'number', '否', '模型默认', '采样温度，一般 0-2，越低越确定'],
+                ['max_tokens', 'integer', '否', '模型默认', '最大输出 token 数'],
+                ['top_p', 'number', '否', '模型默认', '核采样参数，一般 0-1'],
+                ['top_k', 'integer', '否', '模型默认', '仅采样前 k 个 token（部分模型支持）'],
+                ['frequency_penalty', 'number', '否', '0', '重复惩罚，一般 -2 到 2'],
+                ['presence_penalty', 'number', '否', '0', '话题新鲜度惩罚，一般 -2 到 2'],
+                ['seed', 'integer', '否', '随机', '随机种子，固定可复现输出'],
+                ['stop', 'string/array', '否', '—', '停止词，命中即截断生成'],
               ]}
             />
             <Sub title={t('5.1 非流式')}>
@@ -372,11 +378,11 @@ Authorization: Bearer sk-...`}</Code>
 }`}</Code>
               <ET title={t('响应字段')} />
               <T
-                headers={['字段', '说明']}
+                headers={['字段', '类型', '说明']}
                 rows={[
-                  ['choices[0].message.content', '助手回复内容'],
-                  ['choices[0].finish_reason', '结束原因（stop/length 等）'],
-                  ['usage', 'token 消耗（计费依据）'],
+                  ['choices[0].message.content', 'string', '助手回复内容'],
+                  ['choices[0].finish_reason', 'string', '结束原因（stop/length 等）'],
+                  ['usage', 'object', 'token 消耗（计费依据）'],
                 ]}
               />
             </Sub>
@@ -400,37 +406,59 @@ data: [DONE]`}</Code>
             <Callout title={t('异步任务说明')}>
               {t('视频生成是异步任务：创建接口返回 task_id → 轮询查询接口 → 状态成功后通过下载接口获取成片。')}
             </Callout>
+            <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
+              <p className='font-medium'>{t('通用约定')}</p>
+              <ul className='mt-2 list-disc pl-5 space-y-1'>
+                <li>{t('必填参数：model、prompt。其余字段均可省略，省略时由上游使用默认值。')}</li>
+                <li>{t('duration：可选，缺省时由上游决定（通常默认 5 秒）；不支持 0 与 -1。')}</li>
+                <li>{t('resolution：可选，缺省或为空时使用 720p；支持 480p/720p/1080p/4k，不支持 2k。')}</li>
+                <li>{t('各字段的取值范围、默认值与参考输入上限以实际使用的模型规格为准，不同模型可能不同。')}</li>
+              </ul>
+            </div>
             <Sub id='sec-6-1' title={t('6.1 创建视频任务（文本生视频）')}>
               <Endpoint method='POST' path='/v1/videos' />
               <ET title={t('请求参数')} />
               <T
-                headers={['字段', '类型', '必填', '说明']}
+                headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
-                  ['model', 'string', '是', '视频模型 ID'],
-                  ['prompt', 'string', '是', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）'],
-                  ['duration', 'integer', '否', '时长（秒），不支持 0 与 -1'],
-                  ['metadata', 'object', '否', '扩展参数，见下表'],
+                  ['model', 'string', '是', '—', '视频模型 ID'],
+                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）'],
+                  ['duration', 'integer', '否', '5', '时长（秒），不支持 0 与 -1'],
+                  ['metadata', 'object', '否', '见下表', '扩展参数，见下表'],
                 ]}
               />
               <ET title={t('metadata 字段')} />
               <T
-                headers={['字段', '类型', '说明']}
+                headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
-                  ['resolution', 'string', '480p/720p/1080p/4k（不支持 2k）'],
-                  ['ratio', 'string', '16:9/9:16/4:3/3:4/21:9/1:1'],
-                  ['generate_audio', 'boolean', '是否生成音频，默认 true'],
-                  ['watermark', 'boolean', '是否带水印'],
-                  ['seed', 'integer', '随机种子'],
-                  ['image_url', 'string', '图生视频：输入图片公网 URL'],
-                  ['video_url', 'string', '视频生视频：输入视频公网 URL'],
+                  ['resolution', 'string', '否', '720p', '480p/720p/1080p/4k（不支持 2k）'],
+                  ['ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
+                  ['generate_audio', 'boolean', '否', 'true', '是否生成音频'],
+                  ['watermark', 'boolean', '否', 'false', '是否带水印'],
+                  ['seed', 'integer', '否', '随机', '随机种子'],
+                  ['image_url', 'string', '否', '—', '图生视频：输入图片公网 URL'],
+                  ['video_url', 'string', '否', '—', '视频生视频：输入视频公网 URL'],
+                  ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）：见下方「多模态参考」说明'],
                 ]}
               />
+              <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
+                <p className='font-medium'>{t('多模态参考')}</p>
+                <p className='mt-1 text-muted-foreground'>
+                  {t('通过 metadata.content 传入参考图、参考视频、参考音频。每项用 type 区分，视频/音频必须带 role。参考项数量上限由所使用的模型规格决定（例如 Seedance 2.0 支持 9 图 + 3 视频 + 3 音频，Seedance 2.5 支持 30 图 + 10 视频 + 10 音频），以实际模型为准。')}
+                </p>
+                <ul className='mt-2 list-disc pl-5 space-y-1'>
+                  <li>{t('文本提示词：{ "type": "text", "text": "..." }')}</li>
+                  <li>{t('参考图：{ "type": "image_url", "image_url": { "url": "..." } }')}</li>
+                  <li>{t('参考视频：{ "type": "video_url", "video_url": { "url": "..." }, "role": "reference_video" }')}</li>
+                  <li>{t('参考音频：{ "type": "audio_url", "audio_url": { "url": "..." }, "role": "reference_audio" }')}</li>
+                </ul>
+              </div>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
-    "model": "seedance2.0-cyai-mini-260615",
+    "model": "<model-id>",
     "prompt": "一只猫在草地上奔跑",
     "duration": 5,
     "metadata": { "resolution": "720p", "ratio": "16:9" }
@@ -441,29 +469,40 @@ data: [DONE]`}</Code>
   "id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
   "task_id": "task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM",
   "object": "video",
-  "model": "seedance2.0-cyai-mini-260615",
+  "model": "<model-id>",
   "status": "queued",
   "progress": 0,
   "created_at": 1788491705
 }`}</Code>
               <ET title={t('响应字段')} />
               <T
-                headers={['字段', '说明']}
+                headers={['字段', '类型', '说明']}
                 rows={[
-                  ['task_id', '任务 ID，用于查询与下载'],
-                  ['status', '任务状态（queued 表示已排队）'],
-                  ['progress', '进度（0-100）'],
+                  ['task_id', 'string', '任务 ID，用于查询与下载'],
+                  ['status', 'string', '任务状态（queued 表示已排队）'],
+                  ['progress', 'number', '进度（0-100）'],
                 ]}
               />
             </Sub>
             <Sub id='sec-6-2' title={t('6.2 图生视频')}>
               <p className='text-[13px]'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '视频模型 ID'],
+                  ['prompt', 'string', '是', '—', '画面描述'],
+                  ['metadata.image_url', 'string', '是', '—', '参考图片公网 URL'],
+                  ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
+                  ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
+                ]}
+              />
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
-    "model": "seedance2.0-cyai-mini-260615",
+    "model": "<model-id>",
     "prompt": "让图片里的猫动起来",
     "metadata": { "resolution": "720p", "ratio": "16:9", "image_url": "https://example.com/cat.jpg" }
   }'`}</Code>
@@ -472,18 +511,29 @@ data: [DONE]`}</Code>
 {
   "task_id": "task_rzBa6A4nhqiM8u61oreSYxkcJilyCxMM",
   "object": "video",
-  "model": "seedance2.0-cyai-mini-260615",
+  "model": "<model-id>",
   "status": "queued"
 }`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
               <p className='text-[13px]'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '视频模型 ID'],
+                  ['prompt', 'string', '是', '—', '画面描述 / 调整指令'],
+                  ['metadata.video_url', 'string', '是（video_url 方式）', '—', '参考视频公网 URL'],
+                  ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
+                  ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
+                ]}
+              />
               <ET title={t('请求示例（video_url 方式）')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
-    "model": "seedance2.0-cyai-mini-260615",
+    "model": "<model-id>",
     "prompt": "调整为电影感",
     "metadata": { "resolution": "720p", "ratio": "16:9", "video_url": "https://example.com/input.mp4" }
   }'`}</Code>
@@ -491,9 +541,84 @@ data: [DONE]`}</Code>
               <Code>{`curl -X POST https://ghyc.top/v1/videos/video_xxx/remix \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
-  -d '{"model": "seedance2.0-cyai-mini-260615", "prompt": "调整为电影感"}'`}</Code>
+  -d '{"model": "<model-id>", "prompt": "调整为电影感"}'`}</Code>
             </Sub>
-            <Sub id='sec-6-4' title={t('6.4 查询任务状态')}>
+            <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
+              <p className='text-[13px]'>{t('在 metadata.content 传入参考图、参考视频、参考音频。视频/音频必须带 role。参考项数量上限由模型规格决定，以实际模型为准。')}</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '视频模型 ID'],
+                  ['prompt', 'string', '是', '—', '画面描述'],
+                  ['duration', 'integer', '否', '5', '时长（秒），不支持 0 与 -1'],
+                  ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
+                  ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
+                  ['metadata.content', 'array', '是', '—', '多模态参考数组，元素结构见下表'],
+                ]}
+              />
+              <ET title={t('metadata.content 数组元素')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['type', 'string', '是', '—', '元素类型：text / image_url / video_url / audio_url'],
+                  ['text', 'string', 'type=text 时必填', '—', '文本提示词'],
+                  ['image_url.url', 'string', 'type=image_url 时必填', '—', '参考图公网 URL'],
+                  ['video_url.url', 'string', 'type=video_url 时必填', '—', '参考视频公网 URL'],
+                  ['audio_url.url', 'string', 'type=audio_url 时必填', '—', '参考音频公网 URL'],
+                  ['role', 'string', 'type=video_url/audio_url 时必填', '—', 'reference_video / reference_audio'],
+                ]}
+              />
+              <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
+                <p className='font-medium'>{t('多模态参考约定')}</p>
+                <ul className='mt-2 list-disc pl-5 space-y-1'>
+                  <li>{t('单图/单视频也可用扁平写法：metadata.image_url（图生视频）、metadata.video_url（视频生视频），见 6.2 / 6.3。多图、多视频、多模态混搭请用 content 数组。')}</li>
+                  <li>{t('content 数组至少包含 1 条 type=text 的元素。')}</li>
+                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频。')}</li>
+                  <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
+                </ul>
+              </div>
+              <ET title={t('role 字段说明（视频/音频参考必填）')} />
+              <p className='text-[13px]'>
+                {t('role 标识参考素材的用途，告诉上游把它当作「参考视频」还是「参考音频」。取值与素材类型一一绑定，填错会返回 400。')}
+              </p>
+              <T
+                headers={['素材类型', 'role 取值', '说明']}
+                rows={[
+                  ['video_url', 'reference_video', '参考视频（必须）'],
+                  ['audio_url', 'reference_audio', '参考音频（必须，且不可单独输入，至少配 1 图或 1 视频）'],
+                  ['image_url', '（无需）', '参考图不需要 role'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/videos \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{
+    "model": "<model-id>",
+    "prompt": "参考这些素材生成一段连贯视频",
+    "duration": 5,
+    "metadata": {
+      "resolution": "720p",
+      "ratio": "16:9",
+      "content": [
+        { "type": "text", "text": "让参考图里的人物按参考视频的动作表演" },
+        { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" } },
+        { "type": "video_url", "video_url": { "url": "https://example.com/motion.mp4" }, "role": "reference_video" },
+        { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" }, "role": "reference_audio" }
+      ]
+    }
+  }'`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "task_id": "task_rzBa6A4nhqiM8u61oreSYxkcJilyCxMM",
+  "object": "video",
+  "model": "<model-id>",
+  "status": "queued"
+}`}</Code>
+            </Sub>
+            <Sub id='sec-6-5' title={t('6.5 查询任务状态')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}' />
               <ET title={t('请求示例')} />
               <Code>{`curl https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM \\
@@ -523,7 +648,7 @@ data: [DONE]`}</Code>
                 ]}
               />
             </Sub>
-            <Sub id='sec-6-5' title={t('6.5 下载成片')}>
+            <Sub id='sec-6-6' title={t('6.6 下载成片')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}/content' />
               <ET title={t('请求示例')} />
               <Code>{`curl -L https://ghyc.top/v1/videos/task_DcQojxDoxtbGsJ0BL4UIV3KhiziDttIM/content \\
@@ -538,13 +663,15 @@ data: [DONE]`}</Code>
             <Endpoint method='POST' path='/v1/images/generations　·　POST /v1/images/edits' />
             <ET title={t('请求参数')} />
             <T
-              headers={['字段', '类型', '必填', '说明']}
+              headers={['字段', '类型', '必填', '默认值', '说明']}
               rows={[
-                ['model', 'string', '是', '图像模型 ID'],
-                ['prompt', 'string', '是', '画面描述'],
-                ['size', 'string', '否', '尺寸，如 1024x1024'],
-                ['n', 'integer', '否', '生成张数'],
-                ['response_format', 'string', '否', 'url 或 b64_json'],
+                ['model', 'string', '是', '—', '图像模型 ID'],
+                ['prompt', 'string', '是', '—', '画面描述'],
+                ['size', 'string', '否', '模型默认', '尺寸，如 1024x1024 / 512x512（以模型支持为准）'],
+                ['n', 'integer', '否', '1', '生成张数'],
+                ['quality', 'string', '否', '模型默认', '画质：standard / hd（部分模型支持）'],
+                ['style', 'string', '否', '模型默认', '风格（部分模型支持）'],
+                ['response_format', 'string', '否', 'url', 'url 或 b64_json'],
               ]}
             />
             <ET title={t('请求示例')} />
@@ -561,6 +688,16 @@ data: [DONE]`}</Code>
       "revised_prompt": "a red sunset over the sea" }
   ]
 }`}</Code>
+            <ET title={t('响应字段')} />
+            <T
+              headers={['字段', '类型', '说明']}
+              rows={[
+                ['created', 'integer', '创建时间戳'],
+                ['data[].url', 'string', '生成图片的 URL（response_format=url 时）'],
+                ['data[].b64_json', 'string', '生成图片的 base64（response_format=b64_json 时）'],
+                ['data[].revised_prompt', 'string', '模型改写后的提示词'],
+              ]}
+            />
           </Section>
 
           <Section id='sec-8' title={t('8. 向量（Embeddings）')}>
@@ -570,10 +707,11 @@ data: [DONE]`}</Code>
             <Endpoint method='POST' path='/v1/embeddings' />
             <ET title={t('请求参数')} />
             <T
-              headers={['字段', '类型', '必填', '说明']}
+              headers={['字段', '类型', '必填', '默认值', '说明']}
               rows={[
-                ['model', 'string', '是', '向量模型 ID'],
-                ['input', 'string/array', '是', '待向量化文本，支持批量（数组）'],
+                ['model', 'string', '是', '—', '向量模型 ID'],
+                ['input', 'string/array', '是', '—', '待向量化文本，支持批量（数组）'],
+                ['encoding_format', 'string', '否', 'float', '向量编码：float / base64'],
               ]}
             />
             <ET title={t('请求示例')} />
@@ -593,10 +731,10 @@ data: [DONE]`}</Code>
 }`}</Code>
             <ET title={t('响应字段')} />
             <T
-              headers={['字段', '说明']}
+              headers={['字段', '类型', '说明']}
               rows={[
-                ['data[].embedding', '向量数组（维度因模型而异）'],
-                ['usage.prompt_tokens', '输入 token 数（计费依据）'],
+                ['data[].embedding', 'number[]', '向量数组（维度因模型而异）'],
+                ['usage.prompt_tokens', 'integer', '输入 token 数（计费依据）'],
               ]}
             />
           </Section>
@@ -610,11 +748,41 @@ data: [DONE]`}</Code>
                 ['语音合成（TTS）', 'POST /v1/audio/speech', '文本 → 语音'],
               ]}
             />
+            <ET title={t('请求参数（转写 / 翻译）')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['file', 'file', '是', '—', '要转写/翻译的音频文件（multipart/form-data 上传）'],
+                ['model', 'string', '是', '—', '音频模型 ID'],
+                ['language', 'string', '否', '自动识别', '转写：输入音频语言（可选），如 zh / en'],
+                ['response_format', 'string', '否', 'json', '输出格式：json / text / srt / verbose_json'],
+                ['temperature', 'number', '否', '0', '采样温度'],
+              ]}
+            />
+            <ET title={t('请求参数（TTS 语音合成）')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['model', 'string', '是', '—', 'TTS 模型 ID'],
+                ['input', 'string', '是', '—', '要合成的文本'],
+                ['voice', 'string', '否', '模型默认', '发音人，如 alloy / echo（以模型支持为准）'],
+                ['response_format', 'string', '否', 'mp3', '输出格式：mp3 / wav / opus / flac'],
+                ['speed', 'number', '否', '1.0', '语速倍率'],
+              ]}
+            />
             <ET title={t('请求示例（转写）')} />
             <Code>{`curl -X POST https://ghyc.top/v1/audio/transcriptions \\
   -H "Authorization: Bearer sk-..." \\
   -F "model=<model-id>" \\
   -F "file=@audio.mp3"`}</Code>
+            <ET title={t('响应说明')} />
+            <T
+              headers={['能力', '响应']}
+              rows={[
+                ['转写 / 翻译', 'response_format=json 时返回 { "text": "..." }；verbose_json 返回带分段/时间戳的 JSON'],
+                ['TTS 语音合成', '返回音频二进制（格式由 response_format 决定）'],
+              ]}
+            />
           </Section>
 
           <Section id='sec-10' title={t('10. 其它兼容接口')}>
@@ -622,6 +790,17 @@ data: [DONE]`}</Code>
             <Sub title={t('10.1 Response API')}>
               <p className='text-[13px]'>POST /v1/responses　·　POST /v1/responses/compact</p>
               <p className='text-[13px]'>{t('输出结构化响应，支持 reasoning、输出 schema（JSON）等）。')}</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '模型 ID'],
+                  ['input', 'string/array', '是', '—', '输入文本或消息数组'],
+                  ['instructions', 'string', '否', '—', '系统指令'],
+                  ['max_output_tokens', 'integer', '否', '模型默认', '最大输出 token 数'],
+                  ['stream', 'boolean', '否', 'false', '是否流式返回'],
+                ]}
+              />
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/responses \\
   -H "Content-Type: application/json" \\
@@ -630,6 +809,17 @@ data: [DONE]`}</Code>
             </Sub>
             <Sub title={t('10.2 Claude 兼容（Anthropic）')}>
               <p className='text-[13px]'>POST /v1/messages</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '模型 ID'],
+                  ['max_tokens', 'integer', '是', '—', '最大输出 token 数'],
+                  ['messages', 'array', '是', '—', '消息列表，role 为 user/assistant'],
+                  ['system', 'string', '否', '—', '系统提示'],
+                  ['stream', 'boolean', '否', 'false', '是否流式返回'],
+                ]}
+              />
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/messages \\
   -H "Content-Type: application/json" \\
@@ -642,9 +832,27 @@ data: [DONE]`}</Code>
             <Sub title={t('10.4 重排（Rerank）')}>
               <p className='text-[13px]'>POST /v1/rerank</p>
               <p className='text-[13px]'>{t('对候选文档按与查询的相关度重排，常用于检索增强。')}</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '重排模型 ID'],
+                  ['query', 'string', '是', '—', '查询文本'],
+                  ['documents', 'string[]', '是', '—', '候选文档列表'],
+                  ['top_n', 'integer', '否', '返回全部', '返回前 N 个结果'],
+                ]}
+              />
             </Sub>
             <Sub title={t('10.5 内容审核（Moderations）')}>
               <p className='text-[13px]'>POST /v1/moderations</p>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '审核模型 ID'],
+                  ['input', 'string/array', '是', '—', '待审核文本（支持批量）'],
+                ]}
+              />
             </Sub>
             <Sub title={t('10.6 扩展工具（按需开通）')}>
               <T

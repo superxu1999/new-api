@@ -66,9 +66,27 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	return ratios
 }
 
+// contentItem 表示 content 数组中的单个参考项。CyAI 上游（Doubao/Seedance 风格）通过
+// 顶层 content 数组携带文本与多模态参考，video/audio 必须携带 role，
+// 且至少需要一条 text（否则上游返回「必须提供至少 1 条文本提示词」）。
+type contentItem struct {
+	Type     string    `json:"type,omitempty"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *mediaURL `json:"image_url,omitempty"`
+	VideoURL *mediaURL `json:"video_url,omitempty"`
+	AudioURL *mediaURL `json:"audio_url,omitempty"`
+	Role     string    `json:"role,omitempty"`
+}
+
+// mediaURL 为参考项的 URL 载体。
+type mediaURL struct {
+	URL string `json:"url,omitempty"`
+}
+
 type requestPayload struct {
 	Model    string         `json:"model"`
-	Prompt   string         `json:"prompt"`
+	Prompt   string         `json:"prompt,omitempty"`
+	Content  []contentItem  `json:"content,omitempty"`
 	Duration *int           `json:"duration,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
@@ -91,13 +109,83 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	// CyAI 上游不接受 -1(自动) 时长:此处省略 duration,交由上游默认(5s)
 	// CyAI 上游必须携带非空 resolution,否则 400(does not support resolution "")
-	body.Metadata = normalizeResolution(req.Metadata)
+	metadata := normalizeResolution(req.Metadata)
+
+	// CyAI 上游（Doubao/Seedance 风格）只认顶层 content 数组，不认顶层 prompt：
+	// 顶层 prompt 会 400（content is required）。因此当存在多模态参考（metadata.content）时
+	// 统一把 prompt 作为 content[0] 的 text，并把图/视频/音频参考追加进去；
+	// 无参考时保持向后兼容，透传顶层 prompt。
+	if content, hasRef := buildContent(req.Prompt, metadata); hasRef {
+		body.Content = content
+		body.Prompt = ""
+		delete(metadata, "content")
+	}
+	body.Metadata = metadata
 
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal request body failed")
 	}
 	return bytes.NewReader(data), nil
+}
+
+// buildContent 把 prompt 与 metadata.content 参考项合并成 CyAI 的顶层 content 数组。
+// 返回 (content, hasReference)。hasReference 表示用户是否真的传了 metadata.content 参考：
+// 为 false 时调用方应保持向后兼容（透传顶层 prompt），不输出 content 数组。
+// 上游要求至少一条 text，且 video/audio 必须带 role。
+func buildContent(prompt string, metadata map[string]any) ([]contentItem, bool) {
+	items := parseContentReferences(metadata)
+	if len(items) == 0 {
+		return nil, false
+	}
+	for i := range items {
+		normalizeContentRole(&items[i])
+	}
+	// 上游要求至少一条 text：参考项中没有 text 时，用 prompt 作为 text 补到最前。
+	hasText := false
+	for _, it := range items {
+		if it.Type == "text" {
+			hasText = true
+			break
+		}
+	}
+	if !hasText {
+		items = append([]contentItem{{Type: "text", Text: prompt}}, items...)
+	}
+	return items, true
+}
+
+// parseContentReferences 解析 metadata["content"] 为 []contentItem。
+// content 可能是 []map[string]any 或已反序列化的切片；解析失败时返回空。
+func parseContentReferences(metadata map[string]any) []contentItem {
+	raw, ok := metadata["content"]
+	if !ok {
+		return nil
+	}
+	data, err := common.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var items []contentItem
+	if err := common.Unmarshal(data, &items); err != nil {
+		return nil
+	}
+	return items
+}
+
+// normalizeContentRole 为视频/音频参考补默认 role（CyAI 上游对无 role 的
+// 视频/音频返回 400：「视频 role 仅支持 reference_video」「音频 role 仅支持 reference_audio」）。
+func normalizeContentRole(it *contentItem) {
+	switch it.Type {
+	case "video_url":
+		if it.Role == "" {
+			it.Role = "reference_video"
+		}
+	case "audio_url":
+		if it.Role == "" {
+			it.Role = "reference_audio"
+		}
+	}
 }
 
 // normalizeResolution 保证 CyAI 请求携带非空清晰度;缺省或为空统一用 720p。
