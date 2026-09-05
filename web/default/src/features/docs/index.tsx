@@ -444,7 +444,7 @@ data: [DONE]`}</Code>
               <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
                 <p className='font-medium'>{t('多模态参考')}</p>
                 <p className='mt-1 text-muted-foreground'>
-                  {t('通过 metadata.content 传入参考图、参考视频、参考音频。每项用 type 区分，视频/音频必须带 role。参考项数量上限由所使用的模型规格决定（例如 Seedance 2.0 支持 9 图 + 3 视频 + 3 音频，Seedance 2.5 支持 30 图 + 10 视频 + 10 音频），以实际模型为准。')}
+                  {t('通过 metadata.content 传入参考图、参考视频、参考音频。每项用 type 区分，图/视频/音频必须带 role。参考项数量上限由所使用的模型规格决定（例如 Seedance 2.0 支持 9 图 + 3 视频 + 3 音频，Seedance 2.5 支持 30 图 + 10 视频 + 10 音频），以实际模型为准。')}
                 </p>
                 <ul className='mt-2 list-disc pl-5 space-y-1'>
                   <li>{t('文本提示词：{ "type": "text", "text": "..." }')}</li>
@@ -544,7 +544,7 @@ data: [DONE]`}</Code>
   -d '{"model": "<model-id>", "prompt": "调整为电影感"}'`}</Code>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
-              <p className='text-[13px]'>{t('在 metadata.content 传入参考图、参考视频、参考音频。视频/音频必须带 role。参考项数量上限由模型规格决定，以实际模型为准。')}</p>
+              <p className='text-[13px]'>{t('在 metadata.content 传入参考图、参考视频、参考音频。图/视频/音频必须带 role。参考项数量上限由模型规格决定，以实际模型为准。')}</p>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
@@ -566,7 +566,7 @@ data: [DONE]`}</Code>
                   ['image_url.url', 'string', 'type=image_url 时必填', '—', '参考图公网 URL'],
                   ['video_url.url', 'string', 'type=video_url 时必填', '—', '参考视频公网 URL'],
                   ['audio_url.url', 'string', 'type=audio_url 时必填', '—', '参考音频公网 URL'],
-                  ['role', 'string', 'type=video_url/audio_url 时必填', '—', 'reference_video / reference_audio'],
+                  ['role', 'string', 'type 为 image_url/video_url/audio_url 时必填', '—', 'reference_image / reference_video / reference_audio'],
                 ]}
               />
               <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
@@ -578,16 +578,16 @@ data: [DONE]`}</Code>
                   <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
                 </ul>
               </div>
-              <ET title={t('role 字段说明（视频/音频参考必填）')} />
+              <ET title={t('role 字段说明（图/视频/音频参考必填）')} />
               <p className='text-[13px]'>
-                {t('role 标识参考素材的用途，告诉上游把它当作「参考视频」还是「参考音频」。取值与素材类型一一绑定，填错会返回 400。')}
+                {t('role 标识参考素材的用途，告诉上游把它当作「参考图」「参考视频」还是「参考音频」。取值与素材类型一一绑定，填错会返回 400。不带 role 的 image_url 会被当作「首帧图片」（首帧最多 1 张），多图参考必须带 role。')}
               </p>
               <T
                 headers={['素材类型', 'role 取值', '说明']}
                 rows={[
+                  ['image_url', 'reference_image', '参考图（多图参考必须；不带 role 会被当作首帧）'],
                   ['video_url', 'reference_video', '参考视频（必须）'],
                   ['audio_url', 'reference_audio', '参考音频（必须，且不可单独输入，至少配 1 图或 1 视频）'],
-                  ['image_url', '（无需）', '参考图不需要 role'],
                 ]}
               />
               <ET title={t('请求示例')} />

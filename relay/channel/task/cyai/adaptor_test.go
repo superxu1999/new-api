@@ -34,7 +34,7 @@ func TestBuildContent(t *testing.T) {
 			},
 			want: []contentItem{
 				{Type: "text", Text: "参考这些图生成视频"},
-				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/a.jpg"}},
+				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/a.jpg"}, Role: "reference_image"},
 			},
 			wantRef: true,
 		},
@@ -77,7 +77,7 @@ func TestBuildContent(t *testing.T) {
 			},
 			want: []contentItem{
 				{Type: "text", Text: "用户自带提示词"},
-				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/a.jpg"}},
+				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/a.jpg"}, Role: "reference_image"},
 			},
 			wantRef: true,
 		},

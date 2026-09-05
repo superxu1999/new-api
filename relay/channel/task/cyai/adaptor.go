@@ -132,7 +132,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 // buildContent 把 prompt 与 metadata.content 参考项合并成 CyAI 的顶层 content 数组。
 // 返回 (content, hasReference)。hasReference 表示用户是否真的传了 metadata.content 参考：
 // 为 false 时调用方应保持向后兼容（透传顶层 prompt），不输出 content 数组。
-// 上游要求至少一条 text，且 video/audio 必须带 role。
+// 上游要求至少一条 text，且参考素材（图/视频/音频）必须带 role。
 func buildContent(prompt string, metadata map[string]any) ([]contentItem, bool) {
 	items := parseContentReferences(metadata)
 	if len(items) == 0 {
@@ -173,10 +173,16 @@ func parseContentReferences(metadata map[string]any) []contentItem {
 	return items
 }
 
-// normalizeContentRole 为视频/音频参考补默认 role（CyAI 上游对无 role 的
-// 视频/音频返回 400：「视频 role 仅支持 reference_video」「音频 role 仅支持 reference_audio」）。
+// normalizeContentRole 为参考素材补默认 role（CyAI 上游对无 role 的参考项返回 400）：
+//   - image_url → reference_image（无 role 会被当作「首帧图片」，而首帧最多 1 张，导致多图失败）
+//   - video_url → reference_video
+//   - audio_url → reference_audio
 func normalizeContentRole(it *contentItem) {
 	switch it.Type {
+	case "image_url":
+		if it.Role == "" {
+			it.Role = "reference_image"
+		}
 	case "video_url":
 		if it.Role == "" {
 			it.Role = "reference_video"
