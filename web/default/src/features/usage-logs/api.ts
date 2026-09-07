@@ -110,3 +110,13 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+// Task stats (status counts + avg duration)
+export const getTaskStats = async (params: GetTaskLogsParams = {}, isAdmin = true) => {
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
+  const path = isAdmin ? `/api/task/stats?${queryParams}` : `/api/task/self/stats?${queryParams}`
+  const res = await api.get(path)
+  return res.data
+}

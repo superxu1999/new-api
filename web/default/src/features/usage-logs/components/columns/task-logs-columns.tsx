@@ -36,6 +36,7 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { TaskDetailDialog } from '../dialogs/task-detail-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -169,22 +170,37 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       cell: ({ row }) => {
         const log = row.original
         const taskId = row.getValue('task_id') as string
+        const [dialogOpen, setDialogOpen] = useState(false)
         if (!taskId) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
         return (
-          <div className='flex max-w-[170px] flex-col gap-0.5'>
-            <StatusBadge
-              label={taskId}
-              copyText={taskId}
-              variant='neutral'
-              size='sm'
-              className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+          <>
+            <div className='flex max-w-[170px] flex-col gap-0.5'>
+              <button
+                type='button'
+                onClick={() => setDialogOpen(true)}
+                className='group text-left'
+                title={t('Click to view task details')}
+              >
+                <StatusBadge
+                  label={taskId}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                  className='border-border/60 bg-muted/30 !text-foreground group-hover:bg-muted/60 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+                />
+              </button>
+              <span className='text-muted-foreground/60 truncate text-[11px]'>
+                {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
+              </span>
+            </div>
+            <TaskDetailDialog
+              log={log}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
             />
-            <span className='text-muted-foreground/60 truncate text-[11px]'>
-              {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
-            </span>
-          </div>
+          </>
         )
       },
       meta: { mobileTitle: true },
@@ -247,17 +263,23 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const isSuccess = status === TASK_STATUS.SUCCESS
         const isUrl = failReason?.startsWith('http')
 
+        // 成功视频任务：打开任务详情弹窗预览/下载视频
         if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
+            <>
+              <button
+                type='button'
+                className='text-foreground text-xs hover:underline'
+                onClick={() => setDialogOpen(true)}
+              >
+                {t('Click to preview video')}
+              </button>
+              <TaskDetailDialog
+                log={log}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+              />
+            </>
           )
         }
 

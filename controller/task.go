@@ -36,6 +36,39 @@ func GetAllTask(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetTaskStats 返回任务状态统计与平均耗时（管理员）。
+func GetTaskStats(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	queryParams := model.SyncTaskQueryParams{
+		Platform:       constant.TaskPlatform(c.Query("platform")),
+		TaskID:         c.Query("task_id"),
+		Status:         c.Query("status"),
+		Action:         c.Query("action"),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		ChannelID:      c.Query("channel_id"),
+	}
+	common.ApiSuccess(c, model.TaskGetStats(queryParams))
+}
+
+// GetUserTaskStats 返回当前用户的任务状态统计与平均耗时。
+func GetUserTaskStats(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	queryParams := model.SyncTaskQueryParams{
+		Platform:       constant.TaskPlatform(c.Query("platform")),
+		TaskID:         c.Query("task_id"),
+		Status:         c.Query("status"),
+		Action:         c.Query("action"),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		UserID:         strconv.Itoa(userId),
+	}
+	common.ApiSuccess(c, model.TaskGetStats(queryParams))
+}
+
 func GetUserTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 

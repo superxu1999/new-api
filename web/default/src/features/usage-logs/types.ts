@@ -260,16 +260,21 @@ export interface TaskLog {
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
+  group?: string
+  quota?: number
   submit_time: number // seconds
+  start_time?: number // seconds
   finish_time?: number // seconds
+  created_at?: number // seconds
+  updated_at?: number // seconds
   progress?: string
   progress_message_en?: string
-  data?: string // JSON string
+  data?: string // JSON string (upstream response)
   fail_reason?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
+  properties?: string // JSON string (request payload / request params)
+  result_url?: string // task result URL (e.g. video url)
   other?: string
-  created_at?: number
-  updated_at?: number
 }
 
 // ============================================================================
@@ -345,6 +350,19 @@ export interface GetTaskLogsParams {
   task_id?: string
   start_timestamp?: number
   end_timestamp?: number
+}
+
+/** 任务统计结果（状态计数 + 平均耗时）。 */
+export interface TaskStats {
+  items: Record<string, number>
+  total_count: number
+  avg_duration_seconds: number
+}
+
+export interface TaskStatsResponse {
+  success: boolean
+  message?: string
+  data?: TaskStats
 }
 
 // ============================================================================

@@ -501,9 +501,76 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	return total
 }
 
+// TaskStatsItem 任务状态统计项。
+type TaskStatsItem struct {
+	// Status 状态（NOT_START / SUBMITTED / QUEUED / IN_PROGRESS / SUCCESS / FAILURE / UNKNOWN）。
+	Status string `json:"status"`
+	// Count 该状态下任务数。
+	Count int64 `json:"count"`
+}
+
+// TaskStats 任务统计结果。
+type TaskStats struct {
+	Items map[string]int64 `json:"items"`
+	// TotalCount 任务总数。
+	TotalCount int64 `json:"total_count"`
+	// AvgDurationSeconds 平均耗时（秒，仅统计已结束的任务：SUCCESS/FAILURE）。
+	AvgDurationSeconds float64 `json:"avg_duration_seconds"`
+}
+
+// TaskGetStats 按查询条件返回任务状态计数与平均耗时。
+func TaskGetStats(queryParams SyncTaskQueryParams) *TaskStats {
+	stats := &TaskStats{Items: make(map[string]int64)}
+	query := DB.Model(&Task{})
+	if queryParams.ChannelID != "" {
+		query = query.Where("channel_id = ?", queryParams.ChannelID)
+	}
+	if queryParams.Platform != "" {
+		query = query.Where("platform = ?", queryParams.Platform)
+	}
+	if queryParams.UserID != "" {
+		query = query.Where("user_id = ?", queryParams.UserID)
+	}
+	if len(queryParams.UserIDs) != 0 {
+		query = query.Where("user_id in (?)", queryParams.UserIDs)
+	}
+	if queryParams.TaskID != "" {
+		query = query.Where("task_id = ?", queryParams.TaskID)
+	}
+	if queryParams.Action != "" {
+		query = query.Where("action = ?", queryParams.Action)
+	}
+	if queryParams.Status != "" {
+		query = query.Where("status = ?", queryParams.Status)
+	}
+	if queryParams.StartTimestamp != 0 {
+		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
+	}
+	if queryParams.EndTimestamp != 0 {
+		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
+	}
+
+	type row struct {
+		Status string
+		Count  int64
+	}
+	var rows []row
+	_ = query.Select("status, count(*) as count").Group("status").Scan(&rows).Error
+	for _, r := range rows {
+		stats.Items[r.Status] = r.Count
+		stats.TotalCount += r.Count
+	}
+
+	// 平均耗时：仅统计已结束任务（finish_time > submit_time）
+	var avg float64
+	_ = query.Select("avg(finish_time - submit_time)").Where("status in (?)",
+		[]string{string(TaskStatusSuccess), string(TaskStatusFailure)}).Scan(&avg).Error
+	stats.AvgDurationSeconds = avg
+	return stats
+}
+
 // TaskCountAllUserTask returns total tasks for given user
-func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
-	var total int64
+func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {	var total int64
 	query := DB.Model(&Task{}).Where("user_id = ?", userId)
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)

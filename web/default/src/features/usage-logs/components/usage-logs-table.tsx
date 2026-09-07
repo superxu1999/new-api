@@ -42,6 +42,7 @@ import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
+import { TaskStatsBar } from './task-stats-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
@@ -197,7 +198,34 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         isCommon ? (
           <CommonLogsFilterBar table={table} />
         ) : (
-          <TaskLogsFilterBar table={table} logCategory={logCategory} />
+          <div className='space-y-3'>
+            {logCategory === 'task' && (
+              <TaskStatsBar
+                isAdmin={isAdmin}
+                startTimestamp={
+                  searchParams.startTime
+                    ? new Date(searchParams.startTime).getTime() / 1000
+                    : undefined
+                }
+                endTimestamp={
+                  searchParams.endTime
+                    ? new Date(searchParams.endTime).getTime() / 1000
+                    : undefined
+                }
+                taskId={
+                  typeof searchParams.filter === 'string'
+                    ? searchParams.filter
+                    : undefined
+                }
+                channelId={
+                  typeof searchParams.channel === 'string'
+                    ? searchParams.channel
+                    : undefined
+                }
+              />
+            )}
+            <TaskLogsFilterBar table={table} logCategory={logCategory} />
+          </div>
         )
       }
       renderRow={(row) => {
