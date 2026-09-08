@@ -38,7 +38,15 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	// 管理员可查看任意用户的任务视频；普通用户只能查看自己的。
+	var task *model.Task
+	var exists bool
+	var err error
+	if c.GetInt("role") >= common.RoleAdminUser {
+		task, exists, err = model.GetTaskByIdGlobal(taskID)
+	} else {
+		task, exists, err = model.GetByTaskId(userID, taskID)
+	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
