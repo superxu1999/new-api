@@ -177,6 +177,11 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
+	// 透传客户端的 Range 头，让上游返回 206 分段内容，避免整段下载（视频可边下边播、拖动进度）。
+	if r := c.GetHeader("Range"); r != "" {
+		req.Header.Set("Range", r)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to fetch video from %s: %s", videoURL, err.Error()))
@@ -185,7 +190,8 @@ func VideoProxy(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	// 接受 200 与 206（分段）。其他状态视为上游出错。
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
 		videoProxyError(c, http.StatusBadGateway, "server_error",
 			fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))
