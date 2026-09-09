@@ -34,13 +34,13 @@ const BUILTIN_FALLBACK: Record<string, number> = {
   '4k': 5.08,
 }
 
-// 输入含视频折扣：0 表示不启用（按“不含视频”价格收取）。
-const INPUT_VIDEO_FALLBACK = 0
+// 输入含视频档的独立 ModelRatio：0 表示未启用（按不含视频 ModelRatio 收）。
+const INPUT_VIDEO_MR_FALLBACK = 0
 
 const GLOBAL_KEY = 'video_pricing_setting.resolution_ratio'
 const BY_MODEL_KEY = 'video_pricing_setting.resolution_ratio_by_model'
-const INPUT_VIDEO_GLOBAL_KEY = 'video_pricing_setting.input_video_ratio'
-const INPUT_VIDEO_BY_MODEL_KEY = 'video_pricing_setting.input_video_ratio_by_model'
+const INPUT_VIDEO_MR_GLOBAL_KEY = 'video_pricing_setting.input_video_model_ratio'
+const INPUT_VIDEO_MR_BY_MODEL_KEY = 'video_pricing_setting.input_video_model_ratio_by_model'
 
 type Props = {
   model: string
@@ -52,9 +52,9 @@ type Props = {
  *  1) 全局分辨率倍率（video_pricing_setting.resolution_ratio）：对所有模型生效，
  *     模型未单独覆盖时使用。缺省回退到 BUILTIN_FALLBACK。
  *  2) 按模型分辨率覆盖（video_pricing_setting.resolution_ratio_by_model）。
- *  3) 输入含视频折扣（video_pricing_setting.input_video_ratio，可按模型覆盖）：
- *     官方按「输入是否包含视频」分两档计价（含视频更便宜），此处设置含视频时的
- *     金额折价系数（如 0.6087 = 28/46）。0 表示不启用（按不含视频价收）。
+ *  3) 输入含视频档的独立 ModelRatio（video_pricing_setting.input_video_model_ratio，
+ *     可按模型覆盖）：官方按「输入是否包含视频」分两档计价（含视频更便宜），
+ *     此处设置含视频档的独立 ModelRatio。0 表示未启用（按不含视频 ModelRatio 收）。
  */
 export function VideoResolutionMultiplierEditor({ model }: Props) {
   const { t } = useTranslation()
@@ -66,8 +66,8 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
   const [modelValues, setModelValues] = useState<Record<string, number>>({ ...BUILTIN_FALLBACK })
   const [savingGlobal, setSavingGlobal] = useState(false)
   const [savingModel, setSavingModel] = useState(false)
-  const [inputVideoGlobal, setInputVideoGlobal] = useState(INPUT_VIDEO_FALLBACK)
-  const [inputVideoModel, setInputVideoModel] = useState(INPUT_VIDEO_FALLBACK)
+  const [inputVideoGlobal, setInputVideoGlobal] = useState(INPUT_VIDEO_MR_FALLBACK)
+  const [inputVideoModel, setInputVideoModel] = useState(INPUT_VIDEO_MR_FALLBACK)
   const [inputVideoByModelMap, setInputVideoByModelMap] = useState<Record<string, number>>({})
   const [savingInputGlobal, setSavingInputGlobal] = useState(false)
   const [savingInputModel, setSavingInputModel] = useState(false)
@@ -81,16 +81,16 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
         const items = (res.data || []) as Array<{ key?: string; value?: string }>
         const globalRaw = items.find((it) => it.key === GLOBAL_KEY)?.value ?? ''
         const byModelRaw = items.find((it) => it.key === BY_MODEL_KEY)?.value ?? ''
-        const inputGlobalRaw = items.find((it) => it.key === INPUT_VIDEO_GLOBAL_KEY)?.value ?? ''
-        const inputByModelRaw = items.find((it) => it.key === INPUT_VIDEO_BY_MODEL_KEY)?.value ?? ''
+        const inputGlobalRaw = items.find((it) => it.key === INPUT_VIDEO_MR_GLOBAL_KEY)?.value ?? ''
+        const inputByModelRaw = items.find((it) => it.key === INPUT_VIDEO_MR_BY_MODEL_KEY)?.value ?? ''
         const parsedGlobal = parseGlobal(globalRaw)
         setGlobalMap(parsedGlobal)
         setGlobalValues(parsedGlobal)
         setByModelMap(parseByModel(byModelRaw))
-        setInputVideoGlobal(Number.parseFloat(inputGlobalRaw) || INPUT_VIDEO_FALLBACK)
+        setInputVideoGlobal(Number.parseFloat(inputGlobalRaw) || INPUT_VIDEO_MR_FALLBACK)
         const inputVideoMap = parseInputVideoByModelMap(inputByModelRaw)
         setInputVideoByModelMap(inputVideoMap)
-        setInputVideoModel(inputVideoMap[model] ?? INPUT_VIDEO_FALLBACK)
+        setInputVideoModel(inputVideoMap[model] ?? INPUT_VIDEO_MR_FALLBACK)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -149,7 +149,7 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
     const next = inputVideoGlobal > 0 ? inputVideoGlobal : 0
     setSavingInputGlobal(true)
     try {
-      await updateOption.mutateAsync({ key: INPUT_VIDEO_GLOBAL_KEY, value: next })
+      await updateOption.mutateAsync({ key: INPUT_VIDEO_MR_GLOBAL_KEY, value: next })
       setInputVideoGlobal(next)
       toast.success(t('Saved'))
     } catch {
@@ -166,7 +166,7 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
     }
     setSavingInputModel(true)
     try {
-      await updateOption.mutateAsync({ key: INPUT_VIDEO_BY_MODEL_KEY, value: JSON.stringify(next) })
+      await updateOption.mutateAsync({ key: INPUT_VIDEO_MR_BY_MODEL_KEY, value: JSON.stringify(next) })
       setInputVideoByModelMap(next)
       toast.success(t('Saved'))
     } catch {
@@ -250,17 +250,17 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
         </div>
 
         <div className='border-t pt-4'>
-          {/* 输入含视频折价系数 */}
+          {/* 输入含视频档的独立 ModelRatio */}
           <div className='space-y-2'>
-            <p className='text-sm font-medium'>{t('Input video multiplier (global default)')}</p>
+            <p className='text-sm font-medium'>{t('Input with video model ratio (global default)')}</p>
             <p className='text-muted-foreground text-xs'>
               {t(
-                'A factor applied to the no-video price when the request includes a reference video. 1.0 = no discount; 0.6087 = official price for input-with-video (28/46 for 2.0 720p). 0 disables this (charge at the no-video price).'
+                'A separate ModelRatio used when the request includes a reference video. Official pricing has two tiers: no-video vs with-video. Set 0 to fall back to the no-video ModelRatio.'
               )}
             </p>
             <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-2'>
               <div className='space-y-1'>
-                <span className='text-muted-foreground text-xs'>{t('Global input video multiplier')}</span>
+                <span className='text-muted-foreground text-xs'>{t('Global input with video ratio')}</span>
                 <Input
                   type='number'
                   step={0.0001}
@@ -277,22 +277,22 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
               onClick={saveInputVideoGlobal}
               disabled={savingInputGlobal}
             >
-              {savingInputGlobal ? t('Saving...') : t('Save global input video multiplier')}
+              {savingInputGlobal ? t('Saving...') : t('Save global input with video ratio')}
             </Button>
           </div>
 
           <div className='space-y-2 mt-4'>
             <p className='text-sm font-medium'>
-              {t('Input video multiplier ({{model}})', { model })}
+              {t('Input with video model ratio ({{model}})', { model })}
             </p>
             <p className='text-muted-foreground text-xs'>
               {t(
-                'Applies only to this model. Leave 0 to use the global default (no discount).'
+                'Applies only to this model. Leave 0 to use the global default (no-video ModelRatio).'
               )}
             </p>
             <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-2'>
               <div className='space-y-1'>
-                <span className='text-muted-foreground text-xs'>{t('Model input video multiplier')}</span>
+                <span className='text-muted-foreground text-xs'>{t('Model input with video ratio')}</span>
                 <Input
                   type='number'
                   step={0.0001}
@@ -309,7 +309,7 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
               onClick={saveInputVideoModel}
               disabled={savingInputModel}
             >
-              {savingInputModel ? t('Saving...') : t('Save input video multiplier')}
+              {savingInputModel ? t('Saving...') : t('Save input with video ratio')}
             </Button>
           </div>
         </div>

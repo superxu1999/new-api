@@ -59,12 +59,15 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 				ratios["resolution"] = r
 			}
 		}
-		// 官方按「输入是否包含视频」分两档计价（含视频更便宜）。
-		// 当请求携带参考视频（metadata.content 含 video_url/reference_video）时，
-		// 应用 input_video_ratio 折价系数；未配置时不启用折扣（按不含视频价收）。
+		// 官方按「输入是否包含视频」分两档计价（含视频更便宜），各自是独立的 ModelRatio 档：
+		//   不含视频用基础 ModelRatio；含视频用 input_video_model_ratio。
+		// 基础 price 已按不含视频 ModelRatio 预扣，此处把基础倍率切换为含视频档的比例。
 		if hasInputVideo(req.Metadata) {
-			if r, ok := operation_setting.GetInputVideoRatio(model); ok {
-				ratios["input_video"] = r
+			if inputMR, ok := operation_setting.GetInputVideoModelRatio(model); ok {
+				baseMR := info.PriceData.ModelRatio
+				if baseMR > 0 {
+					ratios["input_video"] = inputMR / baseMR
+				}
 			}
 		}
 	}
