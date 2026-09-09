@@ -275,6 +275,8 @@ export type BillingSettings = {
   'general_setting.custom_currency_exchange_rate': number
   'video_pricing_setting.resolution_ratio': string
   'video_pricing_setting.resolution_ratio_by_model': string
+  'video_pricing_setting.input_video_ratio': number
+  'video_pricing_setting.input_video_ratio_by_model': string
   DisplayInCurrencyEnabled: boolean
   DisplayTokenStatEnabled: boolean
   ModelPrice: string
