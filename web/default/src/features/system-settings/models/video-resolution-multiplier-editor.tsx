@@ -250,17 +250,17 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
         </div>
 
         <div className='border-t pt-4'>
-          {/* 输入含视频折扣 */}
+          {/* 输入含视频折价系数 */}
           <div className='space-y-2'>
-            <p className='text-sm font-medium'>{t('Input video pricing (global default)')}</p>
+            <p className='text-sm font-medium'>{t('Input video multiplier (global default)')}</p>
             <p className='text-muted-foreground text-xs'>
               {t(
-                'Official pricing charges less when the request contains a reference video. Set the discount factor here (e.g. 0.6087 = 28/46). 0 disables the discount (charge at the no-video price).'
+                'A factor applied to the no-video price when the request includes a reference video. 1.0 = no discount; 0.6087 = official price for input-with-video (28/46 for 2.0 720p). 0 disables this (charge at the no-video price).'
               )}
             </p>
             <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-2'>
               <div className='space-y-1'>
-                <span className='text-muted-foreground text-xs'>{t('Global discount')}</span>
+                <span className='text-muted-foreground text-xs'>{t('Global input video multiplier')}</span>
                 <Input
                   type='number'
                   step={0.0001}
@@ -277,13 +277,13 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
               onClick={saveInputVideoGlobal}
               disabled={savingInputGlobal}
             >
-              {savingInputGlobal ? t('Saving...') : t('Save global input video pricing')}
+              {savingInputGlobal ? t('Saving...') : t('Save global input video multiplier')}
             </Button>
           </div>
 
           <div className='space-y-2 mt-4'>
             <p className='text-sm font-medium'>
-              {t('Input video pricing ({{model}})', { model })}
+              {t('Input video multiplier ({{model}})', { model })}
             </p>
             <p className='text-muted-foreground text-xs'>
               {t(
@@ -292,7 +292,7 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
             </p>
             <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-2'>
               <div className='space-y-1'>
-                <span className='text-muted-foreground text-xs'>{t('Model discount')}</span>
+                <span className='text-muted-foreground text-xs'>{t('Model input video multiplier')}</span>
                 <Input
                   type='number'
                   step={0.0001}
@@ -309,7 +309,7 @@ export function VideoResolutionMultiplierEditor({ model }: Props) {
               onClick={saveInputVideoModel}
               disabled={savingInputModel}
             >
-              {savingInputModel ? t('Saving...') : t('Save input video pricing')}
+              {savingInputModel ? t('Saving...') : t('Save input video multiplier')}
             </Button>
           </div>
         </div>
