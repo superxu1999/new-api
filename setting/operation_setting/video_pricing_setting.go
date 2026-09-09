@@ -18,8 +18,8 @@ var videoPricingSetting = VideoPricingSetting{
 	ResolutionRatio: map[string]float64{
 		"480p":  1.0,
 		"720p":  1.0,
-		"1080p": 1.25,
-		"4k":    0.32,
+		"1080p": 2.49,
+		"4k":    5.08,
 	},
 	ResolutionRatioByModel: map[string]map[string]float64{},
 }

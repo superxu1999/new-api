@@ -30,8 +30,8 @@ const RES_KEYS = ['480p', '720p', '1080p', '4k'] as const
 const BUILTIN_FALLBACK: Record<string, number> = {
   '480p': 1,
   '720p': 1,
-  '1080p': 1.25,
-  '4k': 0.32,
+  '1080p': 2.49,
+  '4k': 5.08,
 }
 
 const GLOBAL_KEY = 'video_pricing_setting.resolution_ratio'
