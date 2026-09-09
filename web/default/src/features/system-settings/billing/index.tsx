@@ -54,6 +54,8 @@ const defaultBillingSettings: BillingSettings = {
   'video_pricing_setting.resolution_ratio':
     '{"480p":1,"720p":1,"1080p":2.49,"4k":5.08}',
   'video_pricing_setting.resolution_ratio_by_model': '{}',
+  'video_pricing_setting.input_video_ratio': 0,
+  'video_pricing_setting.input_video_ratio_by_model': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',

@@ -59,11 +59,30 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 				ratios["resolution"] = r
 			}
 		}
+		// 官方按「输入是否包含视频」分两档计价（含视频更便宜）。
+		// 当请求携带参考视频（metadata.content 含 video_url/reference_video）时，
+		// 应用 input_video_ratio 折价系数；未配置时不启用折扣（按不含视频价收）。
+		if hasInputVideo(req.Metadata) {
+			if r, ok := operation_setting.GetInputVideoRatio(model); ok {
+				ratios["input_video"] = r
+			}
+		}
 	}
 	if len(ratios) == 0 {
 		return nil
 	}
 	return ratios
+}
+
+// hasInputVideo 判断请求是否携带参考视频（metadata.content 中含 video_url/reference_video）。
+func hasInputVideo(metadata map[string]any) bool {
+	items := parseContentReferences(metadata)
+	for _, it := range items {
+		if it.Type == "video_url" || it.VideoURL != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // contentItem 表示 content 数组中的单个参考项。CyAI 上游（Doubao/Seedance 风格）通过

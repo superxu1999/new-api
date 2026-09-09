@@ -584,13 +584,20 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
+		// 视频/时长计费任务（OtherRatios 含 seconds 维度）按「时长×分辨率」预扣，已精确对齐官方定价。
+		// 上游返回的 completion_tokens 是估算值，不代表真实消耗；若走 token 重算（RecalculateTaskQuotaByTokens）
+		// 会以错误口径重算，破坏已正确的预扣额度。因此这类任务标记 PerCallBilling，跳过轮询阶段的差额结算。
+		perCallBilling := common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice
+		if _, hasSeconds := relayInfo.PriceData.OtherRatios["seconds"]; hasSeconds {
+			perCallBilling = true
+		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			PerCallBilling:  perCallBilling,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
