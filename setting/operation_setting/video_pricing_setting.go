@@ -12,10 +12,14 @@ import (
 type VideoPricingSetting struct {
 	// TieredPriceByModel 模型 -> (档位键 -> 单价元/百万token)，按模型覆盖内置官方默认。
 	TieredPriceByModel map[string]map[string]float64 `json:"tiered_price_by_model"`
+	// ModelMultiplierByModel 模型 -> 计费倍率（默认 1.0，用于针对单个模型加价/打折）。
+	// 最终价格 = 分档单价 × token/1e6 × groupRatio × 该倍率。
+	ModelMultiplierByModel map[string]float64 `json:"model_multiplier_by_model"`
 }
 
 var videoPricingSetting = VideoPricingSetting{
-	TieredPriceByModel: map[string]map[string]float64{},
+	TieredPriceByModel:     map[string]map[string]float64{},
+	ModelMultiplierByModel: map[string]float64{},
 }
 
 func init() {
@@ -28,4 +32,12 @@ func GetTieredPriceByModel(model string) (map[string]float64, bool) {
 		return m, true
 	}
 	return nil, false
+}
+
+// GetModelMultiplier 返回某模型的计费倍率；未配置返回 1.0（原价）。
+func GetModelMultiplier(model string) float64 {
+	if m, ok := videoPricingSetting.ModelMultiplierByModel[model]; ok && m > 0 {
+		return m
+	}
+	return 1.0
 }

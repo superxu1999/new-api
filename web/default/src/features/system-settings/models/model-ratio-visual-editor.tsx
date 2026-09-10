@@ -505,6 +505,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
       }
 
       targetNames.forEach((name) => {
+        // 视频模型（seedance 系列）不使用通用价格通道，其定价由「分档单价 + 计费倍率」
+        // 决定。这里保留其原有 ModelRatio（计费公式依赖其大于 0），不做删除或改写。
+        if (/seedance/i.test(name)) {
+          return
+        }
         delete priceMap[name]
         delete ratioMap[name]
         delete cacheMap[name]

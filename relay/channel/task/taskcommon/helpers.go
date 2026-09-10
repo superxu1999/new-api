@@ -257,22 +257,31 @@ func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bo
 }
 
 // ComputeSeedanceBillRatio 计算 seedance 视频任务的 OtherRatio，使最终价格等于
-// 「分档单价 × token / 1e6」（元），从而让后台配置的分档单价绝对值直接生效，
-// 与模型的 ModelRatio 无关。
+// 「分档单价 × token / 1e6 × multiplier」（元），从而让后台配置的分档单价绝对值
+// 与模型计费倍率直接生效，与模型的 ModelRatio 无关。
 //
 // 推导：元 = modelRatio/2 × ratio × rate（见 ModelPriceHelperPerCall 与汇率换算）
-// 目标：元 = tierPrice × token / 1e6
+// 目标：元 = tierPrice × token / 1e6 × multiplier
 //
-//	=> ratio = 2 × tierPrice × token / 1e6 / (modelRatio × rate)
-func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate float64) (float64, bool) {
+//	=> ratio = 2 × tierPrice × token / 1e6 × multiplier / (modelRatio × rate)
+func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, multiplier float64) (float64, bool) {
 	if tierPrice <= 0 || token <= 0 || modelRatio <= 0 || rate <= 0 {
 		return 0, false
 	}
-	ratio := 2 * tierPrice * float64(token) / 1e6 / (modelRatio * rate)
+	if multiplier <= 0 {
+		multiplier = 1.0
+	}
+	ratio := 2 * tierPrice * float64(token) / 1e6 * multiplier / (modelRatio * rate)
 	if ratio <= 0 {
 		return 0, false
 	}
 	return ratio, true
+}
+
+// SeedanceModelMultiplier 返回该模型的视频计费倍率（按归一化模型名查配置，默认 1.0）。
+// 用于针对单个模型加价/打折：最终价格 = 分档单价 × token/1e6 × groupRatio × 该倍率。
+func SeedanceModelMultiplier(modelName string) float64 {
+	return operation_setting.GetModelMultiplier(normalizeSeedanceModel(modelName))
 }
 
 // SeedanceToken 计算官方 token 用量：token = (输入时长+输出时长) × 宽 × 高 × 帧率 / 1024。

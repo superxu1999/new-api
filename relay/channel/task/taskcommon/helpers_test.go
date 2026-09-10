@@ -39,7 +39,7 @@ func TestSeedanceToken(t *testing.T) {
 }
 
 // TestComputeSeedanceBillRatio 校验 OtherRatio 换算后，最终价格精确等于
-// 「分档单价 × token/1e6」元，且与 ModelRatio 无关（ModelRatio 被约掉）。
+// 「分档单价 × token/1e6 × multiplier」元，且与 ModelRatio 无关（ModelRatio 被约掉）。
 // 计费链路：元 = modelRatio/2 × ratio × rate。
 func TestComputeSeedanceBillRatio(t *testing.T) {
 	const rate = 7.3
@@ -49,21 +49,27 @@ func TestComputeSeedanceBillRatio(t *testing.T) {
 		tierPrice  float64
 		token      int
 		modelRatio float64
+		multiplier float64
 		wantYuan   float64
 	}{
 		// 官方 2.0：480p/720p=46、1080p=51、4k=26；含视频 28/31/16
-		{name: "2.0 5s 720p no-video", tierPrice: 46, token: 108000, modelRatio: 0.2723, wantYuan: 4.968},
-		{name: "2.0 5s 1080p no-video", tierPrice: 51, token: 243000, modelRatio: 0.2723, wantYuan: 12.393},
-		{name: "2.0 5s 4k no-video", tierPrice: 26, token: 972000, modelRatio: 0.2723, wantYuan: 25.272},
-		{name: "2.0 5s 720p with-video", tierPrice: 28, token: 216000, modelRatio: 0.2723, wantYuan: 6.048},
-		{name: "2.5 5s 720p no-video", tierPrice: 70, token: 108000, modelRatio: 0.4143, wantYuan: 7.56},
+		{name: "2.0 5s 720p no-video", tierPrice: 46, token: 108000, modelRatio: 0.2723, multiplier: 1, wantYuan: 4.968},
+		{name: "2.0 5s 1080p no-video", tierPrice: 51, token: 243000, modelRatio: 0.2723, multiplier: 1, wantYuan: 12.393},
+		{name: "2.0 5s 4k no-video", tierPrice: 26, token: 972000, modelRatio: 0.2723, multiplier: 1, wantYuan: 25.272},
+		{name: "2.0 5s 720p with-video", tierPrice: 28, token: 216000, modelRatio: 0.2723, multiplier: 1, wantYuan: 6.048},
+		{name: "2.5 5s 720p no-video", tierPrice: 70, token: 108000, modelRatio: 0.4143, multiplier: 1, wantYuan: 7.56},
 		// ModelRatio 变化不应影响最终价格（关键回归保护）
-		{name: "2.0 5s 720p with different ModelRatio", tierPrice: 46, token: 108000, modelRatio: 0.5, wantYuan: 4.968},
+		{name: "invariant to ModelRatio", tierPrice: 46, token: 108000, modelRatio: 0.5, multiplier: 1, wantYuan: 4.968},
+		// 模型计费倍率：1.5 倍加价
+		{name: "multiplier 1.5", tierPrice: 46, token: 108000, modelRatio: 0.2723, multiplier: 1.5, wantYuan: 7.452},
+		{name: "multiplier 0.5", tierPrice: 46, token: 108000, modelRatio: 0.2723, multiplier: 0.5, wantYuan: 2.484},
+		// 倍率 <= 0 时按 1.0 处理
+		{name: "multiplier 0 falls back to 1", tierPrice: 46, token: 108000, modelRatio: 0.2723, multiplier: 0, wantYuan: 4.968},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ratio, ok := ComputeSeedanceBillRatio(tt.tierPrice, tt.token, tt.modelRatio, rate)
+			ratio, ok := ComputeSeedanceBillRatio(tt.tierPrice, tt.token, tt.modelRatio, rate, tt.multiplier)
 			require.True(t, ok)
 			yuan := tt.modelRatio / 2 * ratio * rate
 			assert.InDelta(t, tt.wantYuan, yuan, 0.02)

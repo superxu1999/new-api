@@ -23,14 +23,16 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldGroup } from '@/components/ui/field'
+import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const TIERED_PRICE_KEY = 'video_pricing_setting.tiered_price_by_model'
+const MULTIPLIER_KEY = 'video_pricing_setting.model_multiplier_by_model'
 
-// 官方默认分档单价（元/百万 token），按归一化模型名。
+// 默认分档单价（元/百万 token），按归一化模型名。
 // 与后端 relay/channel/task/taskcommon 的 seedanceDefaultPriceTable 保持一致。
-const OFFICIAL_DEFAULTS: Record<string, Record<string, number>> = {
+const DEFAULT_PRICES: Record<string, Record<string, number>> = {
   'doubao-seedance-2-0-260128': {
     no_720p: 46,
     with_720p: 28,
@@ -73,68 +75,66 @@ function normalizeSeedanceModel(model: string): string {
   return FALLBACK_MODEL
 }
 
-type TierField = {
-  key: string
-  resolution: string
-  withVideo: boolean
-}
-
-// 逐档输入框：分辨率 × 输入是否包含视频。
-const TIER_FIELDS: TierField[] = [
-  { key: 'no_720p', resolution: '480p/720p', withVideo: false },
-  { key: 'with_720p', resolution: '480p/720p', withVideo: true },
-  { key: 'no_1080p', resolution: '1080p', withVideo: false },
-  { key: 'with_1080p', resolution: '1080p', withVideo: true },
-  { key: 'no_4k', resolution: '4k', withVideo: false },
-  { key: 'with_4k', resolution: '4k', withVideo: true },
-]
+const RESOLUTIONS = ['480p/720p', '1080p', '4k'] as const
+const NO_VIDEO_KEYS = ['no_720p', 'no_1080p', 'no_4k'] as const
+const WITH_VIDEO_KEYS = ['with_720p', 'with_1080p', 'with_4k'] as const
 
 type Props = {
   model: string
 }
 
 /**
- * 视频模型分档单价编辑器（元/百万 token，官方 token 计费）。
- * 管理员逐档填写 480p/720p、1080p、4k × 输入不含/包含视频；默认值为官方价，可修改后保存。
- * 保存到 video_pricing_setting.tiered_price_by_model（按归一化模型名）。
+ * 视频模型定价编辑器：分档单价（元/百万 token）+ 计费倍率。
+ * 分档单价按「输入不含视频 / 输入包含视频」两组、各按分辨率填写；
+ * 计费倍率用于按模型整体加价或打折（1.0 = 原价）。
  */
 export function VideoTieredPriceEditor({ model }: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const normalized = normalizeSeedanceModel(model)
-  const official = OFFICIAL_DEFAULTS[normalized] ?? OFFICIAL_DEFAULTS[FALLBACK_MODEL]
-  const [values, setValues] = useState<Record<string, number>>({ ...official })
-  const [loaded, setLoaded] = useState(false)
+  const defaults = DEFAULT_PRICES[normalized] ?? DEFAULT_PRICES[FALLBACK_MODEL]
+  const [prices, setPrices] = useState<Record<string, number>>({ ...defaults })
+  const [multiplier, setMultiplier] = useState(1)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    setValues({ ...official })
+    setPrices({ ...defaults })
+    setMultiplier(1)
     api
       .get('/api/option/')
       .then((res) => {
         if (cancelled) return
         const items = (res.data || []) as Array<{ key?: string; value?: string }>
-        const raw = items.find((it) => it.key === TIERED_PRICE_KEY)?.value ?? ''
-        const saved = parseTieredPrice(raw)[normalized]
-        setValues(saved ? { ...official, ...saved } : { ...official })
-        setLoaded(true)
+        const priceRaw = items.find((it) => it.key === TIERED_PRICE_KEY)?.value ?? ''
+        const multRaw = items.find((it) => it.key === MULTIPLIER_KEY)?.value ?? ''
+        const saved = parsePriceMap(priceRaw)[normalized]
+        setPrices(saved ? { ...defaults, ...saved } : { ...defaults })
+        const savedMult = parseNumberMap(multRaw)[normalized]
+        setMultiplier(typeof savedMult === 'number' && savedMult > 0 ? savedMult : 1)
       })
-      .catch(() => setLoaded(true))
+      .catch(() => {
+        /* 保持默认值 */
+      })
     return () => {
       cancelled = true
     }
-  }, [normalized, official])
+  }, [normalized, defaults])
 
   const save = async () => {
     setSaving(true)
     try {
-      // 合并当前 DB 中其它模型的配置，只覆盖本模型，避免互相清除。
       const res = await api.get('/api/option/')
       const items = (res.data || []) as Array<{ key?: string; value?: string }>
-      const raw = items.find((it) => it.key === TIERED_PRICE_KEY)?.value ?? ''
-      const next = { ...parseTieredPrice(raw), [normalized]: sanitize(values) }
-      await updateOption.mutateAsync({ key: TIERED_PRICE_KEY, value: JSON.stringify(next) })
+      const priceRaw = items.find((it) => it.key === TIERED_PRICE_KEY)?.value ?? ''
+      const multRaw = items.find((it) => it.key === MULTIPLIER_KEY)?.value ?? ''
+
+      // 合并其它模型配置，仅覆盖当前模型，避免互相清除。
+      const nextPrices = { ...parsePriceMap(priceRaw), [normalized]: sanitizePrices(prices) }
+      const nextMult = { ...parseNumberMap(multRaw), [normalized]: multiplier > 0 ? multiplier : 1 }
+
+      await updateOption.mutateAsync({ key: TIERED_PRICE_KEY, value: JSON.stringify(nextPrices) })
+      await updateOption.mutateAsync({ key: MULTIPLIER_KEY, value: JSON.stringify(nextMult) })
       toast.success(t('Saved'))
     } catch {
       toast.error(t('Failed to save'))
@@ -143,54 +143,74 @@ export function VideoTieredPriceEditor({ model }: Props) {
     }
   }
 
+  const renderGroup = (title: string, keys: readonly string[]) => (
+    <div className='space-y-2'>
+      <Label className='text-xs font-semibold'>{title}</Label>
+      <div className='grid gap-3 sm:grid-cols-3'>
+        {keys.map((key, i) => (
+          <div key={key} className='space-y-1'>
+            <span className='text-muted-foreground text-xs'>{RESOLUTIONS[i]}</span>
+            <Input
+              type='number'
+              step={1}
+              min={0}
+              value={prices[key] ?? ''}
+              onChange={(e) =>
+                setPrices((prev) => ({ ...prev, [key]: Number(e.target.value) || 0 }))
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <FieldGroup>
-      <div className='space-y-3'>
-        <p className='text-sm font-medium'>{t('Video tiered price (¥/M tokens)')}</p>
-        <p className='text-muted-foreground text-xs'>
-          {t(
-            'Official per-resolution price. Defaults to official pricing; adjust per model if needed.'
-          )}
-        </p>
+      <div className='space-y-4'>
+        <div className='space-y-1'>
+          <p className='text-sm font-medium'>{t('Video tiered price (¥/M tokens)')}</p>
+          <p className='text-muted-foreground text-xs'>
+            {t('Set the price per resolution. Defaults are prefilled and can be adjusted per model.')}
+          </p>
+        </div>
 
-        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-          {TIER_FIELDS.map((field) => (
-            <div key={field.key} className='space-y-1'>
-              <span className='text-muted-foreground text-xs'>
-                {field.resolution}
-                {field.withVideo ? ` · ${t('With video')}` : ` · ${t('No video')}`}
-              </span>
-              <Input
-                type='number'
-                step={1}
-                min={0}
-                value={values[field.key] ?? ''}
-                onChange={(e) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [field.key]: Number(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
-          ))}
+        {renderGroup(t('Input without video'), NO_VIDEO_KEYS)}
+        {renderGroup(t('Input with video'), WITH_VIDEO_KEYS)}
+
+        <div className='space-y-2 border-t pt-3'>
+          <Label className='text-xs font-semibold'>{t('Billing multiplier')}</Label>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Applies to this model only. 1.0 = original price, 1.5 = +50%, 0.8 = 20% off.'
+            )}
+          </p>
+          <div className='grid gap-3 sm:grid-cols-3'>
+            <Input
+              type='number'
+              step={0.01}
+              min={0}
+              value={multiplier}
+              onChange={(e) => setMultiplier(Number(e.target.value) || 0)}
+            />
+          </div>
         </div>
 
         <Button type='button' variant='outline' size='sm' onClick={save} disabled={saving}>
-          {saving ? t('Saving...') : t('Save video tiered price')}
+          {saving ? t('Saving...') : t('Save video pricing')}
         </Button>
-        {loaded && <span className='sr-only'>{t('Loaded')}</span>}
       </div>
     </FieldGroup>
   )
 }
 
-function parseTieredPrice(raw: string): Record<string, Record<string, number>> {
+/** 解析「模型 -> 档位单价表」的配置。 */
+function parsePriceMap(raw: string): Record<string, Record<string, number>> {
   try {
     const obj = JSON.parse(raw || '{}') as Record<string, Record<string, number>>
     const out: Record<string, Record<string, number>> = {}
     for (const [m, v] of Object.entries(obj)) {
-      if (v && typeof v === 'object') out[m] = { ...v }
+      if (v && typeof v === 'object') out[m] = v
     }
     return out
   } catch {
@@ -198,7 +218,22 @@ function parseTieredPrice(raw: string): Record<string, Record<string, number>> {
   }
 }
 
-function sanitize(raw: Record<string, number>): Record<string, number> {
+/** 解析「模型 -> 数值」的配置（如计费倍率）。 */
+function parseNumberMap(raw: string): Record<string, number> {
+  try {
+    const obj = JSON.parse(raw || '{}') as Record<string, number | string>
+    const out: Record<string, number> = {}
+    for (const [m, v] of Object.entries(obj)) {
+      const num = typeof v === 'number' ? v : Number(v)
+      if (Number.isFinite(num)) out[m] = num
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function sanitizePrices(raw: Record<string, number>): Record<string, number> {
   const out: Record<string, number> = {}
   for (const [k, v] of Object.entries(raw)) {
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v

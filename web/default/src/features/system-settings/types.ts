@@ -274,6 +274,7 @@ export type BillingSettings = {
   'general_setting.custom_currency_symbol': string
   'general_setting.custom_currency_exchange_rate': number
   'video_pricing_setting.tiered_price_by_model': string
+  'video_pricing_setting.model_multiplier_by_model': string
   DisplayInCurrencyEnabled: boolean
   DisplayTokenStatEnabled: boolean
   ModelPrice: string

@@ -44,10 +44,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if !ok || tierPrice <= 0 {
 		return nil
 	}
-	// 目标价 = 分档单价 × token/1e6（元）。换算成 OtherRatio 时约掉 ModelRatio，
-	// 使后台配置的分档单价绝对值直接生效。
+	// 目标价 = 分档单价 × token/1e6 × 计费倍率（元）。换算成 OtherRatio 时约掉 ModelRatio，
+	// 使后台配置的分档单价绝对值与模型计费倍率直接生效。
+	multiplier := taskcommon.SeedanceModelMultiplier(info.OriginModelName)
 	ratio, ok := taskcommon.ComputeSeedanceBillRatio(
-		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate)
+		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate, multiplier)
 	if !ok {
 		return nil
 	}

@@ -342,6 +342,9 @@ export const ModelPricingEditorPanel = forwardRef<
   }
 
   const watchedValues = form.watch()
+  // 视频模型（seedance 系列）按 token 公式计费，不使用输入/补全/缓存等价格通道，
+  // 其定价仅由「分档单价 + 计费倍率」决定，因此隐藏通用价格通道。
+  const isVideoModel = /seedance/i.test(watchedValues.name || '')
   const previewRows = useMemo(
     () =>
       buildPreviewRows(
@@ -540,11 +543,14 @@ export const ModelPricingEditorPanel = forwardRef<
                   )}
                 />
 
-                <Tabs
-                  value={pricingMode}
-                  onValueChange={handleModeChange}
-                  className='gap-4'
-                >
+                {isVideoModel ? (
+                  <VideoTieredPriceEditor model={watchedValues.name} />
+                ) : (
+                  <Tabs
+                    value={pricingMode}
+                    onValueChange={handleModeChange}
+                    className='gap-4'
+                  >
                   <TabsList className='grid w-full grid-cols-3'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
@@ -652,11 +658,8 @@ export const ModelPricingEditorPanel = forwardRef<
                       />
                     </FieldGroup>
                   </TabsContent>
-                </Tabs>
-
-                {/seedance/i.test(watchedValues.name) ? (
-                  <VideoTieredPriceEditor model={watchedValues.name} />
-                ) : null}
+                  </Tabs>
+                )}
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
