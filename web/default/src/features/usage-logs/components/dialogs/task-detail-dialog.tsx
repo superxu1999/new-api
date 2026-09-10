@@ -595,11 +595,15 @@ export function TaskDetailDialog({
               raw={requestInput}
               copyText={requestInput}
             />
-            <JsonBlock
-              title={t('Upstream Response')}
-              raw={upstreamData}
-              copyText={upstreamData}
-            />
+            {/* 上游原始响应里有上游自己的 channel_id / group / user_id / platform，
+                会暴露供应方，仅管理员可见 */}
+            {isAdmin && (
+              <JsonBlock
+                title={t('Upstream Response')}
+                raw={upstreamData}
+                copyText={upstreamData}
+              />
+            )}
           </div>
         </ScrollArea>
       </div>
