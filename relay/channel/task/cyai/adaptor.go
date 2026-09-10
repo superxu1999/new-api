@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -32,8 +33,22 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 	res, _ := req.Metadata["resolution"].(string)
 	hasVideo := taskcommon.HasInputVideo(req.Metadata)
-	ratio, _, err := taskcommon.SeedanceBillRatio(info.OriginModelName, taskcommon.ExtractSeconds(&req), res, hasVideo)
-	if err != nil || ratio <= 0 {
+
+	// 官方 token 公式：token = (输入+输出时长) × 宽 × 高 × 24 / 1024
+	token, err := taskcommon.SeedanceToken(taskcommon.ExtractSeconds(&req), res, hasVideo)
+	if err != nil || token <= 0 {
+		return nil
+	}
+	// 分档单价（元/百万 token）：后台配置优先，未配置回退官方默认。
+	tierPrice, ok := taskcommon.SeedanceTierPrice(info.OriginModelName, res, hasVideo)
+	if !ok || tierPrice <= 0 {
+		return nil
+	}
+	// 目标价 = 分档单价 × token/1e6（元）。换算成 OtherRatio 时约掉 ModelRatio，
+	// 使后台配置的分档单价绝对值直接生效。
+	ratio, ok := taskcommon.ComputeSeedanceBillRatio(
+		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate)
+	if !ok {
 		return nil
 	}
 	return map[string]float64{"video_billing": ratio}

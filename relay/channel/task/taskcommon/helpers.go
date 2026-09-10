@@ -224,25 +224,22 @@ func seedanceTierKey(resolution string, hasVideo bool) string {
 	}
 }
 
-// seedancePriceRatio 返回指定模型在给定输出分辨率/是否含视频输入下，相对基准单价的倍率。
+// SeedanceTierPrice 返回指定模型在给定输出分辨率/是否含视频输入下的分档单价（元/百万 token）。
 // 优先用后台配置（video_pricing_setting.tiered_price_by_model），未配置回退内置官方默认价目表。
-// 基准单价 = 该模型 480p/720p 不含视频档（tierNo720p）。
-func seedancePriceRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
+func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bool) {
 	key := normalizeSeedanceModel(modelName)
+	tierKey := seedanceTierKey(resolution, hasVideo)
 
 	// 1) 后台配置优先
 	if prices, ok := operation_setting.GetTieredPriceByModel(key); ok {
-		base := prices[tierNo720p]
-		if base <= 0 {
-			return 0, false
+		if price, ok := prices[tierKey]; ok && price > 0 {
+			return price, true
 		}
-		tierKey := seedanceTierKey(resolution, hasVideo)
-		price, ok := prices[tierKey]
-		if !ok || price <= 0 {
-			// 未配置的组合（如 fast/mini 无 1080p/4k 档）按基准单价计费。
-			return 1.0, true
+		// 未配置的组合（如 fast/mini 无 1080p/4k 档）回退到该模型的 480p/720p 档。
+		if base, ok := prices[tierNo720p]; ok && base > 0 {
+			return base, true
 		}
-		return price / base, true
+		return 0, false
 	}
 
 	// 2) 内置官方默认价目表兜底
@@ -250,38 +247,46 @@ func seedancePriceRatio(modelName, resolution string, hasVideo bool) (float64, b
 	if !ok {
 		return 0, false
 	}
-	base := prices[tierNo720p]
-	if base <= 0 {
-		return 0, false
+	if price, ok := prices[tierKey]; ok && price > 0 {
+		return price, true
 	}
-	tierKey := seedanceTierKey(resolution, hasVideo)
-	price, ok := prices[tierKey]
-	if !ok || price <= 0 {
-		// 未配置的组合（如 fast/mini 无 1080p/4k 档）按基准单价计费。
-		return 1.0, true
+	if base, ok := prices[tierNo720p]; ok && base > 0 {
+		return base, true
 	}
-	return price / base, true
+	return 0, false
 }
 
-// SeedanceBillRatio 计算 seedance 视频任务的「相对基准价」计费倍率（含分档单价因子）。
-// modelName: 模型名（用于查分档单价表）；sec: 输出时长(秒)；res: 分辨率档；hasVideo: 是否含参考视频。
-// 返回的倍率 = (分档单价/基准单价) × (token/21600)，其中 token 含输入+输出时长、宽高、帧率。
-func SeedanceBillRatio(modelName string, sec int, res string, hasVideo bool) (ratio float64, token int, err error) {
+// ComputeSeedanceBillRatio 计算 seedance 视频任务的 OtherRatio，使最终价格等于
+// 「分档单价 × token / 1e6」（元），从而让后台配置的分档单价绝对值直接生效，
+// 与模型的 ModelRatio 无关。
+//
+// 推导：元 = modelRatio/2 × ratio × rate（见 ModelPriceHelperPerCall 与汇率换算）
+// 目标：元 = tierPrice × token / 1e6
+//
+//	=> ratio = 2 × tierPrice × token / 1e6 / (modelRatio × rate)
+func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate float64) (float64, bool) {
+	if tierPrice <= 0 || token <= 0 || modelRatio <= 0 || rate <= 0 {
+		return 0, false
+	}
+	ratio := 2 * tierPrice * float64(token) / 1e6 / (modelRatio * rate)
+	if ratio <= 0 {
+		return 0, false
+	}
+	return ratio, true
+}
+
+// SeedanceToken 计算官方 token 用量：token = (输入时长+输出时长) × 宽 × 高 × 帧率 / 1024。
+// 输入不含视频时输入时长=0；含视频时输入时长=输出时长（方案A）。
+func SeedanceToken(sec int, res string, hasVideo bool) (int, error) {
 	if sec <= 0 {
-		return 0, 0, fmt.Errorf("invalid seconds: %d", sec)
+		return 0, fmt.Errorf("invalid seconds: %d", sec)
 	}
 	w, h, _ := ResolutionDimensions(res)
-	inputSec := 0
+	totalSec := sec
 	if hasVideo {
-		inputSec = sec // 方案A: 输入视频时长 = 输出时长
+		totalSec = sec * 2
 	}
-	totalSec := inputSec + sec
-	token = totalSec * w * h * 24 / 1024
-	// token 相对基准(1s 720p = 21600)的倍率。
-	tokenRatio := float64(token) / 21600.0
-	// 分档单价相对基准单价的倍率。
-	priceRatio, _ := seedancePriceRatio(modelName, res, hasVideo)
-	return tokenRatio * priceRatio, token, nil
+	return totalSec * w * h * 24 / 1024, nil
 }
 
 // ExtractSeconds 从 task 请求中读取输出时长（seconds）。
