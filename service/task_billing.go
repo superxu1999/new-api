@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -45,6 +46,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
+	}
+	// seedance 视频计费明细（分档单价 / token / 计费倍率），供「使用日志 → 任务详情」
+	// 展示费用是如何计算出来的。
+	if detail, ok := c.Get(taskcommon.SeedanceBillingContextKey); ok {
+		other["video_billing"] = detail
 	}
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true

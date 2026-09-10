@@ -117,6 +117,44 @@ function toPretty(raw: unknown): string {
   }
 }
 
+/** 兼容数字/数字字符串，转成 number；失败返回 null。 */
+function toNum(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string') {
+    const n = Number(raw)
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+/** seedance 视频计费的中间量（由后端记录在 other.video_billing）。 */
+type VideoBillingDetail = {
+  tierPrice: number
+  token: number
+  multiplier: number
+  resolution: string
+  hasInputVideo: boolean
+  seconds: number | null
+}
+
+/** 从日志 other 字段解析后端记录的 seedance 计费明细。 */
+function extractVideoBilling(other: unknown): VideoBillingDetail | null {
+  const otherObj = toObj(other)
+  const vb = toObj(otherObj?.video_billing)
+  if (!vb) return null
+  const tierPrice = toNum(vb.tier_price)
+  const token = toNum(vb.token)
+  if (tierPrice == null || token == null || tierPrice <= 0 || token <= 0) return null
+  return {
+    tierPrice,
+    token,
+    multiplier: toNum(vb.multiplier) ?? 1,
+    resolution: typeof vb.resolution === 'string' ? vb.resolution : '',
+    hasInputVideo: vb.has_input_video === true,
+    seconds: toNum(vb.seconds),
+  }
+}
+
 function formatData(data?: unknown): string {
   if (data == null) return ''
   return toPretty(data)
@@ -269,6 +307,18 @@ export function TaskDetailDialog({
     () => extractBillingInfo(requestInput, upstreamData),
     [requestInput, upstreamData]
   )
+
+  // 后端记录的 seedance 计费明细（分档单价 / token / 计费倍率），用于展示费用如何得出。
+  const videoBilling = useMemo(() => extractVideoBilling(log.other), [log.other])
+
+  const otherObj = useMemo(() => toObj(log.other), [log.other])
+  const groupRatio = toNum(otherObj?.group_ratio) ?? 1
+  // 按公式推算的费用（元）= 分档单价 × token/1e6 × 计费倍率 × 分组倍率
+  const videoFeeYuan = videoBilling
+    ? ((videoBilling.tierPrice * videoBilling.token) / 1e6) *
+      videoBilling.multiplier *
+      groupRatio
+    : null
 
   let inputVideoLabel = '-'
   if (billingInfo.hasInputVideo === true) {
@@ -470,6 +520,52 @@ export function TaskDetailDialog({
               />
               <DetailRow label={t('Input video')} value={inputVideoLabel} />
             </div>
+
+            {/* 计费过程：仅当后端记录了 seedance 计费明细时展示 */}
+            {videoBilling && (
+              <div className='bg-muted/30 space-y-2 rounded-md border p-2.5'>
+                <p className='text-muted-foreground text-xs font-semibold'>
+                  {t('How this fee is calculated')}
+                </p>
+                <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+                  <DetailRow
+                    label={t('Tier price')}
+                    value={
+                      <span className='font-mono'>
+                        {videoBilling.tierPrice} {t('CNY per 1M tokens')}
+                        {videoBilling.resolution ? ` · ${videoBilling.resolution}` : ''}
+                        {' · '}
+                        {videoBilling.hasInputVideo
+                          ? t('Input with video')
+                          : t('Input without video')}
+                      </span>
+                    }
+                  />
+                  <DetailRow
+                    label={t('Token Usage')}
+                    value={<span className='font-mono'>{videoBilling.token.toLocaleString()}</span>}
+                  />
+                  <DetailRow
+                    label={t('Billing multiplier')}
+                    value={<span className='font-mono'>{videoBilling.multiplier}×</span>}
+                  />
+                  <DetailRow
+                    label={t('Group ratio')}
+                    value={<span className='font-mono'>{groupRatio}×</span>}
+                  />
+                </div>
+                <DetailRow
+                  label={t('Formula')}
+                  value={
+                    <span className='font-mono text-[11px]'>
+                      {videoBilling.tierPrice} × {videoBilling.token.toLocaleString()} ÷ 1,000,000
+                      × {videoBilling.multiplier} × {groupRatio} ={' '}
+                      {videoFeeYuan != null ? videoFeeYuan.toFixed(4) : '-'} {t('CNY')}
+                    </span>
+                  }
+                />
+              </div>
+            )}
           </div>
         )}
 

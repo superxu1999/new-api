@@ -299,6 +299,21 @@ func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, mu
 	return ratio, true
 }
 
+// SeedanceBillingContextKey 是 gin.Context 上的键，用于把 seedance 计费明细从
+// EstimateBilling 传递到日志记录处（task_billing.LogTaskConsumption），
+// 便于在「使用日志 → 任务详情」中展示费用是如何计算出来的。
+const SeedanceBillingContextKey = "seedance_billing_detail"
+
+// SeedanceBillingDetail 记录一次 seedance 视频计费的中间量，仅用于展示与排查。
+type SeedanceBillingDetail struct {
+	TierPrice     float64 `json:"tier_price"`       // 分档单价（元/百万 token）
+	Token         int     `json:"token"`            // 官方 token 公式算出的用量
+	Multiplier    float64 `json:"multiplier"`       // 模型计费倍率
+	Resolution    string  `json:"resolution"`       // 输出分辨率档
+	HasInputVideo bool    `json:"has_input_video"`  // 请求是否包含参考视频
+	Seconds       int     `json:"seconds"`          // 输出时长（秒）
+}
+
 // EstimateSeedanceBilling 统一的 seedance 视频计费估算，供所有 seedance 系适配器复用。
 //
 // 流程：解析请求 → 官方 token 公式算 token → 查分档单价（按完整模型名） → 折算 OtherRatio。
@@ -316,8 +331,9 @@ func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo) map[st
 	}
 	res, _ := req.Metadata["resolution"].(string)
 	hasVideo := HasInputVideo(req.Metadata)
+	seconds := ExtractSeconds(&req)
 
-	token, err := SeedanceToken(ExtractSeconds(&req), res, hasVideo)
+	token, err := SeedanceToken(seconds, res, hasVideo)
 	if err != nil || token <= 0 {
 		return nil
 	}
@@ -331,6 +347,14 @@ func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo) map[st
 	if !ok {
 		return nil
 	}
+	c.Set(SeedanceBillingContextKey, SeedanceBillingDetail{
+		TierPrice:     tierPrice,
+		Token:         token,
+		Multiplier:    multiplier,
+		Resolution:    res,
+		HasInputVideo: hasVideo,
+		Seconds:       seconds,
+	})
 	return map[string]float64{"video_billing": ratio}
 }
 
