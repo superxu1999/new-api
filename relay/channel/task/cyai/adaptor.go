@@ -7,8 +7,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -25,67 +25,18 @@ type TaskAdaptor struct {
 func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
 
-// 上游 CyAI 按时长×清晰度 tiered 计费；为对齐上游价格，按清晰度附加相对倍率。
-// 系数可从后台配置（video_pricing_setting.resolution_ratio），缺省用下方默认。
-var defaultResolutionRatio = map[string]float64{
-	"480p":  1.0,
-	"720p":  1.0,
-	"1080p": 2.49,
-	"4k":    5.08,
-}
-
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	seconds := req.Duration
-	if seconds <= 0 {
-		seconds, _ = strconv.Atoi(req.Seconds)
-	}
-	ratios := map[string]float64{}
-	if seconds > 0 {
-		ratios["seconds"] = float64(seconds)
-	}
-	model := info.UpstreamModelName
-	if model == "" {
-		model = info.OriginModelName
-	}
-	if req.Metadata != nil {
-		if res, _ := req.Metadata["resolution"].(string); res != "" {
-			if r, ok := operation_setting.GetVideoResolutionRatioForModel(model, res); ok {
-				ratios["resolution"] = r
-			} else if r, ok := defaultResolutionRatio[res]; ok {
-				ratios["resolution"] = r
-			}
-		}
-		// 官方按「输入是否包含视频」分两档计价（含视频更便宜），各自是独立的 ModelRatio 档：
-		//   不含视频用基础 ModelRatio；含视频用 input_video_model_ratio。
-		// 基础 price 已按不含视频 ModelRatio 预扣，此处把基础倍率切换为含视频档的比例。
-		if hasInputVideo(req.Metadata) {
-			if inputMR, ok := operation_setting.GetInputVideoModelRatio(model); ok {
-				baseMR := info.PriceData.ModelRatio
-				if baseMR > 0 {
-					ratios["input_video"] = inputMR / baseMR
-				}
-			}
-		}
-	}
-	if len(ratios) == 0 {
+	res, _ := req.Metadata["resolution"].(string)
+	hasVideo := taskcommon.HasInputVideo(req.Metadata)
+	ratio, _, err := taskcommon.SeedanceBillRatio(info.OriginModelName, taskcommon.ExtractSeconds(&req), res, hasVideo)
+	if err != nil || ratio <= 0 {
 		return nil
 	}
-	return ratios
-}
-
-// hasInputVideo 判断请求是否携带参考视频（metadata.content 中含 video_url/reference_video）。
-func hasInputVideo(metadata map[string]any) bool {
-	items := parseContentReferences(metadata)
-	for _, it := range items {
-		if it.Type == "video_url" || it.VideoURL != nil {
-			return true
-		}
-	}
-	return false
+	return map[string]float64{"video_billing": ratio}
 }
 
 // contentItem 表示 content 数组中的单个参考项。CyAI 上游（Doubao/Seedance 风格）通过
