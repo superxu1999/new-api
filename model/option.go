@@ -654,7 +654,8 @@ func handleConfigUpdate(key, value string) bool {
 		performance_setting.UpdateAndSync()
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
-	} else if configName == "billing_setting" {
+	} else if configName == "billing_setting" || configName == "video_pricing_setting" {
+		// 这两项都会改变对外展示的定价（模型广场 / 定价接口），必须让 1 分钟的定价缓存立即失效。
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
 	} else if configName == "theme" {
