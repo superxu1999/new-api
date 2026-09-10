@@ -171,7 +171,7 @@ export function VideoTieredPriceEditor({ model }: Props) {
         <div className='space-y-1'>
           <p className='text-sm font-medium'>{t('Video tiered price (¥/M tokens)')}</p>
           <p className='text-muted-foreground text-xs'>
-            {t('Set the price per resolution. Defaults are prefilled and can be adjusted per model.')}
+            {t('Set the price per resolution. Can be adjusted per model.')}
           </p>
         </div>
 
