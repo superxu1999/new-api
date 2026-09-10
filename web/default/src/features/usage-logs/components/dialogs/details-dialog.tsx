@@ -393,10 +393,14 @@ function BillingBreakdown(props: {
     })
   }
 
-  rows.push({
-    label: t('Total Cost'),
-    value: formatLogQuota(log.quota),
-  })
+  // 差额结算日志的 log.quota 是「这一次的差额」，不是总价；上面的结算区块已经给出
+  // 预扣费 / 实付金额 / 差额，这里不再重复，否则会把 0.0414 当成 5.0094 展示。
+  if (!videoSettlement) {
+    rows.push({
+      label: t('Total Cost'),
+      value: formatLogQuota(log.quota),
+    })
+  }
 
   if (rows.length === 0) return null
 
@@ -492,6 +496,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
   const isConsume = props.log.type === 2
+  // 视频差额结算日志既可能是补扣（type=2）也可能是退款（type=6）：
+  // 只有带 pre_consumed_quota/actual_quota 的才展开计费详情。
+  const videoSettlement = extractVideoSettlement(other)
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
@@ -1033,8 +1040,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
           <TokenBreakdown log={props.log} other={other} />
         )}
 
-        {/* Billing breakdown (consume type) */}
-        {isConsume && other && !isViolation && (
+        {/* Billing breakdown (consume type, or a video settlement refund) */}
+        {(isConsume || videoSettlement != null) && other && !isViolation && (
           <BillingBreakdown
             log={props.log}
             other={other}
