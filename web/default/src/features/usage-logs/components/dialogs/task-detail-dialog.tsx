@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatLogQuota, formatTimestampToDate, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
@@ -122,6 +122,67 @@ function formatData(data?: unknown): string {
   return toPretty(data)
 }
 
+type TaskBillingInfo = {
+  tokens?: number
+  durationSec?: number
+  resolution?: string
+  hasInputVideo?: boolean
+}
+
+/** 从上游响应与请求入参提取计费相关信息（token 用量、时长、分辨率、是否含视频）。 */
+function extractBillingInfo(requestInput: string, upstreamData: string): TaskBillingInfo {
+  const info: TaskBillingInfo = {}
+
+  // token 用量：上游响应 usage.completion_tokens / total_tokens
+  try {
+    const parsed = JSON.parse(upstreamData)
+    const usage = findUsage(parsed)
+    if (usage) {
+      const tokens = usage.completion_tokens ?? usage.total_tokens
+      if (typeof tokens === 'number') info.tokens = tokens
+    }
+  } catch {
+    /* 忽略解析失败 */
+  }
+
+  // 时长 / 分辨率 / 是否含视频：请求入参
+  try {
+    const input = JSON.parse(requestInput)
+    const duration = input?.duration ?? input?.metadata?.duration
+    if (typeof duration === 'number') info.durationSec = duration
+    if (typeof duration === 'string') {
+      const n = Number(duration)
+      if (Number.isFinite(n)) info.durationSec = n
+    }
+    const res = input?.metadata?.resolution ?? input?.resolution
+    if (typeof res === 'string' && res) info.resolution = res
+    const content = input?.metadata?.content
+    if (Array.isArray(content)) {
+      info.hasInputVideo = content.some(
+        (item: unknown) => toObj(item)?.type === 'video_url' || toObj(item)?.video_url != null
+      )
+    }
+  } catch {
+    /* 忽略解析失败 */
+  }
+
+  return info
+}
+
+/** 在嵌套的上游响应里找 usage 对象。 */
+function findUsage(node: unknown): Record<string, number> | null {
+  let cur: unknown = node
+  for (let i = 0; i < 6; i++) {
+    const obj = toObj(cur)
+    if (obj == null) return null
+    const usage = toObj(obj.usage)
+    if (usage != null) return usage as Record<string, number>
+    cur = obj.data
+    if (cur == null) return null
+  }
+  return null
+}
+
 function DetailRow(props: {
   label: React.ReactNode
   value: React.ReactNode
@@ -203,6 +264,18 @@ export function TaskDetailDialog({
     [log.properties, log.data]
   )
   const upstreamData = useMemo(() => formatData(log.data), [log.data])
+
+  const billingInfo = useMemo(
+    () => extractBillingInfo(requestInput, upstreamData),
+    [requestInput, upstreamData]
+  )
+
+  let inputVideoLabel = '-'
+  if (billingInfo.hasInputVideo === true) {
+    inputVideoLabel = t('Yes')
+  } else if (billingInfo.hasInputVideo === false) {
+    inputVideoLabel = t('No')
+  }
 
   const propsObj = useMemo(() => toObj(log.properties), [log.properties])
   const originModel = propsObj?.origin_model_name as string | undefined
@@ -303,13 +376,6 @@ export function TaskDetailDialog({
             <DetailRow label={t('Channel')} value={String(log.channel_id)} mono />
           )}
           {log.group && <DetailRow label={t('Group')} value={log.group} mono />}
-          {log.quota != null && (
-            <DetailRow
-              label={t('Quota')}
-              value={(log.quota / 500000).toFixed(2)}
-              mono
-            />
-          )}
           {timeRow('Created At', log.created_at)}
           {timeRow('Submit Time', log.submit_time)}
           {timeRow('Start Time', log.start_time)}
@@ -368,6 +434,42 @@ export function TaskDetailDialog({
                 </a>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 计费明细 */}
+        {log.quota != null && (
+          <div className='space-y-2'>
+            <Label className='text-xs font-semibold'>{t('Billing Details')}</Label>
+            <div className='bg-muted/30 grid min-w-0 gap-2 rounded-md border p-2.5 sm:grid-cols-2'>
+              <DetailRow label={t('Fee')} value={formatLogQuota(log.quota)} mono />
+              <DetailRow
+                label={t('Token Usage')}
+                value={
+                  billingInfo.tokens != null ? (
+                    <span className='font-mono'>
+                      {formatTokens(billingInfo.tokens)}
+                      <span className='text-muted-foreground ml-1'>
+                        ({billingInfo.tokens.toLocaleString()})
+                      </span>
+                    </span>
+                  ) : (
+                    '-'
+                  )
+                }
+              />
+              <DetailRow
+                label={t('Duration')}
+                value={billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'}
+                mono
+              />
+              <DetailRow
+                label={t('Resolution')}
+                value={billingInfo.resolution ?? '-'}
+                mono
+              />
+              <DetailRow label={t('Input video')} value={inputVideoLabel} />
+            </div>
           </div>
         )}
 
