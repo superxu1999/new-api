@@ -82,6 +82,7 @@ import {
 import { PriceInput, PriceLane } from './model-pricing-inputs'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
+import { VideoTieredPriceEditor } from './video-tiered-price-editor'
 
 export type { ModelRatioData } from './model-pricing-core'
 
@@ -188,13 +189,13 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      let initialMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') {
+        initialMode = 'tiered_expr'
+      } else if (editData.price) {
+        initialMode = 'per-request'
+      }
+      setPricingMode(initialMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -652,6 +653,10 @@ export const ModelPricingEditorPanel = forwardRef<
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>
+
+                {/seedance/i.test(watchedValues.name) ? (
+                  <VideoTieredPriceEditor model={watchedValues.name} />
+                ) : null}
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>

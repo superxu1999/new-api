@@ -51,9 +51,7 @@ const defaultBillingSettings: BillingSettings = {
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
   'tool_price_setting.prices': '{}',
-  'video_pricing_setting.resolution_ratio':
-    '{"480p":1,"720p":1,"1080p":2.49,"4k":5.08}',
-  'video_pricing_setting.resolution_ratio_by_model': '{}',
+  'video_pricing_setting.tiered_price_by_model': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',

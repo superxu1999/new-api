@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -153,49 +154,38 @@ func HasInputVideo(metadata map[string]interface{}) bool {
 	return false
 }
 
-// seedancePriceKey 分档单价表的键：输出分辨率档 + 是否含视频输入。
-type seedancePriceKey struct {
-	is1080p  bool
-	is4k     bool
-	hasVideo bool
-}
+// seedance 分档单价档位键（与 video_pricing_setting.tiered_price_by_model 的键一致）。
+// no_* 表示输入不含视频，with_* 表示输入包含视频。
+const (
+	tierNo720p   = "no_720p"
+	tierWith720p = "with_720p"
+	tierNo1080p  = "no_1080p"
+	tierWith1080p = "with_1080p"
+	tierNo4k     = "no_4k"
+	tierWith4k   = "with_4k"
+)
 
-// seedancePriceTable 各模型在不同 (输出分辨率档, 是否含视频输入) 下的官方单价（元/百万 token）。
-// 零值键 {480p/720p, 不含视频} 为基准单价（720p 不含视频）。
-var seedancePriceTable = map[string]map[seedancePriceKey]float64{
-	"doubao-seedance-2.0": {
-		{hasVideo: false}:                46.0,
-		{hasVideo: true}:                 28.0,
-		{is1080p: true, hasVideo: false}: 51.0,
-		{is1080p: true, hasVideo: true}:  31.0,
-		{is4k: true, hasVideo: false}:    26.0,
-		{is4k: true, hasVideo: true}:     16.0,
-	},
+// seedanceDefaultPriceTable 各模型的分档官方单价（元/百万 token），未在后台配置时的内置默认。
+// 键为归一化模型名（见 normalizeSeedanceModel）。
+var seedanceDefaultPriceTable = map[string]map[string]float64{
 	"doubao-seedance-2-0-260128": {
-		{hasVideo: false}:                46.0,
-		{hasVideo: true}:                 28.0,
-		{is1080p: true, hasVideo: false}: 51.0,
-		{is1080p: true, hasVideo: true}:  31.0,
-		{is4k: true, hasVideo: false}:    26.0,
-		{is4k: true, hasVideo: true}:     16.0,
+		tierNo720p: 46.0, tierWith720p: 28.0,
+		tierNo1080p: 51.0, tierWith1080p: 31.0,
+		tierNo4k: 26.0, tierWith4k: 16.0,
 	},
 	"doubao-seedance-2-5-260628": {
-		{hasVideo: false}:                70.0,
-		{hasVideo: true}:                 42.0,
-		{is1080p: true, hasVideo: false}: 77.0,
-		{is1080p: true, hasVideo: true}:  46.0,
+		tierNo720p: 70.0, tierWith720p: 42.0,
+		tierNo1080p: 77.0, tierWith1080p: 46.0,
 	},
 	"doubao-seedance-2-0-fast-260128": {
-		{hasVideo: false}: 37.0,
-		{hasVideo: true}:  22.0,
+		tierNo720p: 37.0, tierWith720p: 22.0,
 	},
 	"doubao-seedance-2-0-mini-260615": {
-		{hasVideo: false}: 23.0,
-		{hasVideo: true}:  14.0,
+		tierNo720p: 23.0, tierWith720p: 14.0,
 	},
 }
 
-// seedancePriceAliases 将上游/渠道模型名归一化到 seedancePriceTable 的键。
+// seedancePriceAliases 将上游/渠道模型名归一化到价目表的键。
 // 所有 seedance 2.0 系列（含各中转渠道别名）都归一化为 doubao-seedance-2.0。
 func normalizeSeedanceModel(model string) string {
 	m := strings.ToLower(strings.TrimSpace(model))
@@ -209,25 +199,64 @@ func normalizeSeedanceModel(model string) string {
 	case strings.Contains(m, "seedance-2-0") || strings.Contains(m, "seedance2.0") || strings.Contains(m, "seedance-2.0") || strings.Contains(m, "seedance2-0"):
 		return "doubao-seedance-2-0-260128"
 	default:
-		return "doubao-seedance-2.0"
+		return "doubao-seedance-2-0-260128"
+	}
+}
+
+// seedanceTierKey 把 (分辨率, 是否含视频) 转成档位键。
+func seedanceTierKey(resolution string, hasVideo bool) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "1080p":
+		if hasVideo {
+			return tierWith1080p
+		}
+		return tierNo1080p
+	case "4k", "2k":
+		if hasVideo {
+			return tierWith4k
+		}
+		return tierNo4k
+	default: // 480p/720p
+		if hasVideo {
+			return tierWith720p
+		}
+		return tierNo720p
 	}
 }
 
 // seedancePriceRatio 返回指定模型在给定输出分辨率/是否含视频输入下，相对基准单价的倍率。
-// 返回 false 表示未配置价格表。
+// 优先用后台配置（video_pricing_setting.tiered_price_by_model），未配置回退内置官方默认价目表。
+// 基准单价 = 该模型 480p/720p 不含视频档（tierNo720p）。
 func seedancePriceRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
 	key := normalizeSeedanceModel(modelName)
-	prices, ok := seedancePriceTable[key]
+
+	// 1) 后台配置优先
+	if prices, ok := operation_setting.GetTieredPriceByModel(key); ok {
+		base := prices[tierNo720p]
+		if base <= 0 {
+			return 0, false
+		}
+		tierKey := seedanceTierKey(resolution, hasVideo)
+		price, ok := prices[tierKey]
+		if !ok || price <= 0 {
+			// 未配置的组合（如 fast/mini 无 1080p/4k 档）按基准单价计费。
+			return 1.0, true
+		}
+		return price / base, true
+	}
+
+	// 2) 内置官方默认价目表兜底
+	prices, ok := seedanceDefaultPriceTable[key]
 	if !ok {
 		return 0, false
 	}
-	base := prices[seedancePriceKey{}]
+	base := prices[tierNo720p]
 	if base <= 0 {
 		return 0, false
 	}
-	res := strings.ToLower(strings.TrimSpace(resolution))
-	price, ok := prices[seedancePriceKey{is1080p: res == "1080p", is4k: res == "4k" || res == "2k", hasVideo: hasVideo}]
-	if !ok {
+	tierKey := seedanceTierKey(resolution, hasVideo)
+	price, ok := prices[tierKey]
+	if !ok || price <= 0 {
 		// 未配置的组合（如 fast/mini 无 1080p/4k 档）按基准单价计费。
 		return 1.0, true
 	}
