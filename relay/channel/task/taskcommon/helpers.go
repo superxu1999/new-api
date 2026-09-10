@@ -261,10 +261,30 @@ func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bo
 // 「分档单价 × token / 1e6 × multiplier」（元），从而让后台配置的分档单价绝对值
 // 与模型计费倍率直接生效，与模型的 ModelRatio 无关。
 //
-// 推导：元 = modelRatio/2 × ratio × rate（见 ModelPriceHelperPerCall 与汇率换算）
-// 目标：元 = tierPrice × token / 1e6 × multiplier
+// ── 为什么采用「约掉 ModelRatio」的方式 ────────────────────────────────
+// 任务计费的框架流程是固定的（见 relay/relay_task.go）：
 //
-//	=> ratio = 2 × tierPrice × token / 1e6 × multiplier / (modelRatio × rate)
+//	Step 4  helper.ModelPriceHelperPerCall 先按 ModelRatio 算出基础额度：
+//	        baseQuota = ModelRatio/2 × QuotaPerUnit × groupRatio
+//	Step 5  adaptor.EstimateBilling 的返回类型固定为 map[string]float64（乘数），
+//	        接口签名（relay/channel/adapter.go 的 TaskAdaptor）决定了适配器
+//	        无法直接设定最终额度；
+//	Step 6  最终额度 = baseQuota × ∏OtherRatios
+//
+// 因此要让价格由「分档单价」决定，只能把已乘入的 ModelRatio 除回来（约掉）。
+// 备选方案是给 TaskAdaptor 增加可选接口、由适配器直接返回额度，可彻底解耦，
+// 但需改动计费核心，暂未实施。
+//
+// 推导：元 = ModelRatio/2 × ratio × rate（见 ModelPriceHelperPerCall 与汇率换算）
+// 目标：元 = tierPrice × token/1e6 × multiplier
+//
+//	=> ratio = 2 × tierPrice × token/1e6 × multiplier / (ModelRatio × rate)
+//
+// ── 约束 ──────────────────────────────────────────────────────────────
+// 本式要求 ModelRatio > 0。若 ModelRatio 为 0，函数返回 false，调用方
+// EstimateBilling 返回 nil，将退化为按基础额度计费（即 0 元）。
+// 前端已隐藏视频模型的「输入价格」并在保存时保留其原值（见
+// model-ratio-visual-editor.tsx 对 seedance 模型的保留分支），正常使用不会为 0。
 func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, multiplier float64) (float64, bool) {
 	if tierPrice <= 0 || token <= 0 || modelRatio <= 0 || rate <= 0 {
 		return 0, false
