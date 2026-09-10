@@ -66,7 +66,8 @@ function normalizeSeedanceModel(model: string): string {
     m.includes('seedance-2-5') ||
     m.includes('seedance2.5') ||
     m.endsWith('-25') ||
-    m.includes('25-260628')
+    m.includes('25-260628') ||
+    m.includes('v25')
   ) {
     return 'doubao-seedance-2-5-260628'
   }

@@ -190,7 +190,8 @@ var seedanceDefaultPriceTable = map[string]map[string]float64{
 func normalizeSeedanceModel(model string) string {
 	m := strings.ToLower(strings.TrimSpace(model))
 	switch {
-	case strings.Contains(m, "seedance-2-5") || strings.Contains(m, "seedance2.5") || strings.HasSuffix(m, "-25") || strings.Contains(m, "25-260628"):
+	case strings.Contains(m, "seedance-2-5") || strings.Contains(m, "seedance2.5") ||
+		strings.HasSuffix(m, "-25") || strings.Contains(m, "25-260628") || strings.Contains(m, "v25"):
 		return "doubao-seedance-2-5-260628"
 	case strings.Contains(m, "fast"):
 		return "doubao-seedance-2-0-fast-260128"

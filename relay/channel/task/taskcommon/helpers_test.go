@@ -114,6 +114,9 @@ func TestNormalizeSeedanceModel(t *testing.T) {
 		"seedance2.0-cyai-fast-260128": "doubao-seedance-2-0-fast-260128",
 		"seedance2.0-cyai-mini-260615": "doubao-seedance-2-0-mini-260615",
 		"seedance2.0-foxtoken":         "doubao-seedance-2-0-260128",
+		"seedance2.0-foxtoken-25":      "doubao-seedance-2-5-260628",
+		"seedance2.0-globalaiopc-v25":  "doubao-seedance-2-5-260628",
+		"seedance2.0-tianyi":           "doubao-seedance-2-0-260128",
 	}
 	for in, want := range tests {
 		assert.Equal(t, want, normalizeSeedanceModel(in), "model=%s", in)
