@@ -505,7 +505,12 @@ export const ModelPricingEditorPanel = forwardRef<
           autoComplete='off'
         >
           <div className='min-h-0 flex-1 overflow-y-auto p-4 pb-6'>
-            <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'>
+            <div
+              className={cn(
+                'grid items-start gap-4',
+                !isVideoModel && 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'
+              )}
+            >
               <FieldGroup>
                 {warnings.length > 0 && (
                   <Alert variant='destructive'>
@@ -662,33 +667,36 @@ export const ModelPricingEditorPanel = forwardRef<
                 )}
               </FieldGroup>
 
-              <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
-                <div className='border-b px-3 py-2'>
-                  <div className='text-sm font-medium'>{t('Preview')}</div>
-                </div>
-                <div className='divide-y'>
-                  {previewRows.map((row) => (
-                    <div key={row.key} className='grid gap-1 px-3 py-2.5'>
-                      <span className='text-muted-foreground text-xs'>
-                        {row.label}
-                      </span>
-                      <span
-                        className={cn(
-                          'min-w-0 text-sm',
-                          row.multiline
-                            ? 'font-mono text-xs leading-5 break-words whitespace-pre-wrap'
-                            : 'truncate'
-                        )}
-                      >
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </aside>
+              {!isVideoModel && (
+                <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
+                  <div className='border-b px-3 py-2'>
+                    <div className='text-sm font-medium'>{t('Preview')}</div>
+                  </div>
+                  <div className='divide-y'>
+                    {previewRows.map((row) => (
+                      <div key={row.key} className='grid gap-1 px-3 py-2.5'>
+                        <span className='text-muted-foreground text-xs'>
+                          {row.label}
+                        </span>
+                        <span
+                          className={cn(
+                            'min-w-0 text-sm',
+                            row.multiline
+                              ? 'font-mono text-xs leading-5 break-words whitespace-pre-wrap'
+                              : 'truncate'
+                          )}
+                        >
+                          {row.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </aside>
+              )}
             </div>
           </div>
-          {showActions && (
+          {/* 视频模型的定价由「视频分档单价」区块内的按钮保存，通用保存按钮对其无操作，故隐藏。 */}
+          {showActions && !isVideoModel && (
             <div className='bg-background/95 supports-[backdrop-filter]:bg-background/80 shrink-0 border-t p-3 backdrop-blur'>
               <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
                 {onSave && (
