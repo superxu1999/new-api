@@ -44,6 +44,7 @@ import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { UsageLog } from '../../data/schema'
+import { extractVideoBilling } from '../../lib/video-billing'
 import {
   parseLogOther,
   getParamOverrideActionLabel,
@@ -160,7 +161,29 @@ function BillingBreakdown(props: {
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
-  if (isTieredExpr) {
+  // seedance 视频按官方 token 公式计费（分档单价 × token/1e6 × 分组倍率 × 计费倍率），
+  // ModelRatio 已被约掉，因此不显示基于 model_ratio 的「输入/输出」价格（对视频是误导）。
+  const videoBilling = extractVideoBilling(other)
+
+  if (videoBilling) {
+    rows.push({ label: t('Billing Mode'), value: t('Video (token formula)') })
+    rows.push({
+      label: t('Tier price'),
+      value: `${videoBilling.tierPrice} ${t('CNY per 1M tokens')} · ${videoBilling.resolution}${
+        videoBilling.hasInputVideo
+          ? ` · ${t('Input with video')}`
+          : ` · ${t('Input without video')}`
+      }`,
+    })
+    rows.push({
+      label: t('Token Usage'),
+      value: videoBilling.token.toLocaleString(),
+    })
+    rows.push({
+      label: t('Billing multiplier'),
+      value: `${videoBilling.multiplier}×`,
+    })
+  } else if (isTieredExpr) {
     rows.push({
       label: t('Billing Mode'),
       value: t('Dynamic Pricing'),
@@ -314,6 +337,19 @@ function BillingBreakdown(props: {
       value: other.admin_info.local_count_tokens
         ? t('Local Billing')
         : t('Upstream Response'),
+    })
+  }
+
+  // 视频任务：给出代入后的计算公式，便于核对费用如何得出。
+  if (videoBilling) {
+    const groupFactor = effectiveGR != null && Number.isFinite(effectiveGR) ? effectiveGR : 1
+    const feeYuan =
+      ((videoBilling.tierPrice * videoBilling.token) / 1e6) *
+      videoBilling.multiplier *
+      groupFactor
+    rows.push({
+      label: t('Formula'),
+      value: `${videoBilling.tierPrice} × ${videoBilling.token.toLocaleString()} ÷ 1,000,000 × ${videoBilling.multiplier} × ${groupFactor} = ${feeYuan.toFixed(4)} ${t('CNY')}`,
     })
   }
 

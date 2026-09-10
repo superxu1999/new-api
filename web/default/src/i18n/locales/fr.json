@@ -4978,6 +4978,7 @@
     "Vertex AI Key Format": "Format de clé Vertex AI",
     "Vertex AI service account key must be valid JSON": "La clé de compte de service Vertex AI doit être un JSON valide",
     "Video": "Vidéo",
+    "Video (token formula)": "Vidéo (formule tokens)",
     "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.": "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.",
     "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.": "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.",
     "Video length in seconds": "Durée de la vidéo en secondes",

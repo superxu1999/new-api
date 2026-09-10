@@ -4978,6 +4978,7 @@
     "Vertex AI Key Format": "Vertex AI 密钥格式",
     "Vertex AI service account key must be valid JSON": "Vertex AI 服务账号密钥必须是有效 JSON",
     "Video": "视频",
+    "Video (token formula)": "视频（token 公式计费）",
     "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.": "视频时长需在 {{min}}-{{max}} 秒之间,或填 -1 由模型自动选择。",
     "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.": "视频生成被内容审核拦截。请调整提示词，避开版权或敏感内容后重试。",
     "Video length in seconds": "视频时长（秒）",

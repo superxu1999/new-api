@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import { extractVideoBilling, toNum } from '../../lib/video-billing'
 import type { TaskLog } from '../../types'
 
 interface TaskDetailDialogProps {
@@ -114,44 +115,6 @@ function toPretty(raw: unknown): string {
     return JSON.stringify(raw, null, 2)
   } catch {
     return String(raw)
-  }
-}
-
-/** 兼容数字/数字字符串，转成 number；失败返回 null。 */
-function toNum(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
-  if (typeof raw === 'string') {
-    const n = Number(raw)
-    if (Number.isFinite(n)) return n
-  }
-  return null
-}
-
-/** seedance 视频计费的中间量（由后端记录在 other.video_billing）。 */
-type VideoBillingDetail = {
-  tierPrice: number
-  token: number
-  multiplier: number
-  resolution: string
-  hasInputVideo: boolean
-  seconds: number | null
-}
-
-/** 从日志 other 字段解析后端记录的 seedance 计费明细。 */
-function extractVideoBilling(other: unknown): VideoBillingDetail | null {
-  const otherObj = toObj(other)
-  const vb = toObj(otherObj?.video_billing)
-  if (!vb) return null
-  const tierPrice = toNum(vb.tier_price)
-  const token = toNum(vb.token)
-  if (tierPrice == null || token == null || tierPrice <= 0 || token <= 0) return null
-  return {
-    tierPrice,
-    token,
-    multiplier: toNum(vb.multiplier) ?? 1,
-    resolution: typeof vb.resolution === 'string' ? vb.resolution : '',
-    hasInputVideo: vb.has_input_video === true,
-    seconds: toNum(vb.seconds),
   }
 }
 
