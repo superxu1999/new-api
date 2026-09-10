@@ -319,9 +319,13 @@ type SeedanceBillingDetail struct {
 // 流程：解析请求 → 官方 token 公式算 token → 查分档单价（按完整模型名） → 折算 OtherRatio。
 // 最终价格 = 分档单价 × token/1e6 × groupRatio × 模型计费倍率。
 //
+// supportsInputVideo 表示该适配器/渠道是否真的支持参考视频输入。为 false 时，即使请求
+// 携带 video_url 也按「输入不含视频」计费 —— 这些渠道的上游会忽略参考视频，
+// 按其计费会造成多收（例如 globalaiopc 只上传参考图，kling 请求结构无视频字段）。
+//
 // 非 seedance 模型返回 nil，调用方沿用原有计费逻辑（例如 kling 适配器同时服务
 // kling 与 seedance 两类模型）。
-func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo, supportsInputVideo bool) map[string]float64 {
 	if info == nil || !IsSeedanceModel(info.OriginModelName) {
 		return nil
 	}
@@ -330,7 +334,8 @@ func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo) map[st
 		return nil
 	}
 	res, _ := req.Metadata["resolution"].(string)
-	hasVideo := HasInputVideo(req.Metadata)
+	// 仅在该渠道确实支持参考视频时才按「含视频」计费。
+	hasVideo := supportsInputVideo && HasInputVideo(req.Metadata)
 	seconds := ExtractSeconds(&req)
 
 	token, err := SeedanceToken(seconds, res, hasVideo)

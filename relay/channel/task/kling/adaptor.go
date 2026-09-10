@@ -292,8 +292,10 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 // EstimateBilling seedance 系模型（部分渠道复用本适配器）按官方 token 公式计费；
 // kling 模型返回 nil，沿用原有计费逻辑（判断在 taskcommon 内部完成）。
+// 本适配器的请求结构无视频字段（不支持参考视频），故传 false：即使请求带 video_url
+// 也按「输入不含视频」计费，避免对上游会忽略的素材多收费。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	return taskcommon.EstimateSeedanceBilling(c, info)
+	return taskcommon.EstimateSeedanceBilling(c, info, false)
 }
 
 // ============================

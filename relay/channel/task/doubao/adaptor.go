@@ -135,8 +135,9 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
+// Doubao 视频支持参考视频输入（metadata.content 中的 video_url）。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	return taskcommon.EstimateSeedanceBilling(c, info)
+	return taskcommon.EstimateSeedanceBilling(c, info, true)
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，

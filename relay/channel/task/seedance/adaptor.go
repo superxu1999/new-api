@@ -159,9 +159,10 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
+// 移动云/天翼云等渠道支持参考视频输入（metadata.content 中的 video_url）。
 // 时长上界已由 ValidateBasicTaskRequest 按 MaxTaskDurationSeconds 校验。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	return taskcommon.EstimateSeedanceBilling(c, info)
+	return taskcommon.EstimateSeedanceBilling(c, info, true)
 }
 
 // BuildRequestBody converts request into Seedance proxy format.

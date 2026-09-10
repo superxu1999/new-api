@@ -115,8 +115,10 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
+// GlobalAiOpc 的请求只支持参考图（ReferenceImages），上游会忽略参考视频，
+// 因此传 false：即使请求带 video_url 也按「输入不含视频」计费，避免多收。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	return taskcommon.EstimateSeedanceBilling(c, info)
+	return taskcommon.EstimateSeedanceBilling(c, info, false)
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {

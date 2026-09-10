@@ -26,8 +26,9 @@ func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
 
 // EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
+// CyAI 上游支持参考视频输入（metadata.content 中的 video_url）。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	return taskcommon.EstimateSeedanceBilling(c, info)
+	return taskcommon.EstimateSeedanceBilling(c, info, true)
 }
 
 // contentItem 表示 content 数组中的单个参考项。CyAI 上游（Doubao/Seedance 风格）通过

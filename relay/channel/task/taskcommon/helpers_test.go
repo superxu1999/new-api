@@ -197,6 +197,54 @@ func TestSeedanceEndToEndPriceAcrossChannels(t *testing.T) {
 		})
 	}
 }
+// TestSeedanceUnsupportedInputVideoChargedAsNoVideo 锁定契约：当渠道不支持参考视频时
+// （EstimateSeedanceBilling 的 supportsInputVideo=false），即使请求携带 video_url，
+// 也按「输入不含视频」计费，避免对上游会忽略的素材多收费。
+func TestSeedanceUnsupportedInputVideoChargedAsNoVideo(t *testing.T) {
+	const modelRatio = 0.2723
+	const rate = 7.3
+
+	metadata := map[string]interface{}{
+		"resolution": "720p",
+		"content": []interface{}{
+			map[string]interface{}{
+				"type":      "video_url",
+				"video_url": map[string]interface{}{"url": "https://example.com/ref.mp4"},
+			},
+		},
+	}
+	// 请求确实携带了参考视频。
+	require.True(t, HasInputVideo(metadata))
+
+	// 不支持参考视频的渠道：强制按不含视频处理。
+	hasVideo := false && HasInputVideo(metadata)
+	assert.False(t, hasVideo)
+
+	// token 按单边（5s）而不是双边（10s）。
+	token, err := SeedanceToken(5, "720p", hasVideo)
+	require.NoError(t, err)
+	assert.Equal(t, 108000, token)
+
+	// 单价取不含视频档（46）而不是含视频档（28）。
+	tierPrice, ok := SeedanceTierPrice("seedance2.0-cyai-260128", "720p", hasVideo)
+	require.True(t, ok)
+	assert.InDelta(t, 46, tierPrice, 1e-6)
+
+	ratio, ok := ComputeSeedanceBillRatio(tierPrice, token, modelRatio, rate, 1.0)
+	require.True(t, ok)
+	yuan := modelRatio / 2 * ratio * rate
+	assert.InDelta(t, 4.968, yuan, 0.02)
+
+	// 对照：支持参考视频的渠道按含视频计费，价格更高（6.048 元）。
+	withVideoToken, err := SeedanceToken(5, "720p", true)
+	require.NoError(t, err)
+	withVideoPrice, ok := SeedanceTierPrice("seedance2.0-cyai-260128", "720p", true)
+	require.True(t, ok)
+	withVideoRatio, ok := ComputeSeedanceBillRatio(withVideoPrice, withVideoToken, modelRatio, rate, 1.0)
+	require.True(t, ok)
+	assert.InDelta(t, 6.048, modelRatio/2*withVideoRatio*rate, 0.02)
+}
+
 // TestIsSeedanceModel 锁定模型判断：只有 seedance 系模型走官方 token 公式计费，
 // kling / suno 等其它任务模型必须返回 false（它们与 seedance 共用适配器或公共入口）。
 func TestIsSeedanceModel(t *testing.T) {
