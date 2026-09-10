@@ -92,8 +92,9 @@ type Props = {
 export function VideoTieredPriceEditor({ model }: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const normalized = normalizeSeedanceModel(model)
-  const defaults = DEFAULT_PRICES[normalized] ?? DEFAULT_PRICES[FALLBACK_MODEL]
+  // 默认值按型号（2.0/2.5/fast/mini）推断；配置按【完整模型名】独立存取，
+  // 与 ModelRatio 的粒度一致——每个模型互不影响。
+  const defaults = DEFAULT_PRICES[normalizeSeedanceModel(model)] ?? DEFAULT_PRICES[FALLBACK_MODEL]
   const [prices, setPrices] = useState<Record<string, number>>({ ...defaults })
   const [multiplier, setMultiplier] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -109,9 +110,9 @@ export function VideoTieredPriceEditor({ model }: Props) {
         const items = (res.data || []) as Array<{ key?: string; value?: string }>
         const priceRaw = items.find((it) => it.key === TIERED_PRICE_KEY)?.value ?? ''
         const multRaw = items.find((it) => it.key === MULTIPLIER_KEY)?.value ?? ''
-        const saved = parsePriceMap(priceRaw)[normalized]
+        const saved = parsePriceMap(priceRaw)[model]
         setPrices(saved ? { ...defaults, ...saved } : { ...defaults })
-        const savedMult = parseNumberMap(multRaw)[normalized]
+        const savedMult = parseNumberMap(multRaw)[model]
         setMultiplier(typeof savedMult === 'number' && savedMult > 0 ? savedMult : 1)
       })
       .catch(() => {
@@ -120,7 +121,7 @@ export function VideoTieredPriceEditor({ model }: Props) {
     return () => {
       cancelled = true
     }
-  }, [normalized, defaults])
+  }, [model, defaults])
 
   const save = async () => {
     setSaving(true)
@@ -131,8 +132,8 @@ export function VideoTieredPriceEditor({ model }: Props) {
       const multRaw = items.find((it) => it.key === MULTIPLIER_KEY)?.value ?? ''
 
       // 合并其它模型配置，仅覆盖当前模型，避免互相清除。
-      const nextPrices = { ...parsePriceMap(priceRaw), [normalized]: sanitizePrices(prices) }
-      const nextMult = { ...parseNumberMap(multRaw), [normalized]: multiplier > 0 ? multiplier : 1 }
+      const nextPrices = { ...parsePriceMap(priceRaw), [model]: sanitizePrices(prices) }
+      const nextMult = { ...parseNumberMap(multRaw), [model]: multiplier > 0 ? multiplier : 1 }
 
       await updateOption.mutateAsync({ key: TIERED_PRICE_KEY, value: JSON.stringify(nextPrices) })
       await updateOption.mutateAsync({ key: MULTIPLIER_KEY, value: JSON.stringify(nextMult) })

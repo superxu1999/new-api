@@ -3,6 +3,7 @@ package taskcommon
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,6 +104,40 @@ func TestSeedanceTierPrice(t *testing.T) {
 			assert.InDelta(t, tt.want, price, 1e-6)
 		})
 	}
+}
+
+// TestSeedanceTierPricePerModel 锁定「配置按完整模型名独立」的契约：
+// 给某个模型单独配置分档单价/倍率后，只有该模型受影响，其它同型号模型仍用默认值。
+func TestSeedanceTierPricePerModel(t *testing.T) {
+	cfg := config.GlobalConfig.Get("video_pricing_setting")
+	require.NotNil(t, cfg, "video_pricing_setting must be registered")
+
+	// 仅给 seedance2.0-cyai-260128 配置自定义单价与倍率。
+	require.NoError(t, config.UpdateConfigFromMap(cfg, map[string]string{
+		"tiered_price_by_model":     `{"seedance2.0-cyai-260128":{"no_720p":99,"no_1080p":120}}`,
+		"model_multiplier_by_model": `{"seedance2.0-cyai-260128":1.5}`,
+	}))
+	t.Cleanup(func() {
+		_ = config.UpdateConfigFromMap(cfg, map[string]string{
+			"tiered_price_by_model":     `{}`,
+			"model_multiplier_by_model": `{}`,
+		})
+	})
+
+	// 已配置的模型：使用自定义值。
+	price, ok := SeedanceTierPrice("seedance2.0-cyai-260128", "720p", false)
+	require.True(t, ok)
+	assert.InDelta(t, 99, price, 1e-6)
+	price, ok = SeedanceTierPrice("seedance2.0-cyai-260128", "1080p", false)
+	require.True(t, ok)
+	assert.InDelta(t, 120, price, 1e-6)
+	assert.InDelta(t, 1.5, SeedanceModelMultiplier("seedance2.0-cyai-260128"), 1e-6)
+
+	// 未配置的同型号模型：仍使用内置默认单价与倍率 1.0，不受上面配置影响。
+	price, ok = SeedanceTierPrice("seedance2.0-foxtoken", "720p", false)
+	require.True(t, ok)
+	assert.InDelta(t, 46, price, 1e-6)
+	assert.InDelta(t, 1.0, SeedanceModelMultiplier("seedance2.0-foxtoken"), 1e-6)
 }
 
 // TestNormalizeSeedanceModel 校验渠道别名归一化到价目表键。

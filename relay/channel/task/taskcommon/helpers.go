@@ -226,13 +226,13 @@ func seedanceTierKey(resolution string, hasVideo bool) string {
 }
 
 // SeedanceTierPrice 返回指定模型在给定输出分辨率/是否含视频输入下的分档单价（元/百万 token）。
-// 优先用后台配置（video_pricing_setting.tiered_price_by_model），未配置回退内置官方默认价目表。
+// 优先用后台针对【该完整模型名】的配置（video_pricing_setting.tiered_price_by_model），
+// 未配置时按型号（2.0/2.5/fast/mini）回退到内置默认价目表。
 func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bool) {
-	key := normalizeSeedanceModel(modelName)
 	tierKey := seedanceTierKey(resolution, hasVideo)
 
-	// 1) 后台配置优先
-	if prices, ok := operation_setting.GetTieredPriceByModel(key); ok {
+	// 1) 按完整模型名的后台配置优先（每个模型独立，互不影响）
+	if prices, ok := operation_setting.GetTieredPriceByModel(modelName); ok {
 		if price, ok := prices[tierKey]; ok && price > 0 {
 			return price, true
 		}
@@ -243,8 +243,8 @@ func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bo
 		return 0, false
 	}
 
-	// 2) 内置官方默认价目表兜底
-	prices, ok := seedanceDefaultPriceTable[key]
+	// 2) 按型号回退内置默认价目表
+	prices, ok := seedanceDefaultPriceTable[normalizeSeedanceModel(modelName)]
 	if !ok {
 		return 0, false
 	}
@@ -279,10 +279,10 @@ func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, mu
 	return ratio, true
 }
 
-// SeedanceModelMultiplier 返回该模型的视频计费倍率（按归一化模型名查配置，默认 1.0）。
+// SeedanceModelMultiplier 返回该模型的视频计费倍率（按【完整模型名】查配置，默认 1.0）。
 // 用于针对单个模型加价/打折：最终价格 = 分档单价 × token/1e6 × groupRatio × 该倍率。
 func SeedanceModelMultiplier(modelName string) float64 {
-	return operation_setting.GetModelMultiplier(normalizeSeedanceModel(modelName))
+	return operation_setting.GetModelMultiplier(modelName)
 }
 
 // SeedanceToken 计算官方 token 用量：token = (输入时长+输出时长) × 宽 × 高 × 帧率 / 1024。
