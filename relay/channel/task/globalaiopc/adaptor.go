@@ -114,20 +114,9 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 按时长返回 seconds 乘数。
+// EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return nil
-	}
-	seconds := req.Duration
-	if seconds <= 0 {
-		seconds, _ = strconv.Atoi(req.Seconds)
-	}
-	if seconds <= 0 {
-		return nil
-	}
-	return map[string]float64{"seconds": float64(seconds)}
+	return taskcommon.EstimateSeedanceBilling(c, info)
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {

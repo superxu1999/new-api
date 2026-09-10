@@ -9,7 +9,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -26,33 +25,9 @@ type TaskAdaptor struct {
 func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
 
+// EstimateBilling 按官方 token 公式计费（详见 taskcommon.EstimateSeedanceBilling）。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return nil
-	}
-	res, _ := req.Metadata["resolution"].(string)
-	hasVideo := taskcommon.HasInputVideo(req.Metadata)
-
-	// 官方 token 公式：token = (输入+输出时长) × 宽 × 高 × 24 / 1024
-	token, err := taskcommon.SeedanceToken(taskcommon.ExtractSeconds(&req), res, hasVideo)
-	if err != nil || token <= 0 {
-		return nil
-	}
-	// 分档单价（元/百万 token）：后台配置优先，未配置回退官方默认。
-	tierPrice, ok := taskcommon.SeedanceTierPrice(info.OriginModelName, res, hasVideo)
-	if !ok || tierPrice <= 0 {
-		return nil
-	}
-	// 目标价 = 分档单价 × token/1e6 × 计费倍率（元）。换算成 OtherRatio 时约掉 ModelRatio，
-	// 使后台配置的分档单价绝对值与模型计费倍率直接生效。
-	multiplier := taskcommon.SeedanceModelMultiplier(info.OriginModelName)
-	ratio, ok := taskcommon.ComputeSeedanceBillRatio(
-		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate, multiplier)
-	if !ok {
-		return nil
-	}
-	return map[string]float64{"video_billing": ratio}
+	return taskcommon.EstimateSeedanceBilling(c, info)
 }
 
 // contentItem 表示 content 数组中的单个参考项。CyAI 上游（Doubao/Seedance 风格）通过

@@ -290,6 +290,12 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return "kling"
 }
 
+// EstimateBilling seedance 系模型（部分渠道复用本适配器）按官方 token 公式计费；
+// kling 模型返回 nil，沿用原有计费逻辑（判断在 taskcommon 内部完成）。
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	return taskcommon.EstimateSeedanceBilling(c, info)
+}
+
 // ============================
 // helpers
 // ============================

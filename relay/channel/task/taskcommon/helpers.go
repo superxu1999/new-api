@@ -299,6 +299,46 @@ func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, mu
 	return ratio, true
 }
 
+// EstimateSeedanceBilling 统一的 seedance 视频计费估算，供所有 seedance 系适配器复用。
+//
+// 流程：解析请求 → 官方 token 公式算 token → 查分档单价（按完整模型名） → 折算 OtherRatio。
+// 最终价格 = 分档单价 × token/1e6 × groupRatio × 模型计费倍率。
+//
+// 非 seedance 模型返回 nil，调用方沿用原有计费逻辑（例如 kling 适配器同时服务
+// kling 与 seedance 两类模型）。
+func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if info == nil || !IsSeedanceModel(info.OriginModelName) {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	res, _ := req.Metadata["resolution"].(string)
+	hasVideo := HasInputVideo(req.Metadata)
+
+	token, err := SeedanceToken(ExtractSeconds(&req), res, hasVideo)
+	if err != nil || token <= 0 {
+		return nil
+	}
+	tierPrice, ok := SeedanceTierPrice(info.OriginModelName, res, hasVideo)
+	if !ok || tierPrice <= 0 {
+		return nil
+	}
+	multiplier := SeedanceModelMultiplier(info.OriginModelName)
+	ratio, ok := ComputeSeedanceBillRatio(
+		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate, multiplier)
+	if !ok {
+		return nil
+	}
+	return map[string]float64{"video_billing": ratio}
+}
+
+// IsSeedanceModel 判断模型名是否属于 seedance 视频系（据此决定是否按官方 token 公式计费）。
+func IsSeedanceModel(modelName string) bool {
+	return strings.Contains(strings.ToLower(modelName), "seedance")
+}
+
 // SeedanceModelMultiplier 返回该模型的视频计费倍率（按【完整模型名】查配置，默认 1.0）。
 // 用于针对单个模型加价/打折：最终价格 = 分档单价 × token/1e6 × groupRatio × 该倍率。
 func SeedanceModelMultiplier(modelName string) float64 {

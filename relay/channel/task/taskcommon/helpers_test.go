@@ -157,3 +157,62 @@ func TestNormalizeSeedanceModel(t *testing.T) {
 		assert.Equal(t, want, normalizeSeedanceModel(in), "model=%s", in)
 	}
 }
+
+// TestSeedanceEndToEndPriceAcrossChannels 校验统一接入后，各渠道模型按
+// 「分档单价 × token/1e6」得出正确价格（覆盖 seedance/foxtoken/globalaiopc 等）。
+func TestSeedanceEndToEndPriceAcrossChannels(t *testing.T) {
+	const modelRatio = 0.2723
+	const rate = 7.3
+
+	tests := []struct {
+		name      string
+		model     string
+		res       string
+		hasVideo  bool
+		sec       int
+		wantYuan  float64
+	}{
+		// seedance 适配器（type 59）
+		{"yd 5s 720p", "seedance2.0-yd", "720p", false, 5, 4.968},
+		{"tianyi 5s 1080p", "seedance2.0-tianyi", "1080p", false, 5, 12.393},
+		{"cyai-mobile 5s 720p", "seedance2.0-cyai-mobile-260128", "720p", false, 5, 4.968},
+		// foxtoken（type 61）：fast 档基准 37
+		{"foxtoken-fast 5s 720p", "seedance2.0-foxtoken-fast", "720p", false, 5, 3.996},
+		// globalaiopc（type 60）：2.5 档基准 70
+		{"globalaiopc-v25 5s 720p", "seedance2.0-globalaiopc-v25", "720p", false, 5, 7.56},
+		// cyai（type 62）：含视频 token 翻倍
+		{"cyai 5s 720p with-video", "seedance2.0-cyai-260128", "720p", true, 5, 6.048},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := SeedanceToken(tt.sec, tt.res, tt.hasVideo)
+			require.NoError(t, err)
+			tierPrice, ok := SeedanceTierPrice(tt.model, tt.res, tt.hasVideo)
+			require.True(t, ok, "model=%s should have a tier price", tt.model)
+			ratio, ok := ComputeSeedanceBillRatio(tierPrice, token, modelRatio, rate, 1.0)
+			require.True(t, ok)
+			yuan := modelRatio / 2 * ratio * rate
+			assert.InDelta(t, tt.wantYuan, yuan, 0.02)
+		})
+	}
+}
+// TestIsSeedanceModel 锁定模型判断：只有 seedance 系模型走官方 token 公式计费，
+// kling / suno 等其它任务模型必须返回 false（它们与 seedance 共用适配器或公共入口）。
+func TestIsSeedanceModel(t *testing.T) {
+	yes := []string{
+		"seedance2.0-cyai-260128",
+		"seedance2.0-yd",
+		"seedance2.0-tianyi-fast",
+		"doubao-seedance-2-0-260128",
+		"doubao-seedance-1-0-pro-250528",
+	}
+	for _, m := range yes {
+		assert.True(t, IsSeedanceModel(m), "model=%s", m)
+	}
+
+	no := []string{"kling-v1", "kling-v1-6", "kling-v2-master", "suno_music", "gpt-4o"}
+	for _, m := range no {
+		assert.False(t, IsSeedanceModel(m), "model=%s", m)
+	}
+}
