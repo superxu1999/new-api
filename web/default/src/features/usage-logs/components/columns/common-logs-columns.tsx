@@ -56,6 +56,11 @@ import {
   renderAuditContent,
 } from '../../lib/format'
 import {
+  extractVideoBilling,
+  extractVideoSettlement,
+  isVideoBillingLog,
+} from '../../lib/video-billing'
+import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
@@ -115,6 +120,19 @@ function buildDetailSegments(
     return text ? [{ text }] : []
   }
 
+  // 视频差额结算日志（补扣 type=2 / 退款 type=6 都有）：给出「预扣 → 实付」，
+  // 比笼统的「异步任务退款」更能说明这笔钱是怎么来的。
+  const earlySettlement = other ? extractVideoSettlement(other) : null
+  if (earlySettlement) {
+    return [
+      { text: t('Video token settlement') },
+      {
+        text: `${formatLogQuota(earlySettlement.preConsumedQuota)} → ${formatLogQuota(earlySettlement.actualQuota)}`,
+        muted: true,
+      },
+    ]
+  }
+
   if (log.type === 6) {
     return [{ text: t('Async task refund') }]
   }
@@ -139,6 +157,23 @@ function buildDetailSegments(
   }
 
   if (!other) return []
+
+  // 视频 token 公式计费的预扣日志：与「视频差额结算」成对，标出预扣费并给出视频规格；
+  // 同时避免回落到基于 ModelRatio 的单价（对视频是误导）。差额结算日志已在上方提前返回。
+  if (isVideoBillingLog(other)) {
+    const videoSegments: DetailSegment[] = [{ text: t('Pre-consumed') }]
+    const videoBilling = extractVideoBilling(other)
+    if (videoBilling) {
+      const spec = [
+        videoBilling.resolution,
+        videoBilling.seconds != null ? `${videoBilling.seconds}s` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+      if (spec) videoSegments.push({ text: spec, muted: true })
+    }
+    return videoSegments
+  }
 
   const segments: DetailSegment[] = []
 
@@ -535,10 +570,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       if (!isDisplayableLogType(log.type)) return null
 
       const tokenName = log.token_name
-      if (!tokenName) return null
-
       const other = parseLogOther(log.other)
-      const displayName = sensitiveVisible ? tokenName : '••••'
+      // 控制台（/pg/）发起时走的是会话鉴权，整条链路就没有 API 令牌
+      // （扣的是账号余额而不是某个令牌额度），这里给出占位标签而不是留空。
+      const isConsoleRequest =
+        !tokenName && (other?.request_path?.startsWith('/pg/') ?? false)
+      if (!tokenName && !isConsoleRequest) return null
+
+      let displayName = '••••'
+      if (!tokenName) {
+        displayName = t('Console')
+      } else if (sensitiveVisible) {
+        displayName = tokenName
+      }
       let group = log.group
       if (!group) group = other?.group || ''
 

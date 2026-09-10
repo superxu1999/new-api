@@ -490,6 +490,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Progress = t.Progress
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
+		// 视频 token 计费任务的用量来自上游官方口径，是完成后差额结算的依据。
+		// model.Task 没有 usage 字段，且这条分支不经过 adaptor.ParseTaskResult，
+		// 因此必须从原始响应体单独提取；其他任务保持原状（TotalTokens 仍为 0）。
+		if bc := task.PrivateData.BillingContext; bc != nil && bc.VideoToken > 0 {
+			// 上游 new-api 实例把自家任务负载放在 data.data 里，provider 的 usage 再嵌一层
+			// （实测 CyAI / Foxtoken 中转都是这个形状）；也有实例直接放在 data.usage。
+			usage := gjson.GetBytes(responseBody, "data.data.usage")
+			if !usage.Exists() {
+				usage = gjson.GetBytes(responseBody, "data.usage")
+			}
+			taskResult.CompletionTokens = int(usage.Get("completion_tokens").Int())
+			taskResult.TotalTokens = int(usage.Get("total_tokens").Int())
+			taskResult.TokensFromUsage = taskResult.TotalTokens > 0
+		}
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
@@ -638,25 +652,38 @@ func truncateBase64(s string) string {
 }
 
 // settleTaskBillingOnComplete 任务完成时的统一计费调整。
-// 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+// 优先级：1. 视频 token 计费任务 → 按上游真实 token 线性重算
 //
-//  2. taskResult.TotalTokens > 0 → 按 token 重算
-//  3. 都不满足 → 保持预扣额度不变
+//  2. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+//  3. taskResult.TotalTokens > 0 → 按 token 重算
+//  4. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
-	// 0. 按次计费的任务不做差额结算
+	// 0. 视频 token 计费任务：预扣额度与官方 token 成正比，按上游真实 token 缩放即可。
+	//    这类任务必须在这里返回 —— 通用口径（totalTokens × ModelRatio × 倍率）会把
+	//    已经约掉 ModelRatio 的 video_billing 倍率再乘一次，算出的额度远低于应扣。
+	//    上游没给出官方用量字段时（不返回 usage，或只给计费单位）保持预扣额度。
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.VideoToken > 0 {
+		if taskResult.TokensFromUsage {
+			SettleVideoTokenBilling(ctx, task, bc.VideoToken, taskResult.TotalTokens)
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 上游未返回用量，保持预扣额度", task.TaskID))
+		}
+		return
+	}
+	// 1. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
 		return
 	}
-	// 1. 优先让 adaptor 决定最终额度
+	// 2. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 		return
 	}
-	// 2. 回退到 token 重算
+	// 3. 回退到 token 重算
 	if taskResult.TotalTokens > 0 {
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
 		return
 	}
-	// 3. 无调整，保持预扣额度
+	// 4. 无调整，保持预扣额度
 }

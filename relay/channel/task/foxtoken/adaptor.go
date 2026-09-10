@@ -40,12 +40,20 @@ type createResponse struct {
 	Status string `json:"status"`
 }
 
+// taskUsage 是上游 new-api 实例返回的视频用量（官方 token 口径）。
+// 它同时是上游对我们计费的依据，因此可用于完成后的差额结算。
+type taskUsage struct {
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // taskData 解析 new-api TaskResponse 的 data 段
 type taskData struct {
-	Status     string `json:"status"`
-	FailReason string `json:"fail_reason"`
-	ResultURL  string `json:"result_url"`
-	Progress   string `json:"progress"`
+	Status     string    `json:"status"`
+	FailReason string    `json:"fail_reason"`
+	ResultURL  string    `json:"result_url"`
+	Progress   string    `json:"progress"`
+	Usage      taskUsage `json:"usage"`
 }
 
 type taskResponse struct {
@@ -200,6 +208,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		t.Status = model.TaskStatusSuccess
 		t.Progress = "100%"
 		t.Url = res.Data.ResultURL
+		// 上游按官方 token 口径计费，这里取回用量以便完成后按真实 token 差额结算。
+		t.CompletionTokens = res.Data.Usage.CompletionTokens
+		t.TotalTokens = res.Data.Usage.TotalTokens
 	case "FAILURE", "FAILED":
 		t.Status = model.TaskStatusFailure
 		t.Progress = "100%"

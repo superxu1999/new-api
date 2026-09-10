@@ -140,24 +140,6 @@ func TestSeedanceTierPricePerModel(t *testing.T) {
 	assert.InDelta(t, 1.0, SeedanceModelMultiplier("seedance2.0-foxtoken"), 1e-6)
 }
 
-// TestNormalizeSeedanceModel 校验渠道别名归一化到价目表键。
-func TestNormalizeSeedanceModel(t *testing.T) {
-	tests := map[string]string{
-		"doubao-seedance-2.0":          "doubao-seedance-2-0-260128",
-		"seedance2.0-cyai-260128":      "doubao-seedance-2-0-260128",
-		"seedance2.0-cyai-25-260628":   "doubao-seedance-2-5-260628",
-		"seedance2.0-cyai-fast-260128": "doubao-seedance-2-0-fast-260128",
-		"seedance2.0-cyai-mini-260615": "doubao-seedance-2-0-mini-260615",
-		"seedance2.0-foxtoken":         "doubao-seedance-2-0-260128",
-		"seedance2.0-foxtoken-25":      "doubao-seedance-2-5-260628",
-		"seedance2.0-globalaiopc-v25":  "doubao-seedance-2-5-260628",
-		"seedance2.0-tianyi":           "doubao-seedance-2-0-260128",
-	}
-	for in, want := range tests {
-		assert.Equal(t, want, normalizeSeedanceModel(in), "model=%s", in)
-	}
-}
-
 // TestSeedanceEndToEndPriceAcrossChannels 校验统一接入后，各渠道模型按
 // 「分档单价 × token/1e6」得出正确价格（覆盖 seedance/foxtoken/globalaiopc 等）。
 func TestSeedanceEndToEndPriceAcrossChannels(t *testing.T) {

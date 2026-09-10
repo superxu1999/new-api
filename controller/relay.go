@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -584,12 +585,24 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
-		// 视频/时长计费任务（OtherRatios 含 seconds 维度）按「时长×分辨率」预扣，已精确对齐官方定价。
-		// 上游返回的 completion_tokens 是估算值，不代表真实消耗；若走 token 重算（RecalculateTaskQuotaByTokens）
-		// 会以错误口径重算，破坏已正确的预扣额度。因此这类任务标记 PerCallBilling，跳过轮询阶段的差额结算。
+		// 视频/时长计费任务（OtherRatios 含 seconds 维度，或 seedance 的 video_billing 倍率）
+		// 按「时长×分辨率」预扣，已精确对齐官方定价。上游返回的 completion_tokens 是估算值，
+		// 不代表真实消耗；若走通用的 token 重算（RecalculateTaskQuotaByTokens）会以错误口径
+		// 重算，破坏已正确的预扣额度。因此这类任务标记 PerCallBilling，跳过通用差额结算。
 		perCallBilling := common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice
 		if _, hasSeconds := relayInfo.PriceData.OtherRatios["seconds"]; hasSeconds {
 			perCallBilling = true
+		}
+		videoToken := 0
+		if _, isSeedanceBilling := relayInfo.PriceData.OtherRatios[taskcommon.SeedanceBillingRatioKey]; isSeedanceBilling {
+			perCallBilling = true
+			// 记下预估 token：视频价格与 token 成正比，轮询阶段若上游给出官方用量，
+			// 就按「上游 token / 预估值」缩放预扣额度完成差额结算。
+			if detail, ok := c.Get(taskcommon.SeedanceBillingContextKey); ok {
+				if seedanceDetail, ok := detail.(taskcommon.SeedanceBillingDetail); ok {
+					videoToken = seedanceDetail.Token
+				}
+			}
 		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
@@ -598,6 +611,7 @@ func RelayTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  perCallBilling,
+			VideoToken:      videoToken,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

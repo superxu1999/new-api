@@ -27,6 +27,8 @@ type taskPollingFetchAdaptor struct {
 	blockStarted chan struct{}
 	releaseBlock chan struct{}
 	blockOnce    sync.Once
+	// responseBody 非空时直接作为轮询响应返回，用于构造特定的上游报文。
+	responseBody []byte
 }
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
@@ -63,6 +65,9 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 	responseBody, err := common.Marshal(response)
 	if err != nil {
 		return nil, err
+	}
+	if len(a.responseBody) > 0 {
+		responseBody = a.responseBody
 	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
@@ -330,4 +335,130 @@ func TestUpdateVideoTasksMixedChannelSleepSettings(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ElementsMatch(t, []string{"upstream_sleepy_1", "upstream_fast_1", "upstream_fast_2"}, adaptor.fetchedTaskIDs())
+}
+
+// 上游 new-api 实例（CyAI / Foxtoken 等中转）的轮询响应会走 dto.TaskResponse 分支，
+// 不经过 adaptor.ParseTaskResult。视频任务必须从原始响应体的 data.usage 取回真实 token，
+// 否则 TotalTokens 恒为 0，差额结算永远不会触发，视频永远按预扣额度收费。
+func TestUpdateVideoSingleTaskSettlesVideoTokenFromUpstreamUsage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 50, 50, 50
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	const estimatedToken, upstreamToken = 108000, 108900
+	const expectedQuota = 343110 // int(340275 × 108900 / 108000)
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-polling-video-token", tokenRemain)
+	seedTaskPollingChannel(t, channelID, true)
+
+	task := seedPollingTask(t, channelID, "task_public_video", "upstream_video")
+	task.Quota = preConsumed
+	task.UserId = userID
+	task.PrivateData.TokenId = tokenID
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		OriginModelName: "seedance2.0-cyai-260128",
+		PerCallBilling:  true,
+		VideoToken:      estimatedToken,
+	}
+	require.NoError(t, model.DB.Save(task).Error)
+
+	ch := &model.Channel{
+		Id:     channelID,
+		Type:   constant.ChannelTypeKling,
+		Name:   "polling_channel",
+		Key:    "sk-test",
+		Status: common.ChannelStatusEnabled,
+	}
+
+	body, err := common.Marshal(map[string]any{
+		"code": dto.TaskSuccessCode,
+		"data": map[string]any{
+			"task_id":  "upstream_video",
+			"status":   string(model.TaskStatusSuccess),
+			"progress": "100%",
+			// 形状取自线上真实报文：provider 的 usage 嵌在 data.data 里
+			"data": map[string]any{
+				"status": "succeeded",
+				"usage": map[string]any{
+					"completion_tokens": upstreamToken,
+					"total_tokens":      upstreamToken,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	adaptor := &taskPollingFetchAdaptor{responseBody: body}
+	require.NoError(t, updateVideoSingleTask(ctx, adaptor, ch, "upstream_video",
+		map[string]*model.Task{"upstream_video": task}))
+
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota-(expectedQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(expectedQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+}
+
+// 部分 new-api 实例把 usage 直接放在 data 下（不经过 data.data），也要能读到。
+func TestUpdateVideoSingleTaskReadsUsageFromFlatData(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 51, 51, 51
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	const estimatedToken, upstreamToken = 108000, 86400
+	const expectedQuota = 272220 // int(340275 × 86400 / 108000)
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-polling-video-flat", tokenRemain)
+	seedTaskPollingChannel(t, channelID, true)
+
+	task := seedPollingTask(t, channelID, "task_public_flat", "upstream_flat")
+	task.Quota = preConsumed
+	task.UserId = userID
+	task.PrivateData.TokenId = tokenID
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		OriginModelName: "seedance2.0-cyai-260128",
+		PerCallBilling:  true,
+		VideoToken:      estimatedToken,
+	}
+	require.NoError(t, model.DB.Save(task).Error)
+
+	ch := &model.Channel{
+		Id:     channelID,
+		Type:   constant.ChannelTypeKling,
+		Name:   "polling_channel",
+		Key:    "sk-test",
+		Status: common.ChannelStatusEnabled,
+	}
+
+	body, err := common.Marshal(map[string]any{
+		"code": dto.TaskSuccessCode,
+		"data": map[string]any{
+			"task_id":  "upstream_flat",
+			"status":   string(model.TaskStatusSuccess),
+			"progress": "100%",
+			"usage": map[string]any{
+				"completion_tokens": upstreamToken,
+				"total_tokens":      upstreamToken,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	adaptor := &taskPollingFetchAdaptor{responseBody: body}
+	require.NoError(t, updateVideoSingleTask(ctx, adaptor, ch, "upstream_flat",
+		map[string]*model.Task{"upstream_flat": task}))
+
+	// 上游用量低于预估 → 退款
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota+(preConsumed-expectedQuota), getUserQuota(t, userID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeRefund, log.Type)
 }

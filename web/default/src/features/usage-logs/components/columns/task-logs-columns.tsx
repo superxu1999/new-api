@@ -199,6 +199,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               log={log}
               open={dialogOpen}
               onOpenChange={setDialogOpen}
+              isAdmin={isAdmin}
             />
           </>
         )
@@ -278,6 +279,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                 log={log}
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
+                isAdmin={isAdmin}
               />
             </>
           )

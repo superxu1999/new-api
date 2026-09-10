@@ -85,3 +85,42 @@ export function extractVideoBilling(other: unknown): VideoBillingDetail | null {
     seconds: toNum(vb.seconds),
   }
 }
+
+/**
+ * 视频任务完成后的差额结算信息，由后端写入「视频token重算」日志的 other
+ * （见 service.RecalculateTaskQuota）。
+ */
+export type VideoSettlement = {
+  /** 提交时预扣的额度 */
+  preConsumedQuota: number
+  /** 按上游真实 token 结算后的额度 */
+  actualQuota: number
+  /** 实际 − 预扣：正数表示补扣，负数表示退款 */
+  deltaQuota: number
+}
+
+/** 从日志的 other 字段解析视频差额结算信息；非重算日志返回 null。 */
+export function extractVideoSettlement(other: unknown): VideoSettlement | null {
+  const otherObj = asObject(other)
+  if (!otherObj) return null
+
+  const preConsumedQuota = toNum(otherObj.pre_consumed_quota)
+  const actualQuota = toNum(otherObj.actual_quota)
+  if (preConsumedQuota == null || actualQuota == null) return null
+  if (preConsumedQuota <= 0 || actualQuota <= 0) return null
+
+  return {
+    preConsumedQuota,
+    actualQuota,
+    deltaQuota: actualQuota - preConsumedQuota,
+  }
+}
+
+/**
+ * 判断是否为视频 token 公式计费的日志。预扣日志的 video_billing 是明细对象，
+ * 重算日志的 video_billing 是计费倍率数字，两种都必须按视频口径展示，
+ * 否则会落到通用的「输入/输出价格」分支——那些基于 ModelRatio 的单价对视频是误导。
+ */
+export function isVideoBillingLog(other: unknown): boolean {
+  return asObject(other)?.video_billing != null
+}

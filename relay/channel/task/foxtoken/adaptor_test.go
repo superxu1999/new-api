@@ -41,3 +41,27 @@ func TestParseTaskResultStatusMapping(t *testing.T) {
 		})
 	}
 }
+
+// 上游（new-api 实例）在轮询响应里返回官方口径的视频 token，完成后的差额结算依赖它。
+// 真实报文形状取自线上任务（5 秒 720p：108900 token）。
+func TestParseTaskResultReturnsUpstreamUsage(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	body := `{"code":"success","data":{"status":"succeeded","progress":"100%","result_url":"https://cdn/x.mp4","usage":{"completion_tokens":108900,"total_tokens":108900}},"fail_reason":""}`
+
+	info, err := adaptor.ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
+	assert.Equal(t, 108900, info.CompletionTokens)
+	assert.Equal(t, 108900, info.TotalTokens)
+}
+
+// 上游未返回 usage 时必须保持 0，计费回落为预扣额度而不是按 0 token 重算。
+func TestParseTaskResultWithoutUsageKeepsZeroTokens(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	body := `{"code":"success","data":{"status":"SUCCESS","result_url":"https://cdn/x.mp4","progress":"100%"}}`
+
+	info, err := adaptor.ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, 0, info.CompletionTokens)
+	assert.Equal(t, 0, info.TotalTokens)
+}

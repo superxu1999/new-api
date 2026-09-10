@@ -154,107 +154,11 @@ func HasInputVideo(metadata map[string]interface{}) bool {
 	return false
 }
 
-// seedance 分档单价档位键（与 video_pricing_setting.tiered_price_by_model 的键一致）。
-// no_* 表示输入不含视频，with_* 表示输入包含视频。
-const (
-	tierNo720p   = "no_720p"
-	tierWith720p = "with_720p"
-	tierNo1080p  = "no_1080p"
-	tierWith1080p = "with_1080p"
-	tierNo4k     = "no_4k"
-	tierWith4k   = "with_4k"
-)
-
-// seedanceDefaultPriceTable 各模型的分档官方单价（元/百万 token），未在后台配置时的内置默认。
-// 键为归一化模型名（见 normalizeSeedanceModel）。
-var seedanceDefaultPriceTable = map[string]map[string]float64{
-	"doubao-seedance-2-0-260128": {
-		tierNo720p: 46.0, tierWith720p: 28.0,
-		tierNo1080p: 51.0, tierWith1080p: 31.0,
-		tierNo4k: 26.0, tierWith4k: 16.0,
-	},
-	"doubao-seedance-2-5-260628": {
-		tierNo720p: 70.0, tierWith720p: 42.0,
-		tierNo1080p: 77.0, tierWith1080p: 46.0,
-	},
-	"doubao-seedance-2-0-fast-260128": {
-		tierNo720p: 37.0, tierWith720p: 22.0,
-	},
-	"doubao-seedance-2-0-mini-260615": {
-		tierNo720p: 23.0, tierWith720p: 14.0,
-	},
-}
-
-// seedancePriceAliases 将上游/渠道模型名归一化到价目表的键。
-// 所有 seedance 2.0 系列（含各中转渠道别名）都归一化为 doubao-seedance-2.0。
-func normalizeSeedanceModel(model string) string {
-	m := strings.ToLower(strings.TrimSpace(model))
-	switch {
-	case strings.Contains(m, "seedance-2-5") || strings.Contains(m, "seedance2.5") ||
-		strings.HasSuffix(m, "-25") || strings.Contains(m, "25-260628") || strings.Contains(m, "v25"):
-		return "doubao-seedance-2-5-260628"
-	case strings.Contains(m, "fast"):
-		return "doubao-seedance-2-0-fast-260128"
-	case strings.Contains(m, "mini"):
-		return "doubao-seedance-2-0-mini-260615"
-	case strings.Contains(m, "seedance-2-0") || strings.Contains(m, "seedance2.0") || strings.Contains(m, "seedance-2.0") || strings.Contains(m, "seedance2-0"):
-		return "doubao-seedance-2-0-260128"
-	default:
-		return "doubao-seedance-2-0-260128"
-	}
-}
-
-// seedanceTierKey 把 (分辨率, 是否含视频) 转成档位键。
-func seedanceTierKey(resolution string, hasVideo bool) string {
-	switch strings.ToLower(strings.TrimSpace(resolution)) {
-	case "1080p":
-		if hasVideo {
-			return tierWith1080p
-		}
-		return tierNo1080p
-	case "4k", "2k":
-		if hasVideo {
-			return tierWith4k
-		}
-		return tierNo4k
-	default: // 480p/720p
-		if hasVideo {
-			return tierWith720p
-		}
-		return tierNo720p
-	}
-}
-
 // SeedanceTierPrice 返回指定模型在给定输出分辨率/是否含视频输入下的分档单价（元/百万 token）。
-// 优先用后台针对【该完整模型名】的配置（video_pricing_setting.tiered_price_by_model），
-// 未配置时按型号（2.0/2.5/fast/mini）回退到内置默认价目表。
+// 档位键、内置默认价目表与模型名归一化规则属于配置层，
+// 实现见 setting/operation_setting/seedance_price.go。
 func SeedanceTierPrice(modelName, resolution string, hasVideo bool) (float64, bool) {
-	tierKey := seedanceTierKey(resolution, hasVideo)
-
-	// 1) 按完整模型名的后台配置优先（每个模型独立，互不影响）
-	if prices, ok := operation_setting.GetTieredPriceByModel(modelName); ok {
-		if price, ok := prices[tierKey]; ok && price > 0 {
-			return price, true
-		}
-		// 未配置的组合（如 fast/mini 无 1080p/4k 档）回退到该模型的 480p/720p 档。
-		if base, ok := prices[tierNo720p]; ok && base > 0 {
-			return base, true
-		}
-		return 0, false
-	}
-
-	// 2) 按型号回退内置默认价目表
-	prices, ok := seedanceDefaultPriceTable[normalizeSeedanceModel(modelName)]
-	if !ok {
-		return 0, false
-	}
-	if price, ok := prices[tierKey]; ok && price > 0 {
-		return price, true
-	}
-	if base, ok := prices[tierNo720p]; ok && base > 0 {
-		return base, true
-	}
-	return 0, false
+	return operation_setting.SeedanceTierPrice(modelName, resolution, hasVideo)
 }
 
 // ComputeSeedanceBillRatio 计算 seedance 视频任务的 OtherRatio，使最终价格等于
@@ -300,18 +204,24 @@ func ComputeSeedanceBillRatio(tierPrice float64, token int, modelRatio, rate, mu
 }
 
 // SeedanceBillingContextKey 是 gin.Context 上的键，用于把 seedance 计费明细从
-// EstimateBilling 传递到日志记录处（task_billing.LogTaskConsumption），
-// 便于在「使用日志 → 任务详情」中展示费用是如何计算出来的。
+// EstimateBilling 传递到日志记录处（task_billing.LogTaskConsumption）与任务计费快照
+// （controller 组装 TaskBillingContext），便于展示费用如何算出、以及完成后的 token 重算。
 const SeedanceBillingContextKey = "seedance_billing_detail"
 
-// SeedanceBillingDetail 记录一次 seedance 视频计费的中间量，仅用于展示与排查。
+// SeedanceBillingRatioKey 是 OtherRatios 中承载 seedance 视频计费倍率的键。
+// 控制器据此识别「视频 token 公式计费」任务：它们既不能走通用的 token 差额结算，
+// 也不能无条件按上游用量重算。
+const SeedanceBillingRatioKey = "video_billing"
+
+// SeedanceBillingDetail 记录一次 seedance 视频计费的中间量。
+// 既用于「使用日志」展示，也用于把预估值带入任务计费快照（见 TaskBillingContext.VideoToken）。
 type SeedanceBillingDetail struct {
-	TierPrice     float64 `json:"tier_price"`       // 分档单价（元/百万 token）
-	Token         int     `json:"token"`            // 官方 token 公式算出的用量
-	Multiplier    float64 `json:"multiplier"`       // 模型计费倍率
-	Resolution    string  `json:"resolution"`       // 输出分辨率档
-	HasInputVideo bool    `json:"has_input_video"`  // 请求是否包含参考视频
-	Seconds       int     `json:"seconds"`          // 输出时长（秒）
+	TierPrice     float64 `json:"tier_price"`      // 分档单价（元/百万 token）
+	Token         int     `json:"token"`           // 官方 token 公式算出的用量
+	Multiplier    float64 `json:"multiplier"`      // 模型计费倍率
+	Resolution    string  `json:"resolution"`      // 输出分辨率档
+	HasInputVideo bool    `json:"has_input_video"` // 请求是否包含参考视频
+	Seconds       int     `json:"seconds"`         // 输出时长（秒）
 }
 
 // EstimateSeedanceBilling 统一的 seedance 视频计费估算，供所有 seedance 系适配器复用。
@@ -320,8 +230,8 @@ type SeedanceBillingDetail struct {
 // 最终价格 = 分档单价 × token/1e6 × groupRatio × 模型计费倍率。
 //
 // supportsInputVideo 表示该适配器/渠道是否真的支持参考视频输入。为 false 时，即使请求
-// 携带 video_url 也按「输入不含视频」计费 —— 这些渠道的上游会忽略参考视频，
-// 按其计费会造成多收（例如 globalaiopc 只上传参考图，kling 请求结构无视频字段）。
+// 携带 video_url 也按「输入不含视频」计费 —— 这些渠道的上游会忽略参考视频，按其计费
+// 会造成多收（例如 globalaiopc 只上传参考图，kling 请求结构无视频字段）。
 //
 // 非 seedance 模型返回 nil，调用方沿用原有计费逻辑（例如 kling 适配器同时服务
 // kling 与 seedance 两类模型）。
@@ -360,12 +270,12 @@ func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo, suppor
 		HasInputVideo: hasVideo,
 		Seconds:       seconds,
 	})
-	return map[string]float64{"video_billing": ratio}
+	return map[string]float64{SeedanceBillingRatioKey: ratio}
 }
 
 // IsSeedanceModel 判断模型名是否属于 seedance 视频系（据此决定是否按官方 token 公式计费）。
 func IsSeedanceModel(modelName string) bool {
-	return strings.Contains(strings.ToLower(modelName), "seedance")
+	return operation_setting.IsSeedanceModel(modelName)
 }
 
 // SeedanceModelMultiplier 返回该模型的视频计费倍率（按【完整模型名】查配置，默认 1.0）。

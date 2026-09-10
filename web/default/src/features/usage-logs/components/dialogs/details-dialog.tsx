@@ -44,7 +44,11 @@ import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { UsageLog } from '../../data/schema'
-import { extractVideoBilling } from '../../lib/video-billing'
+import {
+  extractVideoBilling,
+  extractVideoSettlement,
+  isVideoBillingLog,
+} from '../../lib/video-billing'
 import {
   parseLogOther,
   getParamOverrideActionLabel,
@@ -164,24 +168,57 @@ function BillingBreakdown(props: {
   // seedance 视频按官方 token 公式计费（分档单价 × token/1e6 × 分组倍率 × 计费倍率），
   // ModelRatio 已被约掉，因此不显示基于 model_ratio 的「输入/输出」价格（对视频是误导）。
   const videoBilling = extractVideoBilling(other)
+  // 任务完成后的差额结算日志：同一任务的预扣额度 → 按上游真实 token 结算后的额度。
+  const videoSettlement = extractVideoSettlement(other)
 
   if (videoBilling) {
     rows.push({ label: t('Billing Mode'), value: t('Video (token formula)') })
+    // 视频规格对所有用户可见；分档单价与计费倍率属于成本口径，仅管理员可见。
     rows.push({
-      label: t('Tier price'),
-      value: `${videoBilling.tierPrice} ${t('CNY per 1M tokens')} · ${videoBilling.resolution}${
-        videoBilling.hasInputVideo
-          ? ` · ${t('Input with video')}`
-          : ` · ${t('Input without video')}`
-      }`,
+      label: t('Resolution'),
+      value: videoBilling.resolution || '-',
     })
+    if (videoBilling.seconds != null) {
+      rows.push({
+        label: t('Duration'),
+        value: `${videoBilling.seconds}s`,
+      })
+    }
+    if (isAdmin) {
+      rows.push({
+        label: t('Tier price'),
+        value: `${videoBilling.tierPrice} ${t('CNY per 1M tokens')}${
+          videoBilling.hasInputVideo
+            ? ` · ${t('Input with video')}`
+            : ` · ${t('Input without video')}`
+        }`,
+      })
+    }
     rows.push({
       label: t('Token Usage'),
       value: videoBilling.token.toLocaleString(),
     })
+    if (isAdmin) {
+      rows.push({
+        label: t('Billing multiplier'),
+        value: `${videoBilling.multiplier}×`,
+      })
+    }
+  } else if (videoSettlement) {
+    rows.push({ label: t('Billing Mode'), value: t('Video (token formula)') })
     rows.push({
-      label: t('Billing multiplier'),
-      value: `${videoBilling.multiplier}×`,
+      label: t('Pre-consumed'),
+      value: formatLogQuota(videoSettlement.preConsumedQuota),
+    })
+    rows.push({
+      label: t('Actual Amount'),
+      value: formatLogQuota(videoSettlement.actualQuota),
+    })
+    rows.push({
+      label: t('Difference'),
+      value: `${videoSettlement.deltaQuota >= 0 ? '+' : '-'}${formatLogQuota(
+        Math.abs(videoSettlement.deltaQuota)
+      )}`,
     })
   } else if (isTieredExpr) {
     rows.push({
@@ -215,6 +252,9 @@ function BillingBreakdown(props: {
         value: fmtPrice(other.model_price),
       })
     }
+  } else if (isVideoBillingLog(other)) {
+    // 视频任务日志（缺预扣/结算额度时的兜底）：绝不回落到基于 ModelRatio 的单价。
+    rows.push({ label: t('Billing Mode'), value: t('Video (token formula)') })
   } else {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
     if (other.model_ratio != null) {
@@ -340,8 +380,8 @@ function BillingBreakdown(props: {
     })
   }
 
-  // 视频任务：给出代入后的计算公式，便于核对费用如何得出。
-  if (videoBilling) {
+  // 视频任务：给出代入后的计算公式，便于核对费用如何得出（成本口径，仅管理员可见）。
+  if (videoBilling && isAdmin) {
     const groupFactor = effectiveGR != null && Number.isFinite(effectiveGR) ? effectiveGR : 1
     const feeYuan =
       ((videoBilling.tierPrice * videoBilling.token) / 1e6) *
@@ -608,7 +648,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               mono
             />
           )}
-          {props.log.upstream_request_id && (
+          {props.isAdmin && props.log.upstream_request_id && (
             <DetailRow
               label={t('Upstream Request ID')}
               value={props.log.upstream_request_id}
@@ -970,7 +1010,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           />
         )}
 
-        {/* Model mapping */}
+        {/* Model mapping — 请求模型用户本就可见，实际模型暴露上游供应方，仅管理员可见 */}
         {other?.is_model_mapped && other?.upstream_model_name && (
           <DetailSection label={t('Model Mapping')}>
             <DetailRow
@@ -978,11 +1018,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
               value={props.log.model_name}
               mono
             />
-            <DetailRow
-              label={t('Actual Model')}
-              value={other.upstream_model_name}
-              mono
-            />
+            {props.isAdmin && (
+              <DetailRow
+                label={t('Actual Model')}
+                value={other.upstream_model_name}
+                mono
+              />
+            )}
           </DetailSection>
         )}
 

@@ -31,13 +31,15 @@ import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
-import { extractVideoBilling, toNum } from '../../lib/video-billing'
+import { extractVideoBilling, extractVideoSettlement, toNum } from '../../lib/video-billing'
 import type { TaskLog } from '../../types'
 
 interface TaskDetailDialogProps {
   log: TaskLog
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** 管理员可见上游模型名与计费口径（分档单价 / 计费倍率 / 计算公式）。 */
+  isAdmin?: boolean
 }
 
 /** 提取"请求入参"（用户提交给系统的请求体）。
@@ -256,6 +258,7 @@ export function TaskDetailDialog({
   log,
   open,
   onOpenChange,
+  isAdmin = false,
 }: TaskDetailDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
@@ -273,6 +276,11 @@ export function TaskDetailDialog({
 
   // 后端记录的 seedance 计费明细（分档单价 / token / 计费倍率），用于展示费用如何得出。
   const videoBilling = useMemo(() => extractVideoBilling(log.other), [log.other])
+  // 任务完成后的差额结算：预扣额度 → 按上游真实 token 结算后的额度。
+  const videoSettlement = useMemo(
+    () => extractVideoSettlement(log.other),
+    [log.other]
+  )
 
   const otherObj = useMemo(() => toObj(log.other), [log.other])
   const groupRatio = toNum(otherObj?.group_ratio) ?? 1
@@ -353,7 +361,7 @@ export function TaskDetailDialog({
           {originModel && (
             <DetailRow label={t('Origin Model')} value={originModel} mono />
           )}
-          {upstreamModel && (
+          {isAdmin && upstreamModel && (
             <DetailRow label={t('Upstream Model')} value={upstreamModel} mono />
           )}
           <DetailRow
@@ -484,8 +492,8 @@ export function TaskDetailDialog({
               <DetailRow label={t('Input video')} value={inputVideoLabel} />
             </div>
 
-            {/* 计费过程：仅当后端记录了 seedance 计费明细时展示 */}
-            {videoBilling && (
+            {/* 计费过程：仅当后端记录了 seedance 计费明细时展示；分档单价/倍率/公式属成本口径，仅管理员可见 */}
+            {videoBilling && isAdmin && (
               <div className='bg-muted/30 space-y-2 rounded-md border p-2.5'>
                 <p className='text-muted-foreground text-xs font-semibold'>
                   {t('How this fee is calculated')}
@@ -524,6 +532,42 @@ export function TaskDetailDialog({
                       {videoBilling.tierPrice} × {videoBilling.token.toLocaleString()} ÷ 1,000,000
                       × {videoBilling.multiplier} × {groupRatio} ={' '}
                       {videoFeeYuan != null ? videoFeeYuan.toFixed(4) : '-'} {t('CNY')}
+                    </span>
+                  }
+                />
+              </div>
+            )}
+
+            {/* 完成后的差额结算：按上游真实 token 结算，预扣额度多退少补 */}
+            {videoSettlement && (
+              <div className='bg-muted/30 space-y-2 rounded-md border p-2.5'>
+                <p className='text-muted-foreground text-xs font-semibold'>
+                  {t('Video token settlement')}
+                </p>
+                <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+                  <DetailRow
+                    label={t('Pre-consumed')}
+                    value={
+                      <span className='font-mono'>
+                        {formatLogQuota(videoSettlement.preConsumedQuota)}
+                      </span>
+                    }
+                  />
+                  <DetailRow
+                    label={t('Actual Amount')}
+                    value={
+                      <span className='font-mono'>
+                        {formatLogQuota(videoSettlement.actualQuota)}
+                      </span>
+                    }
+                  />
+                </div>
+                <DetailRow
+                  label={t('Difference')}
+                  value={
+                    <span className='font-mono'>
+                      {videoSettlement.deltaQuota >= 0 ? '+' : '-'}
+                      {formatLogQuota(Math.abs(videoSettlement.deltaQuota))}
                     </span>
                   }
                 />

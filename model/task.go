@@ -116,6 +116,9 @@ type TaskBillingContext struct {
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	// VideoToken 是提交时按官方公式预估的视频 token（仅在上游会返回真实 token 的渠道上写入）。
+	// 由于视频价格与 token 成正比，轮询阶段可直接按「上游 token / 该预估值」缩放已预扣的额度。
+	VideoToken int `json:"video_token,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

@@ -718,3 +718,193 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
+
+// ===========================================================================
+// Video token settlement tests — SettleVideoTokenBilling
+//
+// 视频价格与官方 token 严格成正比，因此最终额度 = 预扣额度 × 上游token / 预估token。
+// 这组测试保护三件事：按比例补扣、上游异常用量不被放大、空用量保持预扣。
+// ===========================================================================
+
+func TestSettleVideoTokenBilling_ScalesPreChargedQuota(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 40, 40, 40
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	// 5 秒 720p：预估 108000 token；上游返回 108900 token（实测火山口径）
+	const estimatedToken, upstreamToken = 108000, 108900
+	const expectedQuota = 343110 // int(340275 × 108900 / 108000)
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-token-scale", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.VideoToken = estimatedToken
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens:     upstreamToken,
+		TokensFromUsage: true,
+	})
+
+	// 上游用量高于预估 → 补扣差额
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota-(expectedQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(expectedQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+	assert.Equal(t, expectedQuota-preConsumed, log.Quota)
+}
+
+func TestSettleVideoTokenBilling_RefundsWhenUpstreamTokenIsLower(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 41, 41, 41
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	const estimatedToken, upstreamToken = 108000, 86400
+	const expectedQuota = 272220 // int(340275 × 86400 / 108000)
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-token-refund", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.VideoToken = estimatedToken
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens:     upstreamToken,
+		TokensFromUsage: true,
+	})
+
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota+(preConsumed-expectedQuota), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain+(preConsumed-expectedQuota), getTokenRemainQuota(t, tokenID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Equal(t, preConsumed-expectedQuota, log.Quota)
+}
+
+func TestSettleVideoTokenBilling_IgnoresOutlierUpstreamToken(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 42, 42, 42
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	const estimatedToken = 108000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-token-outlier", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.VideoToken = estimatedToken
+	require.NoError(t, model.DB.Create(task).Error)
+
+	// 上游用量偏离预估 46 倍（分辨率口径不一致 / 返回了非 token 的用量），
+	// 直接按比例缩放会把异常值放大成巨额补扣，必须保持预扣额度。
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:          model.TaskStatusSuccess,
+		TotalTokens:     5000000,
+		TokensFromUsage: true,
+	})
+
+	assert.Equal(t, preConsumed, task.Quota)
+	assert.Equal(t, initQuota, getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, int64(0), countLogs(t))
+}
+
+func TestSettleVideoTokenBilling_NoUpstreamTokenKeepsPreCharge(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 43, 43, 43
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-token-empty", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.VideoToken = 108000
+	require.NoError(t, model.DB.Create(task).Error)
+
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{adjustReturn: 2000}, task, &relaycommon.TaskInfo{
+		Status: model.TaskStatusSuccess,
+	})
+
+	assert.Equal(t, preConsumed, task.Quota)
+	assert.Equal(t, initQuota, getUserQuota(t, userID))
+	assert.Equal(t, int64(0), countLogs(t))
+}
+
+// 上游给的是「计费单位」而不是官方用量字段时（Kling 的 final_unit_deduction 走的就是
+// 这条路），不能用它做差额结算 —— 否则会把计费单位当成 video token 缩放预扣额度。
+func TestSettleVideoTokenBilling_IgnoresTokensNotFromUsage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 45, 45, 45
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-token-unit", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.VideoToken = 108000
+	require.NoError(t, model.DB.Create(task).Error)
+
+	// 数量级看起来正常（108900 与预估 108000 只差 0.8%），但来源不是 usage 字段。
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens: 108900,
+	})
+
+	assert.Equal(t, preConsumed, task.Quota)
+	assert.Equal(t, initQuota, getUserQuota(t, userID))
+	assert.Equal(t, int64(0), countLogs(t))
+}
+
+// 视频任务必须走 token 线性重算，而不能落入通用的 token × ModelRatio 口径：
+// video_billing 倍率已把 ModelRatio 约掉，通用口径会少收一半以上。
+func TestSettle_VideoTaskNeverUsesGenericTokenRecalc(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 44, 44, 44
+	const initQuota, preConsumed, tokenRemain = 10000, 340275, 900000
+	const estimatedToken, upstreamToken = 108000, 108900
+	const expectedQuota = 343110
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-video-vs-generic", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	bc := task.PrivateData.BillingContext
+	bc.VideoToken = estimatedToken
+	bc.PerCallBilling = true
+	bc.OtherRatios = map[string]float64{"video_billing": 4.9985}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	// adaptor 也想调整额度，但视频任务的优先级最高，不能被它覆盖。
+	settleTaskBillingOnComplete(ctx, &mockAdaptor{adjustReturn: 148224}, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens:     upstreamToken,
+		TokensFromUsage: true,
+	})
+
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota-(expectedQuota-preConsumed), getUserQuota(t, userID))
+}

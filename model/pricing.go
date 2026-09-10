@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -35,7 +36,16 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	VideoBilling           *PricingVideoBilling    `json:"video_billing,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+}
+
+// PricingVideoBilling 视频（seedance 系）的 token 公式计费价格：分档单价（元/百万 token）
+// 按档位键给出，最终价格 = 档位单价 × token/1e6 × 计费倍率 × 分组倍率。
+// 这类模型不走 ModelRatio 折算的「输入/输出价格」，模型广场必须用它来展示真实定价。
+type PricingVideoBilling struct {
+	TierPrices map[string]float64 `json:"tier_prices"`
+	Multiplier float64            `json:"multiplier"`
 }
 
 type PricingVendor struct {
@@ -347,6 +357,16 @@ func updatePricing() {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		}
+		// 视频模型的价格不来自 ModelRatio（已在计费倍率里被约掉），必须单独给出分档单价，
+		// 否则模型广场会展示一个毫无意义的「输入/输出价格」。
+		if operation_setting.IsSeedanceModel(model) {
+			if tierPrices, ok := operation_setting.SeedanceTierTable(model); ok {
+				pricing.VideoBilling = &PricingVideoBilling{
+					TierPrices: tierPrices,
+					Multiplier: operation_setting.GetModelMultiplier(model),
+				}
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

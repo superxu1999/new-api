@@ -775,6 +775,10 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	// TokensFromUsage 表示 TotalTokens 来自上游官方用量字段（usage），
+	// 而不是按计费单位折算出来的数字（如 Kling 的 final_unit_deduction）。
+	// 只有它为 true 时，视频任务才能按该 token 做完成后的差额结算。
+	TokensFromUsage bool `json:"tokens_from_usage,omitempty"`
 }
 
 func FailTaskInfo(reason string) *TaskInfo {

@@ -187,6 +187,33 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	})
 }
 
+// 视频 token 重算的可信区间。上游 token 由上游自行统计，不受本系统校验约束；
+// 偏离官方公式预估过多（分辨率解析口径不一致、或上游返回了非 token 的用量）时
+// 保持预扣额度，避免把异常值放大成巨额补扣。下界放得宽：低于预估只会退款给用户，
+// 上界收紧：高于预估会补扣，必须防止错口径把用户余额扣穿。
+const (
+	minVideoTokenScale = 0.25
+	maxVideoTokenScale = 2.0
+)
+
+// SettleVideoTokenBilling 用上游返回的真实视频 token 结算 seedance 视频任务。
+// 视频价格 = 分档单价 × token/1e6 × 计费倍率 × 分组倍率，与 token 严格成正比，
+// 因此按 token 比例缩放预扣额度即可，不必重走一遍倍率链。
+func SettleVideoTokenBilling(ctx context.Context, task *model.Task, estimatedToken, upstreamToken int) {
+	if estimatedToken <= 0 || upstreamToken <= 0 {
+		return
+	}
+	scale := float64(upstreamToken) / float64(estimatedToken)
+	if scale < minVideoTokenScale || scale > maxVideoTokenScale {
+		logger.LogWarn(ctx, fmt.Sprintf("任务 %s 上游 token %d 偏离预估 %d 过大，保持预扣额度",
+			task.TaskID, upstreamToken, estimatedToken))
+		return
+	}
+	actualQuota := common.QuotaFromFloat(float64(task.Quota) * scale)
+	RecalculateTaskQuota(ctx, task, actualQuota,
+		fmt.Sprintf("视频token重算：上游 %d，预估 %d", upstreamToken, estimatedToken))
+}
+
 // RecalculateTaskQuota 通用的异步差额结算。
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。

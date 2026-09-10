@@ -52,13 +52,19 @@ type createResponse struct {
 	Model  string  `json:"model"`
 }
 
+type taskUsage struct {
+	OutputTokens int `json:"output_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}
+
 type taskResponse struct {
-	ID        string  `json:"id"`
-	Status    string  `json:"status"`
-	Error     *string `json:"error"`
-	ResultURL string  `json:"result_url"`
-	VideoURL  string  `json:"video_url"`
-	Amount    float64 `json:"amount"`
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Error     *string   `json:"error"`
+	ResultURL string    `json:"result_url"`
+	VideoURL  string    `json:"video_url"`
+	Amount    float64   `json:"amount"`
+	Usage     taskUsage `json:"usage"`
 }
 
 type assetUploadResponse struct {
@@ -226,6 +232,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
 		taskResult.Url = lo.Ternary(res.ResultURL != "", res.ResultURL, res.VideoURL)
+		// 上游返回官方口径的视频用量（注意是 output_tokens），用于完成后的差额结算。
+		taskResult.CompletionTokens = res.Usage.OutputTokens
+		taskResult.TotalTokens = res.Usage.TotalTokens
+		taskResult.TokensFromUsage = taskResult.TotalTokens > 0
 	case "failed":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"

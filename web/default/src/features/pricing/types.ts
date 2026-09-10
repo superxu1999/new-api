@@ -20,6 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 // Pricing Types
 // ----------------------------------------------------------------------------
 
+/** 视频模型的分档价格：档位键（no_720p / with_1080p / no_4k …）→ 元/百万 token */
+export type VideoBilling = {
+  tier_prices: Record<string, number>
+  /** 该模型的计费倍率（1 = 原价） */
+  multiplier: number
+}
+
 export type PricingVendor = {
   id: number
   name: string
@@ -54,6 +61,11 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /**
+   * 视频（seedance 系）的 token 公式计费价格：分档单价（元/百万 token）。
+   * 这类模型不走 ModelRatio 折算的输入/输出价格，必须用它展示真实定价。
+   */
+  video_billing?: VideoBilling | null
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
