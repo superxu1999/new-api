@@ -17,15 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music } from 'lucide-react'
+import { Music, Video } from 'lucide-react'
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
@@ -35,13 +36,13 @@ import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
-import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 import { TaskDetailDialog } from '../dialogs/task-detail-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
   createChannelColumn,
-  createProgressColumn,
+  progressSortWeight,
+  StatusProgressCell,
 } from './column-helpers'
 
 function parseTaskData(data: unknown): unknown[] {
@@ -55,6 +56,42 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
+}
+
+/** 视频类任务动作（与任务详情弹窗的判断保持一致）。 */
+function isVideoAction(action: string): boolean {
+  return (
+    action === TASK_ACTIONS.GENERATE ||
+    action === TASK_ACTIONS.TEXT_GENERATE ||
+    action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
+    action === TASK_ACTIONS.REFERENCE_GENERATE ||
+    action === TASK_ACTIONS.REMIX_GENERATE
+  )
+}
+
+/**
+ * 从任务快照里取「用户请求的模型名」。properties 可能是对象或 JSON 字符串，
+ * 两种情况都要兼容（后端 TaskDto.Properties 是 any）。
+ */
+function taskModelName(log: TaskLog): string {
+  let raw: unknown = log.properties
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return ''
+    }
+  }
+  if (raw == null || typeof raw !== 'object') return ''
+  const obj = raw as Record<string, unknown>
+  return typeof obj.origin_model_name === 'string' ? obj.origin_model_name : ''
+}
+
+/** 视频内容代理地址（与任务详情弹窗一致，走同源相对路径，避免 ServerAddress 配错）。 */
+function taskVideoSrc(log: TaskLog): string | undefined {
+  if (log.status !== TASK_STATUS.SUCCESS) return undefined
+  if (!isVideoAction(log.action)) return undefined
+  return `/v1/videos/${log.task_id}/content`
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -168,33 +205,47 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       accessorKey: 'task_id',
       header: t('Task ID'),
       cell: ({ row }) => {
-        const log = row.original
         const taskId = row.getValue('task_id') as string
-        const [dialogOpen, setDialogOpen] = useState(false)
         if (!taskId) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
+        // 任务ID 只做「标识 + 复制」；打开详情交给「模型」列，避免一个控件三个动作。
+        return (
+          <StatusBadge
+            label={taskId}
+            variant='neutral'
+            size='sm'
+            copyable
+            className='border-border/60 bg-muted/30 !text-foreground max-w-[170px] rounded-md border px-1.5 py-0.5 font-mono'
+          />
+        )
+      },
+      meta: { mobileTitle: true },
+    },
+    {
+      id: 'model',
+      header: t('Model'),
+      accessorFn: (row) => taskModelName(row),
+      cell: function ModelCell({ row }) {
+        const log = row.original
+        const [dialogOpen, setDialogOpen] = useState(false)
+        const modelName = taskModelName(log)
+
         return (
           <>
-            <div className='flex max-w-[170px] flex-col gap-0.5'>
-              <button
-                type='button'
-                onClick={() => setDialogOpen(true)}
-                className='group text-left'
-                title={t('Click to view task details')}
-              >
-                <StatusBadge
-                  label={taskId}
-                  variant='neutral'
-                  size='sm'
-                  copyable={false}
-                  className='border-border/60 bg-muted/30 !text-foreground group-hover:bg-muted/60 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
-                />
-              </button>
+            <button
+              type='button'
+              onClick={() => setDialogOpen(true)}
+              className='group flex max-w-[190px] min-w-0 flex-col gap-0.5 text-left'
+              title={t('Click to view task details')}
+            >
+              <span className='text-foreground truncate text-xs leading-snug group-hover:underline'>
+                {modelName || '-'}
+              </span>
               <span className='text-muted-foreground/60 truncate text-[11px]'>
                 {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
               </span>
-            </div>
+            </button>
             <TaskDetailDialog
               log={log}
               open={dialogOpen}
@@ -204,7 +255,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </>
         )
       },
-      meta: { mobileTitle: true },
+      size: 190,
     },
     createDurationColumn<TaskLog>({
       submitTimeKey: 'submit_time',
@@ -215,102 +266,78 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     }),
     {
       accessorKey: 'status',
-      header: t('Status'),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Status')} />
+      ),
+      // 状态与进度是同一个生命周期维度，合并成一列；进度条的排序权重按百分比数值，
+      // 默认的字符串排序是错的（"100%" < "30%"）。
+      sortingFn: (a, b) =>
+        progressSortWeight(a.original.progress) -
+        progressSortWeight(b.original.progress),
       cell: ({ row }) => {
+        const log = row.original
         const status = row.getValue('status') as string
         return (
-          <StatusBadge
-            label={t(taskStatusMapper.getLabel(status, status || 'Submitting'))}
-            variant={taskStatusMapper.getVariant(status)}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5'
+          <StatusProgressCell
+            progress={log.progress}
+            badge={
+              <StatusBadge
+                label={t(taskStatusMapper.getLabel(status, status || 'Submitting'))}
+                variant={taskStatusMapper.getVariant(status)}
+                size='sm'
+                copyable={false}
+                className='-ml-1.5'
+              />
+            }
           />
         )
       },
+      size: 120,
     },
-    createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
     {
-      accessorKey: 'fail_reason',
-      header: t('Details'),
-      cell: function DetailsCell({ row }) {
+      id: 'preview',
+      header: t('Preview'),
+      cell: function PreviewCell({ row }) {
         const log = row.original
-        const failReason = row.getValue('fail_reason') as string
-        const status = log.status
-        const [dialogOpen, setDialogOpen] = useState(false)
-
+        const videoSrc = taskVideoSrc(log)
         const isSunoSuccess =
-          log.platform === 'suno' && status === TASK_STATUS.SUCCESS
-        if (isSunoSuccess) {
-          const data = parseTaskData(log.data)
-          if (
-            data.some(
-              (c) =>
-                c &&
-                typeof c === 'object' &&
-                (c as Record<string, unknown>).audio_url
-            )
-          ) {
-            return <AudioPreviewCell log={log} />
-          }
-        }
+          log.platform === 'suno' && log.status === TASK_STATUS.SUCCESS
 
-        const isVideoTask =
-          log.action === TASK_ACTIONS.GENERATE ||
-          log.action === TASK_ACTIONS.TEXT_GENERATE ||
-          log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
-          log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
-          log.action === TASK_ACTIONS.REMIX_GENERATE
-        const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        if (isSunoSuccess) return <AudioPreviewCell log={log} />
 
-        // 成功视频任务：打开任务详情弹窗预览/下载视频
-        if (isSuccess && isVideoTask && isUrl) {
+        if (videoSrc) {
           return (
-            <>
-              <button
-                type='button'
-                className='text-foreground text-xs hover:underline'
-                onClick={() => setDialogOpen(true)}
-              >
-                {t('Click to preview video')}
-              </button>
-              <TaskDetailDialog
-                log={log}
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                isAdmin={isAdmin}
-              />
-            </>
+            <a
+              href={videoSrc}
+              target='_blank'
+              rel='noreferrer'
+              className='text-foreground inline-flex items-center gap-1 text-xs hover:underline'
+            >
+              <Video className='size-3.5' aria-hidden='true' />
+              {t('Preview')}
+            </a>
           )
         }
 
-        if (!failReason) {
+        // 无结果的任务显式占位，避免整列空白看起来像加载失败
+        return <span className='text-muted-foreground/60 text-xs'>-</span>
+      },
+      size: 100,
+    },
+    {
+      id: 'fee',
+      header: t('Fee'),
+      accessorFn: (row) => row.quota ?? 0,
+      cell: ({ row }) => {
+        const quota = row.original.quota
+        if (quota == null) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
-
         return (
-          <>
-            <button
-              type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
-              onClick={() => setDialogOpen(true)}
-              title={t('Click to view full error message')}
-            >
-              <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
-                {failReason}
-              </span>
-            </button>
-            <FailReasonDialog
-              failReason={failReason}
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-            />
-          </>
+          <span className='font-mono text-xs'>{formatLogQuota(quota)}</span>
         )
       },
-      size: 200,
-      maxSize: 220,
+      size: 110,
     }
   )
 

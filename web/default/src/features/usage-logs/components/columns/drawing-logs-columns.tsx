@@ -38,6 +38,7 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { formatTimestampToDate } from '@/lib/format'
 
@@ -53,8 +54,9 @@ import { PromptDialog } from '../dialogs/prompt-dialog'
 import {
   createDurationColumn,
   createChannelColumn,
-  createProgressColumn,
   createFailReasonColumn,
+  progressSortWeight,
+  StatusProgressCell,
 } from './column-helpers'
 
 const drawingTypeIconMap: Record<string, LucideIcon> = {
@@ -168,28 +170,37 @@ export function useDrawingLogsColumns(
     })
   )
 
-  if (isAdmin) {
-    columns.push({
-      accessorKey: 'code',
-      header: t('Submit Result'),
-      cell: ({ row }) => {
-        const code = row.getValue('code') as number
-
-        return (
-          <StatusBadge
-            label={t(mjSubmitResultMapper.getLabel(String(code)))}
-            variant={mjSubmitResultMapper.getVariant(String(code))}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5'
-          />
-        )
-      },
-    })
-  }
+  // 状态与进度合并成一列（与任务日志保持一致）：只在处理中显示进度条，
+  // 终态的 100% / 未开始的 0% 不重复展示。
+  columns.push({
+    accessorKey: 'code',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('Submit Result')} />
+    ),
+    sortingFn: (a, b) =>
+      progressSortWeight(a.original.progress) -
+      progressSortWeight(b.original.progress),
+    cell: ({ row }) => {
+      const log = row.original
+      const code = row.getValue('code') as number
+      return (
+        <StatusProgressCell
+          progress={log.progress}
+          badge={
+            <StatusBadge
+              label={t(mjSubmitResultMapper.getLabel(String(code)))}
+              variant={mjSubmitResultMapper.getVariant(String(code))}
+              size='sm'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          }
+        />
+      )
+    },
+  })
 
   columns.push(
-    createProgressColumn<MidjourneyLog>({ headerLabel: t('Progress') }),
     {
       accessorKey: 'image_url',
       header: t('Image'),

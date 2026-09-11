@@ -331,7 +331,7 @@ export function TaskDetailDialog({
       bodyClassName='pr-2 sm:pr-4'
       titleClassName='flex items-center gap-2 text-base'
     >
-      <div className='flex flex-col gap-4 py-1'>
+      <div className='flex flex-col gap-5 py-1'>
         {/* 元数据区 */}
         <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
           <DetailRow
@@ -406,7 +406,7 @@ export function TaskDetailDialog({
 
         {/* 结果 URL / 视频预览 */}
         {(log.result_url || videoSrc) && (
-          <div className='min-w-0 space-y-2.5'>
+          <div className='min-w-0 space-y-2'>
             {log.result_url && (
               <DetailRow
                 label={t('Result URL')}
@@ -438,7 +438,7 @@ export function TaskDetailDialog({
                   <PlayCircle className='size-3.5' aria-hidden='true' />
                   {t('Video Preview')}
                 </Label>
-                <div className='bg-muted/30 overflow-hidden rounded-md border p-2'>
+                <div className='bg-muted/30 overflow-hidden rounded-md border p-3'>
                   <video
                     controls
                     className='max-h-80 w-full rounded'
@@ -458,121 +458,125 @@ export function TaskDetailDialog({
           </div>
         )}
 
-        {/* 计费明细 */}
+        {/* 计费明细：基本项 / 计费过程 / 差额结算同属「这一笔怎么算出来的」，
+            合并成一张卡片、用分隔线分层，避免三个并列边框叠加、层级也看不出来。 */}
         {log.quota != null && (
           <div className='space-y-2'>
             <Label className='text-xs font-semibold'>{t('Billing Details')}</Label>
-            <div className='bg-muted/30 grid min-w-0 gap-2 rounded-md border p-2.5 sm:grid-cols-2'>
-              <DetailRow label={t('Fee')} value={formatLogQuota(log.quota)} mono />
-              <DetailRow
-                label={t('Token Usage')}
-                value={
-                  billingInfo.tokens != null ? (
-                    <span className='font-mono'>
-                      {formatTokens(billingInfo.tokens)}
-                      <span className='text-muted-foreground ml-1'>
-                        ({billingInfo.tokens.toLocaleString()})
+            <div className='bg-muted/30 min-w-0 space-y-3 rounded-md border p-3'>
+              <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+                <DetailRow label={t('Fee')} value={formatLogQuota(log.quota)} mono />
+                <DetailRow
+                  label={t('Token Usage')}
+                  value={
+                    billingInfo.tokens != null ? (
+                      <span className='font-mono'>
+                        {formatTokens(billingInfo.tokens)}
+                        <span className='text-muted-foreground ml-1'>
+                          ({billingInfo.tokens.toLocaleString()})
+                        </span>
                       </span>
-                    </span>
-                  ) : (
-                    '-'
-                  )
-                }
-              />
-              <DetailRow
-                label={t('Duration')}
-                value={billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'}
-                mono
-              />
-              <DetailRow
-                label={t('Resolution')}
-                value={billingInfo.resolution ?? '-'}
-                mono
-              />
-              <DetailRow label={t('Input video')} value={inputVideoLabel} />
+                    ) : (
+                      '-'
+                    )
+                  }
+                />
+                <DetailRow
+                  label={t('Duration')}
+                  value={billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'}
+                  mono
+                />
+                <DetailRow
+                  label={t('Resolution')}
+                  value={billingInfo.resolution ?? '-'}
+                  mono
+                />
+                <DetailRow label={t('Input video')} value={inputVideoLabel} />
+              </div>
+
+              {/* 计费过程：仅在管理员且后端记录了 seedance 计费明细时展示；
+                  分档单价 / 倍率 / 公式属成本口径，对普通用户隐藏 */}
+              {videoBilling && isAdmin && (
+                <div className='border-border/60 space-y-2 border-t pt-3'>
+                  <p className='text-muted-foreground text-xs font-semibold'>
+                    {t('How this fee is calculated')}
+                  </p>
+                  <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+                    <DetailRow
+                      label={t('Tier price')}
+                      value={
+                        <span className='font-mono'>
+                          {videoBilling.tierPrice} {t('CNY per 1M tokens')}
+                          {videoBilling.resolution ? ` · ${videoBilling.resolution}` : ''}
+                          {' · '}
+                          {videoBilling.hasInputVideo
+                            ? t('Input with video')
+                            : t('Input without video')}
+                        </span>
+                      }
+                    />
+                    <DetailRow
+                      label={t('Token Usage')}
+                      value={<span className='font-mono'>{videoBilling.token.toLocaleString()}</span>}
+                    />
+                    <DetailRow
+                      label={t('Billing multiplier')}
+                      value={<span className='font-mono'>{videoBilling.multiplier}×</span>}
+                    />
+                    <DetailRow
+                      label={t('Group ratio')}
+                      value={<span className='font-mono'>{groupRatio}×</span>}
+                    />
+                  </div>
+                  <DetailRow
+                    label={t('Formula')}
+                    value={
+                      <span className='font-mono text-[11px]'>
+                        {videoBilling.tierPrice} × {videoBilling.token.toLocaleString()} ÷ 1,000,000
+                        × {videoBilling.multiplier} × {groupRatio} ={' '}
+                        {videoFeeYuan != null ? videoFeeYuan.toFixed(4) : '-'} {t('CNY')}
+                      </span>
+                    }
+                  />
+                </div>
+              )}
+
+              {/* 完成后的差额结算：按上游真实 token 结算，预扣额度多退少补 */}
+              {videoSettlement && (
+                <div className='border-border/60 space-y-2 border-t pt-3'>
+                  <p className='text-muted-foreground text-xs font-semibold'>
+                    {t('Video token settlement')}
+                  </p>
+                  <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+                    <DetailRow
+                      label={t('Pre-consumed')}
+                      value={
+                        <span className='font-mono'>
+                          {formatLogQuota(videoSettlement.preConsumedQuota)}
+                        </span>
+                      }
+                    />
+                    <DetailRow
+                      label={t('Actual Amount')}
+                      value={
+                        <span className='font-mono'>
+                          {formatLogQuota(videoSettlement.actualQuota)}
+                        </span>
+                      }
+                    />
+                  </div>
+                  <DetailRow
+                    label={t('Difference')}
+                    value={
+                      <span className='font-mono'>
+                        {videoSettlement.deltaQuota >= 0 ? '+' : '-'}
+                        {formatLogQuota(Math.abs(videoSettlement.deltaQuota))}
+                      </span>
+                    }
+                  />
+                </div>
+              )}
             </div>
-
-            {/* 计费过程：仅当后端记录了 seedance 计费明细时展示；分档单价/倍率/公式属成本口径，仅管理员可见 */}
-            {videoBilling && isAdmin && (
-              <div className='bg-muted/30 space-y-2 rounded-md border p-2.5'>
-                <p className='text-muted-foreground text-xs font-semibold'>
-                  {t('How this fee is calculated')}
-                </p>
-                <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
-                  <DetailRow
-                    label={t('Tier price')}
-                    value={
-                      <span className='font-mono'>
-                        {videoBilling.tierPrice} {t('CNY per 1M tokens')}
-                        {videoBilling.resolution ? ` · ${videoBilling.resolution}` : ''}
-                        {' · '}
-                        {videoBilling.hasInputVideo
-                          ? t('Input with video')
-                          : t('Input without video')}
-                      </span>
-                    }
-                  />
-                  <DetailRow
-                    label={t('Token Usage')}
-                    value={<span className='font-mono'>{videoBilling.token.toLocaleString()}</span>}
-                  />
-                  <DetailRow
-                    label={t('Billing multiplier')}
-                    value={<span className='font-mono'>{videoBilling.multiplier}×</span>}
-                  />
-                  <DetailRow
-                    label={t('Group ratio')}
-                    value={<span className='font-mono'>{groupRatio}×</span>}
-                  />
-                </div>
-                <DetailRow
-                  label={t('Formula')}
-                  value={
-                    <span className='font-mono text-[11px]'>
-                      {videoBilling.tierPrice} × {videoBilling.token.toLocaleString()} ÷ 1,000,000
-                      × {videoBilling.multiplier} × {groupRatio} ={' '}
-                      {videoFeeYuan != null ? videoFeeYuan.toFixed(4) : '-'} {t('CNY')}
-                    </span>
-                  }
-                />
-              </div>
-            )}
-
-            {/* 完成后的差额结算：按上游真实 token 结算，预扣额度多退少补 */}
-            {videoSettlement && (
-              <div className='bg-muted/30 space-y-2 rounded-md border p-2.5'>
-                <p className='text-muted-foreground text-xs font-semibold'>
-                  {t('Video token settlement')}
-                </p>
-                <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
-                  <DetailRow
-                    label={t('Pre-consumed')}
-                    value={
-                      <span className='font-mono'>
-                        {formatLogQuota(videoSettlement.preConsumedQuota)}
-                      </span>
-                    }
-                  />
-                  <DetailRow
-                    label={t('Actual Amount')}
-                    value={
-                      <span className='font-mono'>
-                        {formatLogQuota(videoSettlement.actualQuota)}
-                      </span>
-                    }
-                  />
-                </div>
-                <DetailRow
-                  label={t('Difference')}
-                  value={
-                    <span className='font-mono'>
-                      {videoSettlement.deltaQuota >= 0 ? '+' : '-'}
-                      {formatLogQuota(Math.abs(videoSettlement.deltaQuota))}
-                    </span>
-                  }
-                />
-              </div>
-            )}
           </div>
         )}
 

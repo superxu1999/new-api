@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ColumnDef } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
 /* eslint-disable react-refresh/only-export-components */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
@@ -244,28 +244,45 @@ export function createFailReasonColumn<T>(config: {
 /**
  * Create a progress column - compact mono pill
  */
-export function createProgressColumn<T>(config: {
-  accessorKey?: string
-  headerLabel: string
-}): ColumnDef<T> {
-  const { accessorKey = 'progress', headerLabel } = config
+/**
+ * 解析 "30%" / "30" 这类进度值；无法解析返回 -1，供排序使用。
+ */
+export function progressSortWeight(progress?: string): number {
+  if (!progress) return -1
+  const n = Number.parseInt(progress, 10)
+  if (!Number.isFinite(n) || n < 0) return -1
+  return Math.min(n, 100)
+}
 
-  return {
-    accessorKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={headerLabel} />
-    ),
-    cell: ({ row }) => {
-      const progress = row.getValue(accessorKey) as string
-      if (!progress) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
-      }
-      return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
-          {progress}
-        </span>
-      )
-    },
-    meta: { label: headerLabel },
-  }
+/**
+ * 状态 + 进度合并单元格。
+ *
+ * 只在「处理中」显示进度条：终态的 100% 和未开始的 0% 都是噪音 —— 状态徽章
+ * 本身已经表达清楚了，多一个 "100%" 只是重复。这样多数行这一列只有一行徽章，
+ * 比原先「状态」「进度」两列更省宽度。
+ */
+export function StatusProgressCell(props: {
+  badge: ReactNode
+  progress?: string
+}) {
+  const pct = progressSortWeight(props.progress)
+  const showProgress = pct > 0 && pct < 100
+  return (
+    <div className='flex min-w-0 flex-col gap-1'>
+      {props.badge}
+      {showProgress && (
+        <div className='flex items-center gap-1.5'>
+          <div className='bg-muted h-1 w-14 shrink-0 overflow-hidden rounded-full'>
+            <div
+              className='bg-primary h-full rounded-full'
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className='text-muted-foreground font-mono text-[11px] tabular-nums'>
+            {pct}%
+          </span>
+        </div>
+      )}
+    </div>
+  )
 }
