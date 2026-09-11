@@ -26,16 +26,11 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { formatLogQuota, formatTimestampToDate, formatTokens } from '@/lib/format'
+import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
-import {
-  extractTaskSettlement,
-  extractVideoBillingDetail,
-  toNum,
-} from '../../lib/video-billing'
 import type { TaskLog } from '../../types'
 
 interface TaskDetailDialogProps {
@@ -278,27 +273,6 @@ export function TaskDetailDialog({
     [requestInput, upstreamData]
   )
 
-  // seedance 计费明细（分档单价 / token / 计费倍率）与差额结算。
-  // 注意：任务列表接口（TaskDto）不返回 other，原先读 log.other 的写法恒为 null，
-  // 这两块从来没渲染过。改为读后端新增的 video_billing / pre_consumed_quota 快照。
-  const videoBilling = useMemo(
-    () => extractVideoBillingDetail(log.video_billing),
-    [log.video_billing]
-  )
-  const videoSettlement = useMemo(
-    () => extractTaskSettlement(log.pre_consumed_quota, log.quota),
-    [log.pre_consumed_quota, log.quota]
-  )
-
-  const otherObj = useMemo(() => toObj(log.other), [log.other])
-  const groupRatio = toNum(otherObj?.group_ratio) ?? 1
-  // 按公式推算的费用（元）= 分档单价 × token/1e6 × 计费倍率 × 分组倍率
-  const videoFeeYuan = videoBilling
-    ? ((videoBilling.tierPrice * videoBilling.token) / 1e6) *
-      videoBilling.multiplier *
-      groupRatio
-    : null
-
   let inputVideoLabel = '-'
   if (billingInfo.hasInputVideo === true) {
     inputVideoLabel = t('Yes')
@@ -313,7 +287,6 @@ export function TaskDetailDialog({
   const statusLabel = t(taskStatusMapper.getLabel(log.status, log.status || 'Submitting'))
   const statusVariant = taskStatusMapper.getVariant(log.status) as StatusBadgeProps['variant']
   const actionLabel = t(taskActionMapper.getLabel(log.action))
-  const platformLabel = t(log.platform)
 
   const isSuccess = log.status === TASK_STATUS.SUCCESS
   const isVideo = isVideoTaskAction(log.action)
@@ -363,8 +336,6 @@ export function TaskDetailDialog({
             }
             mono
           />
-          <DetailRow label={t('Record ID')} value={String(log.id)} mono />
-          <DetailRow label={t('Platform')} value={platformLabel} />
           <DetailRow label={t('Action')} value={actionLabel} />
           {originModel && (
             <DetailRow label={t('Origin Model')} value={originModel} mono />
@@ -383,11 +354,20 @@ export function TaskDetailDialog({
               />
             }
           />
+          {/* 当前任务的请求参数（原先只在计费明细块里，那里已移除） */}
           <DetailRow
-            label={t('Progress')}
-            value={log.progress ? <span className='font-mono'>{log.progress}</span> : '-'}
+            label={t('Resolution')}
+            value={billingInfo.resolution ?? '-'}
             mono
           />
+          <DetailRow
+            label={t('Duration')}
+            value={
+              billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'
+            }
+            mono
+          />
+          <DetailRow label={t('Input video')} value={inputVideoLabel} />
           {log.username && (
             <DetailRow
               label={t('User')}
@@ -405,11 +385,9 @@ export function TaskDetailDialog({
             <DetailRow label={t('Channel')} value={String(log.channel_id)} mono />
           )}
           {log.group && <DetailRow label={t('Group')} value={log.group} mono />}
-          {timeRow('Created At', log.created_at)}
           {timeRow('Submit Time', log.submit_time)}
           {timeRow('Start Time', log.start_time)}
           {timeRow('Finish Time', log.finish_time)}
-          {timeRow('Updated At', log.updated_at)}
         </div>
 
         {/* 结果 URL / 视频预览 */}
@@ -466,127 +444,6 @@ export function TaskDetailDialog({
           </div>
         )}
 
-        {/* 计费明细：基本项 / 计费过程 / 差额结算同属「这一笔怎么算出来的」，
-            合并成一张卡片、用分隔线分层，避免三个并列边框叠加、层级也看不出来。 */}
-        {log.quota != null && (
-          <div className='space-y-2'>
-            <Label className='text-xs font-semibold'>{t('Billing Details')}</Label>
-            <div className='bg-muted/30 min-w-0 space-y-3 rounded-md border p-3'>
-              <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
-                <DetailRow label={t('Fee')} value={formatLogQuota(log.quota)} mono />
-                <DetailRow
-                  label={t('Token Usage')}
-                  value={
-                    billingInfo.tokens != null ? (
-                      <span className='font-mono'>
-                        {formatTokens(billingInfo.tokens)}
-                        <span className='text-muted-foreground ml-1'>
-                          ({billingInfo.tokens.toLocaleString()})
-                        </span>
-                      </span>
-                    ) : (
-                      '-'
-                    )
-                  }
-                />
-                <DetailRow
-                  label={t('Duration')}
-                  value={billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'}
-                  mono
-                />
-                <DetailRow
-                  label={t('Resolution')}
-                  value={billingInfo.resolution ?? '-'}
-                  mono
-                />
-                <DetailRow label={t('Input video')} value={inputVideoLabel} />
-              </div>
-
-              {/* 计费过程：仅在管理员且后端记录了 seedance 计费明细时展示；
-                  分档单价 / 倍率 / 公式属成本口径，对普通用户隐藏 */}
-              {videoBilling && isAdmin && (
-                <div className='border-border/60 space-y-2 border-t pt-3'>
-                  <p className='text-muted-foreground text-xs font-semibold'>
-                    {t('How this fee is calculated')}
-                  </p>
-                  <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
-                    <DetailRow
-                      label={t('Tier price')}
-                      value={
-                        <span className='font-mono'>
-                          {videoBilling.tierPrice} {t('CNY per 1M tokens')}
-                          {videoBilling.resolution ? ` · ${videoBilling.resolution}` : ''}
-                          {' · '}
-                          {videoBilling.hasInputVideo
-                            ? t('Input with video')
-                            : t('Input without video')}
-                        </span>
-                      }
-                    />
-                    <DetailRow
-                      label={t('Token Usage')}
-                      value={<span className='font-mono'>{videoBilling.token.toLocaleString()}</span>}
-                    />
-                    <DetailRow
-                      label={t('Billing multiplier')}
-                      value={<span className='font-mono'>{videoBilling.multiplier}×</span>}
-                    />
-                    <DetailRow
-                      label={t('Group ratio')}
-                      value={<span className='font-mono'>{groupRatio}×</span>}
-                    />
-                  </div>
-                  <DetailRow
-                    label={t('Formula')}
-                    value={
-                      <span className='font-mono text-[11px]'>
-                        {videoBilling.tierPrice} × {videoBilling.token.toLocaleString()} ÷ 1,000,000
-                        × {videoBilling.multiplier} × {groupRatio} ={' '}
-                        {videoFeeYuan != null ? videoFeeYuan.toFixed(4) : '-'} {t('CNY')}
-                      </span>
-                    }
-                  />
-                </div>
-              )}
-
-              {/* 完成后的差额结算：按上游真实 token 结算，预扣额度多退少补 */}
-              {videoSettlement && (
-                <div className='border-border/60 space-y-2 border-t pt-3'>
-                  <p className='text-muted-foreground text-xs font-semibold'>
-                    {t('Video token settlement')}
-                  </p>
-                  <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
-                    <DetailRow
-                      label={t('Pre-consumed')}
-                      value={
-                        <span className='font-mono'>
-                          {formatLogQuota(videoSettlement.preConsumedQuota)}
-                        </span>
-                      }
-                    />
-                    <DetailRow
-                      label={t('Actual Amount')}
-                      value={
-                        <span className='font-mono'>
-                          {formatLogQuota(videoSettlement.actualQuota)}
-                        </span>
-                      }
-                    />
-                  </div>
-                  <DetailRow
-                    label={t('Difference')}
-                    value={
-                      <span className='font-mono'>
-                        {videoSettlement.deltaQuota >= 0 ? '+' : '-'}
-                        {formatLogQuota(Math.abs(videoSettlement.deltaQuota))}
-                      </span>
-                    }
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* 失败原因 */}
         {log.fail_reason && (

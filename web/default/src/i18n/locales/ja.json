@@ -3511,6 +3511,7 @@
     "Prompt (EN)": "プロンプト（英語）",
     "Prompt cache ratio": "プロンプトキャッシュ倍率",
     "Prompt caching": "プロンプトキャッシュ",
+    "Prompt length": "Prompt length",
     "Prompt Caching": "プロンプトキャッシング",
     "Prompt Details": "プロンプトの詳細",
     "Prompt price ($/1M tokens)": "プロンプト価格 (100万トークンあたり$)",

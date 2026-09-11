@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music, Video } from 'lucide-react'
+import { Info, Music } from 'lucide-react'
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,8 +29,8 @@ import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
-import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import { TASK_STATUS } from '../../constants'
+import { taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
 import {
   AudioPreviewDialog,
@@ -59,15 +59,41 @@ function parseTaskData(data: unknown): unknown[] {
   return []
 }
 
-/** 视频类任务动作（与任务详情弹窗的判断保持一致）。 */
-function isVideoAction(action: string): boolean {
-  return (
-    action === TASK_ACTIONS.GENERATE ||
-    action === TASK_ACTIONS.TEXT_GENERATE ||
-    action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
-    action === TASK_ACTIONS.REFERENCE_GENERATE ||
-    action === TASK_ACTIONS.REMIX_GENERATE
-  )
+/** 用户请求的提示词长度：properties.input 是原始请求体 JSON，取 prompt（或 content 里的文本）。 */
+function taskPromptLength(log: TaskLog): number | null {
+  let raw: unknown = log.properties
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (raw == null || typeof raw !== 'object') return null
+  const input = (raw as Record<string, unknown>).input
+  let body: unknown = input
+  if (typeof input === 'string') {
+    try {
+      body = JSON.parse(input)
+    } catch {
+      return null
+    }
+  }
+  if (body == null || typeof body !== 'object') return null
+  const obj = body as Record<string, unknown>
+  if (typeof obj.prompt === 'string') return obj.prompt.length
+  if (Array.isArray(obj.content)) {
+    const text = obj.content
+      .map((item) =>
+        item && typeof item === 'object'
+          ? ((item as Record<string, unknown>).text as string | undefined)
+          : undefined
+      )
+      .filter((s): s is string => typeof s === 'string')
+      .join('')
+    if (text) return text.length
+  }
+  return null
 }
 
 /**
@@ -86,13 +112,6 @@ function taskModelName(log: TaskLog): string {
   if (raw == null || typeof raw !== 'object') return ''
   const obj = raw as Record<string, unknown>
   return typeof obj.origin_model_name === 'string' ? obj.origin_model_name : ''
-}
-
-/** 视频内容代理地址（与任务详情弹窗一致，走同源相对路径，避免 ServerAddress 配错）。 */
-function taskVideoSrc(log: TaskLog): string | undefined {
-  if (log.status !== TASK_STATUS.SUCCESS) return undefined
-  if (!isVideoAction(log.action)) return undefined
-  return `/v1/videos/${log.task_id}/content`
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -154,7 +173,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </div>
         )
       },
-      size: 180,
+      size: 150,
     },
   ]
 
@@ -222,41 +241,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         )
       },
       meta: { mobileTitle: true },
-    },
-    {
-      id: 'model',
-      header: t('Model'),
-      accessorFn: (row) => taskModelName(row),
-      cell: function ModelCell({ row }) {
-        const log = row.original
-        const [dialogOpen, setDialogOpen] = useState(false)
-        const modelName = taskModelName(log)
-
-        return (
-          <>
-            <button
-              type='button'
-              onClick={() => setDialogOpen(true)}
-              className='group flex max-w-[190px] min-w-0 flex-col gap-0.5 text-left'
-              title={t('Click to view task details')}
-            >
-              <span className='text-foreground truncate text-xs leading-snug group-hover:underline'>
-                {modelName || '-'}
-              </span>
-              <span className='text-muted-foreground/60 truncate text-[11px]'>
-                {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
-              </span>
-            </button>
-            <TaskDetailDialog
-              log={log}
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-              isAdmin={isAdmin}
-            />
-          </>
-        )
-      },
-      size: 190,
+      size: 170,
     },
     createDurationColumn<TaskLog>({
       submitTimeKey: 'submit_time',
@@ -296,36 +281,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       size: 120,
     },
     {
-      id: 'preview',
-      header: t('Preview'),
-      cell: function PreviewCell({ row }) {
-        const log = row.original
-        const videoSrc = taskVideoSrc(log)
-        const isSunoSuccess =
-          log.platform === 'suno' && log.status === TASK_STATUS.SUCCESS
-
-        if (isSunoSuccess) return <AudioPreviewCell log={log} />
-
-        if (videoSrc) {
-          return (
-            <a
-              href={videoSrc}
-              target='_blank'
-              rel='noreferrer'
-              className='text-foreground inline-flex items-center gap-1 text-xs hover:underline'
-            >
-              <Video className='size-3.5' aria-hidden='true' />
-              {t('Preview')}
-            </a>
-          )
-        }
-
-        // 无结果的任务显式占位，避免整列空白看起来像加载失败
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
-      },
-      size: 100,
-    },
-    {
       id: 'fee',
       header: t('Fee'),
       accessorFn: (row) => row.quota ?? 0,
@@ -358,6 +313,54 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         )
       },
       size: 110,
+    },
+    {
+      id: 'details',
+      header: t('Details'),
+      accessorFn: (row) => taskModelName(row),
+      cell: function DetailsCell({ row }) {
+        const log = row.original
+        const [dialogOpen, setDialogOpen] = useState(false)
+        // Suno 音频任务没有视频规格，保留原有的音频预览入口（回退预览列后不再有独立列）
+        if (log.platform === 'suno' && log.status === TASK_STATUS.SUCCESS) {
+          return <AudioPreviewCell log={log} />
+        }
+        const modelName = taskModelName(log)
+        const promptLength = taskPromptLength(log)
+
+        return (
+          <>
+            <button
+              type='button'
+              onClick={() => setDialogOpen(true)}
+              className='group flex max-w-[190px] min-w-0 items-start gap-2 text-left'
+              title={t('Click to view task details')}
+            >
+              <Info
+                className='text-muted-foreground/70 mt-0.5 size-3.5 shrink-0'
+                aria-hidden='true'
+              />
+              <span className='flex min-w-0 flex-col gap-0.5'>
+                <span className='text-foreground truncate text-xs leading-snug font-medium group-hover:underline'>
+                  {modelName || '-'}
+                </span>
+                {promptLength != null && (
+                  <span className='text-muted-foreground/60 truncate text-[11px] leading-snug'>
+                    {t('Prompt length')}: {promptLength}
+                  </span>
+                )}
+              </span>
+            </button>
+            <TaskDetailDialog
+              log={log}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              isAdmin={isAdmin}
+            />
+          </>
+        )
+      },
+      size: 200,
     }
   )
 

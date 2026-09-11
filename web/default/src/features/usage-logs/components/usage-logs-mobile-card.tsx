@@ -249,9 +249,8 @@ function TaskLogsCard<TData>({
   const taskIdCell = cells.get('task_id')
   const statusCell = cells.get('status')
   const submitTimeCell = cells.get('submit_time')
-  const modelCell = cells.get('model')
+  const detailsCell = cells.get('details')
   const feeCell = cells.get('fee')
-  const previewCell = cells.get('preview')
   // 失败原因不再单独占列（改由任务详情展示），这里从行数据直接取
   const rowData = taskIdCell?.row.original as
     | Record<string, unknown>
@@ -271,11 +270,8 @@ function TaskLogsCard<TData>({
       <div className='grid grid-cols-2 gap-1.5'>
         <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
         <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
-        <SummaryField label={t('Model')} cell={modelCell} />
+        <SummaryField label={t('Details')} cell={detailsCell} />
         <SummaryField label={t('Fee')} cell={feeCell} />
-        {previewCell && (
-          <SummaryField label={t('Preview')} cell={previewCell} />
-        )}
         {failReason && (
           <div className='col-span-2 bg-transparent px-0 py-0'>
             <div className='text-muted-foreground mb-1 text-[11px] leading-none font-medium select-none'>
