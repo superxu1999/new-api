@@ -275,6 +275,19 @@ export interface TaskLog {
   properties?: string // JSON string (request payload / request params)
   result_url?: string // task result URL (e.g. video url)
   other?: string
+  /** 提交时的预扣额度（quota 是差额结算后的最终额度） */
+  pre_consumed_quota?: number
+  /** 按官方公式预估的视频 token 用量 */
+  video_token?: number
+  /** 视频计费中间量（含分档单价），仅管理员接口返回 */
+  video_billing?: {
+    tier_price: number
+    token: number
+    multiplier: number
+    resolution: string
+    has_input_video: boolean
+    seconds: number
+  } | null
 }
 
 // ============================================================================

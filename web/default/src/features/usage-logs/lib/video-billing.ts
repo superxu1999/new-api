@@ -62,12 +62,13 @@ export function toNum(raw: unknown): number | null {
 }
 
 /**
- * 从日志的 other 字段解析后端记录的 seedance 计费明细。
- * 非 seedance 视频任务（或旧日志）返回 null。
+ * 解析一个 { tier_price, token, multiplier, resolution, has_input_video, seconds }
+ * 形态的计费明细对象（日志 other.video_billing，或任务 DTO 的 video_billing 快照）。
  */
-export function extractVideoBilling(other: unknown): VideoBillingDetail | null {
-  const otherObj = asObject(other)
-  const vb = asObject(otherObj?.video_billing)
+export function extractVideoBillingDetail(
+  raw: unknown
+): VideoBillingDetail | null {
+  const vb = asObject(raw)
   if (!vb) return null
 
   const tierPrice = toNum(vb.tier_price)
@@ -84,6 +85,30 @@ export function extractVideoBilling(other: unknown): VideoBillingDetail | null {
     hasInputVideo: vb.has_input_video === true,
     seconds: toNum(vb.seconds),
   }
+}
+
+/**
+ * 从日志的 other 字段解析后端记录的 seedance 计费明细。
+ * 非 seedance 视频任务（或旧日志）返回 null。
+ */
+export function extractVideoBilling(other: unknown): VideoBillingDetail | null {
+  const otherObj = asObject(other)
+  return extractVideoBillingDetail(otherObj?.video_billing)
+}
+
+/**
+ * 任务日志（TaskDto）的预扣 / 实付额度。后端直接给出 pre_consumed_quota 与
+ * quota（quota 已是差额结算后的最终额度），无需先扣再算。
+ */
+export function extractTaskSettlement(
+  preConsumed: unknown,
+  settled: unknown
+): VideoSettlement | null {
+  const pre = toNum(preConsumed)
+  const actual = toNum(settled)
+  if (pre == null || actual == null) return null
+  if (pre <= 0 || actual <= 0) return null
+  return { preConsumedQuota: pre, actualQuota: actual, deltaQuota: actual - pre }
 }
 
 /**

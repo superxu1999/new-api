@@ -50,6 +50,13 @@ type TaskDto struct {
 	Properties any             `json:"properties"`
 	Username   string          `json:"username,omitempty"`
 	Data       json.RawMessage `json:"data"`
+	// PreConsumedQuota 是提交时的预扣额度。Quota 是差额结算后的最终额度，
+	// 想还原「预扣 → 实付 → 差额」必须把它一起返回。
+	PreConsumedQuota int `json:"pre_consumed_quota,omitempty"`
+	// VideoToken 是按官方公式预估的视频 token 用量。
+	VideoToken int `json:"video_token,omitempty"`
+	// VideoBilling 是视频计费的中间量（含分档单价），属成本口径，只在管理员接口填充。
+	VideoBilling any `json:"video_billing,omitempty"`
 }
 
 type FetchReq struct {

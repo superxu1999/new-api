@@ -31,7 +31,11 @@ import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
-import { extractVideoBilling, extractVideoSettlement, toNum } from '../../lib/video-billing'
+import {
+  extractTaskSettlement,
+  extractVideoBillingDetail,
+  toNum,
+} from '../../lib/video-billing'
 import type { TaskLog } from '../../types'
 
 interface TaskDetailDialogProps {
@@ -274,12 +278,16 @@ export function TaskDetailDialog({
     [requestInput, upstreamData]
   )
 
-  // 后端记录的 seedance 计费明细（分档单价 / token / 计费倍率），用于展示费用如何得出。
-  const videoBilling = useMemo(() => extractVideoBilling(log.other), [log.other])
-  // 任务完成后的差额结算：预扣额度 → 按上游真实 token 结算后的额度。
+  // seedance 计费明细（分档单价 / token / 计费倍率）与差额结算。
+  // 注意：任务列表接口（TaskDto）不返回 other，原先读 log.other 的写法恒为 null，
+  // 这两块从来没渲染过。改为读后端新增的 video_billing / pre_consumed_quota 快照。
+  const videoBilling = useMemo(
+    () => extractVideoBillingDetail(log.video_billing),
+    [log.video_billing]
+  )
   const videoSettlement = useMemo(
-    () => extractVideoSettlement(log.other),
-    [log.other]
+    () => extractTaskSettlement(log.pre_consumed_quota, log.quota),
+    [log.pre_consumed_quota, log.quota]
   )
 
   const otherObj = useMemo(() => toObj(log.other), [log.other])

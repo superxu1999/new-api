@@ -119,6 +119,22 @@ type TaskBillingContext struct {
 	// VideoToken 是提交时按官方公式预估的视频 token（仅在上游会返回真实 token 的渠道上写入）。
 	// 由于视频价格与 token 成正比，轮询阶段可直接按「上游 token / 该预估值」缩放已预扣的额度。
 	VideoToken int `json:"video_token,omitempty"`
+	// PreConsumedQuota 是提交时实际预扣的额度。task.Quota 在差额结算后会被改写成最终额度，
+	// 想还原「预扣 → 实付 → 差额」就必须把预扣额单独存下来。
+	PreConsumedQuota int `json:"pre_consumed_quota,omitempty"`
+	// VideoBilling 是视频计费的中间量快照，供任务详情展示费用如何算出。
+	// 与 taskcommon.SeedanceBillingDetail 同构（model 不能反向依赖 taskcommon，故单独定义）。
+	VideoBilling *VideoBillingSnapshot `json:"video_billing,omitempty"`
+}
+
+// VideoBillingSnapshot 视频（seedance 系）计费的中间量快照。
+type VideoBillingSnapshot struct {
+	TierPrice     float64 `json:"tier_price"`
+	Token         int     `json:"token"`
+	Multiplier    float64 `json:"multiplier"`
+	Resolution    string  `json:"resolution"`
+	HasInputVideo bool    `json:"has_input_video"`
+	Seconds       int     `json:"seconds"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -587,7 +603,8 @@ func TaskGetStats(queryParams SyncTaskQueryParams) *TaskStats {
 }
 
 // TaskCountAllUserTask returns total tasks for given user
-func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {	var total int64
+func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
+	var total int64
 	query := DB.Model(&Task{}).Where("user_id = ?", userId)
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)

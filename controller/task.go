@@ -116,6 +116,15 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			}
 		}
 		result[i] = relay.TaskModel2Dto(task)
+		if bc := task.PrivateData.BillingContext; bc != nil {
+			// 预扣额度与预估 token 是用户自己的账单信息，所有人都要给。
+			result[i].PreConsumedQuota = bc.PreConsumedQuota
+			result[i].VideoToken = bc.VideoToken
+			if fillUser {
+				// 分档单价 / 计费倍率属成本口径，只在管理员接口回填。
+				result[i].VideoBilling = bc.VideoBilling
+			}
+		}
 	}
 	return result
 }

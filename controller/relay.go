@@ -594,6 +594,7 @@ func RelayTask(c *gin.Context) {
 			perCallBilling = true
 		}
 		videoToken := 0
+		var videoBilling *model.VideoBillingSnapshot
 		if _, isSeedanceBilling := relayInfo.PriceData.OtherRatios[taskcommon.SeedanceBillingRatioKey]; isSeedanceBilling {
 			perCallBilling = true
 			// 记下预估 token：视频价格与 token 成正比，轮询阶段若上游给出官方用量，
@@ -601,17 +602,28 @@ func RelayTask(c *gin.Context) {
 			if detail, ok := c.Get(taskcommon.SeedanceBillingContextKey); ok {
 				if seedanceDetail, ok := detail.(taskcommon.SeedanceBillingDetail); ok {
 					videoToken = seedanceDetail.Token
+					// 快照计费中间量，供任务详情/费用弹窗展示「这笔钱怎么算出来的」
+					videoBilling = &model.VideoBillingSnapshot{
+						TierPrice:     seedanceDetail.TierPrice,
+						Token:         seedanceDetail.Token,
+						Multiplier:    seedanceDetail.Multiplier,
+						Resolution:    seedanceDetail.Resolution,
+						HasInputVideo: seedanceDetail.HasInputVideo,
+						Seconds:       seedanceDetail.Seconds,
+					}
 				}
 			}
 		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  perCallBilling,
-			VideoToken:      videoToken,
+			ModelPrice:       relayInfo.PriceData.ModelPrice,
+			GroupRatio:       relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:       relayInfo.PriceData.ModelRatio,
+			OtherRatios:      relayInfo.PriceData.OtherRatios,
+			OriginModelName:  relayInfo.OriginModelName,
+			PerCallBilling:   perCallBilling,
+			VideoToken:       videoToken,
+			PreConsumedQuota: result.Quota,
+			VideoBilling:     videoBilling,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

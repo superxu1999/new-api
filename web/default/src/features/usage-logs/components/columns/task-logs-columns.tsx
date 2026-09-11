@@ -37,6 +37,7 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { TaskDetailDialog } from '../dialogs/task-detail-dialog'
+import { TaskFeeDialog } from '../dialogs/task-fee-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -328,13 +329,32 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       id: 'fee',
       header: t('Fee'),
       accessorFn: (row) => row.quota ?? 0,
-      cell: ({ row }) => {
-        const quota = row.original.quota
+      cell: function FeeCell({ row }) {
+        const log = row.original
+        const [dialogOpen, setDialogOpen] = useState(false)
+        const quota = log.quota
         if (quota == null) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
         return (
-          <span className='font-mono text-xs'>{formatLogQuota(quota)}</span>
+          <>
+            <button
+              type='button'
+              onClick={() => setDialogOpen(true)}
+              className='group text-left'
+              title={t('How this fee is calculated')}
+            >
+              <span className='text-foreground font-mono text-xs group-hover:underline'>
+                {formatLogQuota(quota)}
+              </span>
+            </button>
+            <TaskFeeDialog
+              log={log}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              isAdmin={isAdmin}
+            />
+          </>
         )
       },
       size: 110,
