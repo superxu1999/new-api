@@ -279,6 +279,10 @@ export interface TaskLog {
   pre_consumed_quota?: number
   /** 按官方公式预估的视频 token 用量 */
   video_token?: number
+  /** 上游返回的真实视频 token；未做过差额结算时为空 */
+  video_actual_token?: number
+  /** 渠道名（仅管理员接口返回） */
+  channel_name?: string
   /** 视频计费中间量（含分档单价），仅管理员接口返回 */
   video_billing?: {
     tier_price: number

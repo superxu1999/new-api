@@ -95,16 +95,26 @@ func GetUserTask(c *gin.Context) {
 
 func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 	var userIdMap map[int]*model.UserBase
+	var channelNameMap map[int]string
 	if fillUser {
 		userIdMap = make(map[int]*model.UserBase)
 		userIds := types.NewSet[int]()
+		channelIds := types.NewSet[int]()
 		for _, task := range tasks {
 			userIds.Add(task.UserId)
+			channelIds.Add(task.ChannelId)
 		}
 		for _, userId := range userIds.Items() {
 			cacheUser, err := model.GetUserCache(userId)
 			if err == nil {
 				userIdMap[userId] = cacheUser
+			}
+		}
+		// 渠道名会暴露供应方（如「Seedance CyAI 官转火山(中转)」），只在管理员接口填充。
+		channelNameMap = make(map[int]string)
+		for _, channelId := range channelIds.Items() {
+			if ch, err := model.CacheGetChannel(channelId); err == nil && ch != nil {
+				channelNameMap[channelId] = ch.Name
 			}
 		}
 	}
@@ -116,10 +126,14 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			}
 		}
 		result[i] = relay.TaskModel2Dto(task)
+		if fillUser {
+			result[i].ChannelName = channelNameMap[task.ChannelId]
+		}
 		if bc := task.PrivateData.BillingContext; bc != nil {
-			// 预扣额度与预估 token 是用户自己的账单信息，所有人都要给。
+			// 预扣额度与 token 用量是用户自己的账单信息，所有人都要给。
 			result[i].PreConsumedQuota = bc.PreConsumedQuota
 			result[i].VideoToken = bc.VideoToken
+			result[i].VideoActualToken = bc.VideoActualToken
 			if fillUser {
 				// 分档单价 / 计费倍率属成本口径，只在管理员接口回填。
 				result[i].VideoBilling = bc.VideoBilling

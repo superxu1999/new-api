@@ -210,6 +210,11 @@ func SettleVideoTokenBilling(ctx context.Context, task *model.Task, estimatedTok
 		return
 	}
 	actualQuota := common.QuotaFromFloat(float64(task.Quota) * scale)
+	// 记下上游真实用量：费用明细要展示「实际 Token」，而且只有这里才知道它是已知的
+	// （未做差额结算的任务不能反推，否则会造出一个恰好等于预估值的假数据）。
+	if bc := task.PrivateData.BillingContext; bc != nil {
+		bc.VideoActualToken = upstreamToken
+	}
 	// 日志内容对用户可见，用「实际/预估」而不是「上游」：用户不需要知道调用链上还有一层供应方。
 	RecalculateTaskQuota(ctx, task, actualQuota,
 		fmt.Sprintf("视频token重算：实际 %d，预估 %d", upstreamToken, estimatedToken))

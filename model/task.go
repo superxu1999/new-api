@@ -122,6 +122,9 @@ type TaskBillingContext struct {
 	// PreConsumedQuota 是提交时实际预扣的额度。task.Quota 在差额结算后会被改写成最终额度，
 	// 想还原「预扣 → 实付 → 差额」就必须把预扣额单独存下来。
 	PreConsumedQuota int `json:"pre_consumed_quota,omitempty"`
+	// VideoActualToken 是上游返回的真实视频 token，仅在成功做过差额结算时写入。
+	// 由它判断「实际用量」是否已知，避免前端反推出一个假的数值。
+	VideoActualToken int `json:"video_actual_token,omitempty"`
 	// VideoBilling 是视频计费的中间量快照，供任务详情展示费用如何算出。
 	// 与 taskcommon.SeedanceBillingDetail 同构（model 不能反向依赖 taskcommon，故单独定义）。
 	VideoBilling *VideoBillingSnapshot `json:"video_billing,omitempty"`
@@ -451,7 +454,12 @@ func (Task *Task) Update() error {
 }
 
 func (t *Task) UpdateQuota() error {
-	return DB.Model(t).Update("quota", t.Quota).Error
+	// 同时持久化 private_data：差额结算会把上游真实用量写回 BillingContext，
+	// 只更新 quota 列会让「实际 Token」丢失。
+	return DB.Model(t).Updates(map[string]any{
+		"quota":        t.Quota,
+		"private_data": t.PrivateData,
+	}).Error
 }
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).

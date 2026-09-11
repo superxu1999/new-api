@@ -124,8 +124,15 @@ export function TaskFeeDialog({
           )}
           {log.video_token != null && log.video_token > 0 && (
             <FeeRow
-              label={t('Token Usage')}
-              value={`${formatTokens(log.video_token)} (${t('Estimated')})`}
+              label={`${t('Token Usage')} (${t('Estimated')})`}
+              value={formatTokens(log.video_token)}
+            />
+          )}
+          {/* 实际用量只在做过差额结算时才有值，不能反推，否则会造出等于预估的假数据 */}
+          {log.video_actual_token != null && log.video_actual_token > 0 && (
+            <FeeRow
+              label={`${t('Token Usage')} (${t('Actual')})`}
+              value={formatTokens(log.video_actual_token)}
             />
           )}
         </div>

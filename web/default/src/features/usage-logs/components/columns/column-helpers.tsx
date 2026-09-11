@@ -164,34 +164,47 @@ export function createDurationColumn<T>(config: {
  * Create a channel column (admin only) - #id badge matching common logs
  */
 export function createChannelColumn<T>(config: {
-  accessorKey?: string
-  headerLabel: string
+	accessorKey?: string
+	headerLabel: string
+	/** 可选：渠道名所在的字段，提供时在 #id 下方显示（便于管理员识别渠道）。 */
+	channelNameKey?: string
 }): ColumnDef<T> {
-  const { accessorKey = 'channel_id', headerLabel } = config
+	const { accessorKey = 'channel_id', headerLabel, channelNameKey } = config
 
-  return {
-    accessorKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={headerLabel} />
-    ),
-    cell: ({ row }) => {
-      const channelId = row.getValue(accessorKey) as number
-      if (!channelId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
-      }
-      return (
-        <StatusBadge
-          label={`#${channelId}`}
-          autoColor={String(channelId)}
-          copyText={String(channelId)}
-          size='sm'
-          showDot={false}
-          className='font-mono'
-        />
-      )
-    },
-    meta: { label: headerLabel },
-  }
+	return {
+		accessorKey,
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={headerLabel} />
+		),
+		cell: ({ row }) => {
+			const channelId = row.getValue(accessorKey) as number
+			if (!channelId) {
+				return <span className='text-muted-foreground/60 text-xs'>-</span>
+			}
+			const rawName = channelNameKey
+				? (row.original as Record<string, unknown>)[channelNameKey]
+				: undefined
+			const channelName = typeof rawName === 'string' ? rawName : ''
+			return (
+				<div className='flex min-w-0 flex-col gap-0.5'>
+					<StatusBadge
+						label={`#${channelId}`}
+						autoColor={String(channelId)}
+						copyText={String(channelId)}
+						size='sm'
+						showDot={false}
+						className='font-mono'
+					/>
+					{channelName && (
+						<span className='text-muted-foreground/60 max-w-[150px] truncate text-[11px] leading-snug'>
+							{channelName}
+						</span>
+					)}
+				</div>
+			)
+		},
+		meta: { label: headerLabel },
+	}
 }
 
 /**

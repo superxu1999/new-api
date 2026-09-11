@@ -55,6 +55,10 @@ type TaskDto struct {
 	PreConsumedQuota int `json:"pre_consumed_quota,omitempty"`
 	// VideoToken 是按官方公式预估的视频 token 用量。
 	VideoToken int `json:"video_token,omitempty"`
+	// VideoActualToken 是上游返回的真实视频 token；未做过差额结算时不填。
+	VideoActualToken int `json:"video_actual_token,omitempty"`
+	// ChannelName 便于管理员识别渠道（纯 channel_id 对人不友好），只在管理员接口填充。
+	ChannelName string `json:"channel_name,omitempty"`
 	// VideoBilling 是视频计费的中间量（含分档单价），属成本口径，只在管理员接口填充。
 	VideoBilling any `json:"video_billing,omitempty"`
 }
