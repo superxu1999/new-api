@@ -64,7 +64,9 @@ type TaskBillingInfo = {
 function extractBillingInfo(requestInput: string, upstreamData: string): TaskBillingInfo {
   const info: TaskBillingInfo = {}
 
-  // token 用量：上游响应 usage.completion_tokens / total_tokens
+  // 上游响应：usage 里有 token 用量，provider 原始负载里有 duration / resolution。
+  // provider 的这两个值比请求回显可靠得多 —— 回显可能是纯文本（解析不出），
+  // 而 provider 响应一直带着它们。
   try {
     const parsed = JSON.parse(upstreamData)
     const usage = findUsage(parsed)
@@ -72,21 +74,38 @@ function extractBillingInfo(requestInput: string, upstreamData: string): TaskBil
       const tokens = usage.completion_tokens ?? usage.total_tokens
       if (typeof tokens === 'number') info.tokens = tokens
     }
+    const provider = findProviderPayload(parsed)
+    if (provider) {
+      const duration = provider.duration
+      if (typeof duration === 'number') {
+        info.durationSec = duration
+      } else if (typeof duration === 'string' && Number.isFinite(Number(duration))) {
+        info.durationSec = Number(duration)
+      }
+      const resolution = provider.resolution
+      if (typeof resolution === 'string' && resolution) {
+        info.resolution = resolution
+      }
+    }
   } catch {
     /* 忽略解析失败 */
   }
 
-  // 时长 / 分辨率 / 是否含视频：请求入参
+  // 时长 / 分辨率 / 是否含视频：请求入参（仅补 provider 响应里没有的值）
   try {
     const input = JSON.parse(requestInput)
     const duration = input?.duration ?? input?.metadata?.duration
-    if (typeof duration === 'number') info.durationSec = duration
-    if (typeof duration === 'string') {
-      const n = Number(duration)
-      if (Number.isFinite(n)) info.durationSec = n
+    if (info.durationSec == null) {
+      if (typeof duration === 'number') info.durationSec = duration
+      if (typeof duration === 'string') {
+        const n = Number(duration)
+        if (Number.isFinite(n)) info.durationSec = n
+      }
     }
-    const res = input?.metadata?.resolution ?? input?.resolution
-    if (typeof res === 'string' && res) info.resolution = res
+    if (info.resolution == null) {
+      const res = input?.metadata?.resolution ?? input?.resolution
+      if (typeof res === 'string' && res) info.resolution = res
+    }
     const content = input?.metadata?.content
     if (Array.isArray(content)) {
       info.hasInputVideo = content.some(
@@ -110,6 +129,22 @@ function findUsage(node: unknown): Record<string, number> | null {
     if (usage != null) return usage as Record<string, number>
     cur = obj.data
     if (cur == null) return null
+  }
+  return null
+}
+
+/**
+ * 在嵌套的上游响应里找 provider 的原始负载（形如
+ * {code, data:{ …, data:{ duration, resolution, usage … } }}）。
+ * provider 会直接给出 duration / resolution，比请求回显可靠。
+ */
+function findProviderPayload(node: unknown): Record<string, unknown> | null {
+  let cur = toObj(node)
+  for (let i = 0; i < 5 && cur != null; i++) {
+    const inner = toObj(cur.data)
+    if (inner == null) return null
+    if (inner.duration != null || inner.resolution != null) return inner
+    cur = inner
   }
   return null
 }
@@ -216,10 +251,12 @@ export function TaskDetailDialog({
       : billingInfo.durationSec
   const resolutionLabel = log.resolution || billingInfo.resolution || '-'
 
+  // 是否含参考视频：优先用后端快照（计费条件，所有人可见），老任务回退到请求回显
+  const hasInputVideo = log.has_input_video ?? billingInfo.hasInputVideo
   let inputVideoLabel = '-'
-  if (billingInfo.hasInputVideo === true) {
+  if (hasInputVideo === true) {
     inputVideoLabel = t('Yes')
-  } else if (billingInfo.hasInputVideo === false) {
+  } else if (hasInputVideo === false) {
     inputVideoLabel = t('No')
   }
 

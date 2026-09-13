@@ -287,6 +287,8 @@ export interface TaskLog {
   duration?: number
   /** 提交时的请求分辨率快照 */
   resolution?: string
+  /** 请求是否带了参考视频（计费条件，所有人可见） */
+  has_input_video?: boolean
   /** 视频计费中间量（含分档单价），仅管理员接口返回 */
   video_billing?: {
     tier_price: number

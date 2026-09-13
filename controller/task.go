@@ -136,6 +136,10 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			result[i].VideoActualToken = bc.VideoActualToken
 			result[i].Duration = bc.Duration
 			result[i].Resolution = bc.Resolution
+			if bc.VideoBilling != nil {
+				// 是否含参考视频是计费条件（单价不同），所有人都给。
+				result[i].HasInputVideo = bc.VideoBilling.HasInputVideo
+			}
 			if fillUser {
 				// 分档单价 / 计费倍率属成本口径，只在管理员接口回填。
 				result[i].VideoBilling = bc.VideoBilling

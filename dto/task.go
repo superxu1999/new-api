@@ -60,6 +60,9 @@ type TaskDto struct {
 	// Duration / Resolution 是提交时的请求参数快照（不依赖上游回显格式）。
 	Duration   int    `json:"duration,omitempty"`
 	Resolution string `json:"resolution,omitempty"`
+	// HasInputVideo 表示请求带了参考视频。它是计费条件（含视频与不含视频单价不同），
+	// 用户本来就该知道，因此所有人都返回。
+	HasInputVideo bool `json:"has_input_video,omitempty"`
 	// ChannelName 便于管理员识别渠道（纯 channel_id 对人不友好），只在管理员接口填充。
 	ChannelName string `json:"channel_name,omitempty"`
 	// VideoBilling 是视频计费的中间量（含分档单价），属成本口径，只在管理员接口填充。
