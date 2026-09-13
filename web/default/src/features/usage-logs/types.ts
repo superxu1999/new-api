@@ -283,6 +283,10 @@ export interface TaskLog {
   video_actual_token?: number
   /** 渠道名（仅管理员接口返回） */
   channel_name?: string
+  /** 提交时的请求时长（秒）快照，不依赖上游回显格式 */
+  duration?: number
+  /** 提交时的请求分辨率快照 */
+  resolution?: string
   /** 视频计费中间量（含分档单价），仅管理员接口返回 */
   video_billing?: {
     tier_price: number

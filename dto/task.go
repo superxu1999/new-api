@@ -57,6 +57,9 @@ type TaskDto struct {
 	VideoToken int `json:"video_token,omitempty"`
 	// VideoActualToken 是上游返回的真实视频 token；未做过差额结算时不填。
 	VideoActualToken int `json:"video_actual_token,omitempty"`
+	// Duration / Resolution 是提交时的请求参数快照（不依赖上游回显格式）。
+	Duration   int    `json:"duration,omitempty"`
+	Resolution string `json:"resolution,omitempty"`
 	// ChannelName 便于管理员识别渠道（纯 channel_id 对人不友好），只在管理员接口填充。
 	ChannelName string `json:"channel_name,omitempty"`
 	// VideoBilling 是视频计费的中间量（含分档单价），属成本口径，只在管理员接口填充。

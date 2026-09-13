@@ -134,6 +134,8 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			result[i].PreConsumedQuota = bc.PreConsumedQuota
 			result[i].VideoToken = bc.VideoToken
 			result[i].VideoActualToken = bc.VideoActualToken
+			result[i].Duration = bc.Duration
+			result[i].Resolution = bc.Resolution
 			if fillUser {
 				// 分档单价 / 计费倍率属成本口径，只在管理员接口回填。
 				result[i].VideoBilling = bc.VideoBilling

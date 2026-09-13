@@ -31,6 +31,12 @@ import { cn } from '@/lib/utils'
 
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import {
+  extractRequestInput,
+  sanitizeUpstreamResponse,
+  toObj,
+  toPretty,
+} from '../../lib/task-request'
 import type { TaskLog } from '../../types'
 
 interface TaskDetailDialogProps {
@@ -41,83 +47,6 @@ interface TaskDetailDialogProps {
   isAdmin?: boolean
 }
 
-/** 提取"请求入参"（用户提交给系统的请求体）。
- *  实际请求体通常存在上游返回 data 的 data.properties.input（JSON 字符串）里；
- *  部分任务也会在顶层 properties.input 里。优先从 data 提取，其次顶层 properties。 */
-function extractRequestInput(properties?: unknown, data?: unknown): string {
-  // 1. 从 data 里提取 data.properties.input（实际存储请求体的位置）
-  const fromData = extractInputFromNested(data)
-  if (fromData) return fromData
-
-  // 2. 顶层 properties.input
-  if (properties != null) {
-    const obj = toObj(properties)
-    if (obj != null) {
-      const input = (obj as Record<string, unknown>).input
-      if (input != null) {
-        const pretty = toPretty(input)
-        if (pretty) return pretty
-      }
-    }
-  }
-  return ''
-}
-
-/** 在上游返回 data 里找请求入参 input。
- *  请求体常存放在 data.data.properties.input（或 data.properties.input）里。 */
-function extractInputFromNested(data: unknown): string {
-  let cur: unknown = data
-  for (let i = 0; i < 5; i++) {
-    const obj = toObj(cur)
-    if (obj == null) return ''
-    // 1) 本层直接有 input
-    if (obj.input != null) {
-      const p = toPretty(obj.input)
-      if (p) return p
-    }
-    // 2) 本层的 properties.input
-    const props = toObj(obj.properties)
-    if (props?.input != null) {
-      const p = toPretty(props.input)
-      if (p) return p
-    }
-    // 3) 往 data 子层钻
-    cur = obj.data
-    if (cur == null) return ''
-  }
-  return ''
-}
-
-/** 兼容对象/字符串，尝试解析成 JS 对象；失败返回 null。 */
-function toObj(raw: unknown): Record<string, unknown> | null {
-  if (raw != null && typeof raw === 'object') return raw as Record<string, unknown>
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      return parsed != null && typeof parsed === 'object' ? parsed : null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-/** 把各种值格式化成 pretty 字符串（兼容对象/字符串）。 */
-function toPretty(raw: unknown): string {
-  if (raw == null) return ''
-  if (typeof raw === 'string') {
-    try {
-      return JSON.stringify(JSON.parse(raw), null, 2)
-    } catch {
-      return raw
-    }
-  }
-  try {
-    return JSON.stringify(raw, null, 2)
-  } catch {
-    return String(raw)
-  }
-}
 
 function formatData(data?: unknown): string {
   if (data == null) return ''
@@ -273,6 +202,20 @@ export function TaskDetailDialog({
     [requestInput, upstreamData]
   )
 
+  // 上游返回：普通用户看脱敏版（去掉会暴露供应方的 group / channel_id / user_id 等），
+  // 管理员看原文。
+  const displayUpstreamData = useMemo(
+    () => (isAdmin ? upstreamData : sanitizeUpstreamResponse(upstreamData)),
+    [isAdmin, upstreamData]
+  )
+
+  // 请求参数：优先用提交时的快照（不依赖上游回显格式），老任务回退到回显解析值
+  const durationSec =
+    log.duration != null && log.duration > 0
+      ? log.duration
+      : billingInfo.durationSec
+  const resolutionLabel = log.resolution || billingInfo.resolution || '-'
+
   let inputVideoLabel = '-'
   if (billingInfo.hasInputVideo === true) {
     inputVideoLabel = t('Yes')
@@ -354,17 +297,11 @@ export function TaskDetailDialog({
               />
             }
           />
-          {/* 当前任务的请求参数（原先只在计费明细块里，那里已移除） */}
-          <DetailRow
-            label={t('Resolution')}
-            value={billingInfo.resolution ?? '-'}
-            mono
-          />
+          {/* 当前任务的请求参数 */}
+          <DetailRow label={t('Resolution')} value={resolutionLabel} mono />
           <DetailRow
             label={t('Duration')}
-            value={
-              billingInfo.durationSec != null ? `${billingInfo.durationSec}s` : '-'
-            }
+            value={durationSec != null ? `${durationSec}s` : '-'}
             mono
           />
           <DetailRow label={t('Input video')} value={inputVideoLabel} />
@@ -465,14 +402,12 @@ export function TaskDetailDialog({
               copyText={requestInput}
             />
             {/* 上游原始响应里有上游自己的 channel_id / group / user_id / platform，
-                会暴露供应方，仅管理员可见 */}
-            {isAdmin && (
-              <JsonBlock
-                title={t('Upstream Response')}
-                raw={upstreamData}
-                copyText={upstreamData}
-              />
-            )}
+                普通用户看到的是脱敏版（见 sanitizeUpstreamResponse） */}
+            <JsonBlock
+              title={t('Upstream Response')}
+              raw={displayUpstreamData}
+              copyText={displayUpstreamData}
+            />
           </div>
         </ScrollArea>
       </div>

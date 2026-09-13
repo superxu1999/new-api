@@ -125,6 +125,10 @@ type TaskBillingContext struct {
 	// VideoActualToken 是上游返回的真实视频 token，仅在成功做过差额结算时写入。
 	// 由它判断「实际用量」是否已知，避免前端反推出一个假的数值。
 	VideoActualToken int `json:"video_actual_token,omitempty"`
+	// Duration 与 Resolution 是提交时的请求参数快照。上游回显的 properties.input
+	// 有时是纯文本（解析不出时长/分辨率），存下来就不依赖上游格式了。
+	Duration   int    `json:"duration,omitempty"`
+	Resolution string `json:"resolution,omitempty"`
 	// VideoBilling 是视频计费的中间量快照，供任务详情展示费用如何算出。
 	// 与 taskcommon.SeedanceBillingDetail 同构（model 不能反向依赖 taskcommon，故单独定义）。
 	VideoBilling *VideoBillingSnapshot `json:"video_billing,omitempty"`

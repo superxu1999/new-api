@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 
 import { TASK_STATUS } from '../../constants'
 import { taskStatusMapper } from '../../lib/mappers'
+import { extractTaskPromptLength } from '../../lib/task-request'
 import type { TaskLog } from '../../types'
 import {
   AudioPreviewDialog,
@@ -59,42 +60,7 @@ function parseTaskData(data: unknown): unknown[] {
   return []
 }
 
-/** 用户请求的提示词长度：properties.input 是原始请求体 JSON，取 prompt（或 content 里的文本）。 */
-function taskPromptLength(log: TaskLog): number | null {
-  let raw: unknown = log.properties
-  if (typeof raw === 'string') {
-    try {
-      raw = JSON.parse(raw)
-    } catch {
-      return null
-    }
-  }
-  if (raw == null || typeof raw !== 'object') return null
-  const input = (raw as Record<string, unknown>).input
-  let body: unknown = input
-  if (typeof input === 'string') {
-    try {
-      body = JSON.parse(input)
-    } catch {
-      return null
-    }
-  }
-  if (body == null || typeof body !== 'object') return null
-  const obj = body as Record<string, unknown>
-  if (typeof obj.prompt === 'string') return obj.prompt.length
-  if (Array.isArray(obj.content)) {
-    const text = obj.content
-      .map((item) =>
-        item && typeof item === 'object'
-          ? ((item as Record<string, unknown>).text as string | undefined)
-          : undefined
-      )
-      .filter((s): s is string => typeof s === 'string')
-      .join('')
-    if (text) return text.length
-  }
-  return null
-}
+/** 用户请求的提示词长度（见 lib/task-request：兼容 JSON 与纯文本两种回显形态）。 */
 
 /**
  * 从任务快照里取「用户请求的模型名」。properties 可能是对象或 JSON 字符串，
@@ -331,7 +297,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           return <AudioPreviewCell log={log} />
         }
         const modelName = taskModelName(log)
-        const promptLength = taskPromptLength(log)
+        const promptLength = extractTaskPromptLength(log)
 
         return (
           <>

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -595,6 +596,17 @@ func RelayTask(c *gin.Context) {
 		}
 		videoToken := 0
 		var videoBilling *model.VideoBillingSnapshot
+		// 请求参数快照：上游回显的 properties.input 有时是纯文本，解析不出时长/分辨率，
+		// 存下来就不依赖上游格式（否则前端只能显示 "-"）。
+		duration := 0
+		resolution := ""
+		if req, reqErr := relaycommon.GetTaskRequest(c); reqErr == nil {
+			duration = req.Duration
+			if duration <= 0 {
+				duration, _ = strconv.Atoi(req.Seconds)
+			}
+			resolution, _ = req.Metadata["resolution"].(string)
+		}
 		if _, isSeedanceBilling := relayInfo.PriceData.OtherRatios[taskcommon.SeedanceBillingRatioKey]; isSeedanceBilling {
 			perCallBilling = true
 			// 记下预估 token：视频价格与 token 成正比，轮询阶段若上游给出官方用量，
@@ -602,6 +614,12 @@ func RelayTask(c *gin.Context) {
 			if detail, ok := c.Get(taskcommon.SeedanceBillingContextKey); ok {
 				if seedanceDetail, ok := detail.(taskcommon.SeedanceBillingDetail); ok {
 					videoToken = seedanceDetail.Token
+					if seedanceDetail.Seconds > 0 {
+						duration = seedanceDetail.Seconds
+					}
+					if seedanceDetail.Resolution != "" {
+						resolution = seedanceDetail.Resolution
+					}
 					// 快照计费中间量，供任务详情/费用弹窗展示「这笔钱怎么算出来的」
 					videoBilling = &model.VideoBillingSnapshot{
 						TierPrice:     seedanceDetail.TierPrice,
@@ -624,6 +642,8 @@ func RelayTask(c *gin.Context) {
 			VideoToken:       videoToken,
 			PreConsumedQuota: result.Quota,
 			VideoBilling:     videoBilling,
+			Duration:         duration,
+			Resolution:       resolution,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
