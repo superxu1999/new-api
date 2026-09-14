@@ -185,7 +185,6 @@ const BILLING_SECTIONS = [
           WechatPrivateKey: settings.WechatPrivateKey ?? '',
           WechatPublicKeyPem: settings.WechatPublicKeyPem ?? '',
           WechatPublicKeyId: settings.WechatPublicKeyId ?? '',
-          WechatUnitPrice: settings.WechatUnitPrice ?? 1,
           WechatMinTopUp: settings.WechatMinTopUp ?? 1,
         }}
         complianceDefaults={{

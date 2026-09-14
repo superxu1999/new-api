@@ -183,7 +183,6 @@ const paymentSchema = z.object({
   WechatPrivateKey: z.string(),
   WechatPublicKeyPem: z.string(),
   WechatPublicKeyId: z.string(),
-  WechatUnitPrice: z.coerce.number().min(0),
   WechatMinTopUp: z.coerce.number().min(1),
 })
 
@@ -193,6 +192,7 @@ type WaffoFormFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
 /**
  * 微信支付直连（Native 扫码 + 退款）配置。
  * 私钥与 APIv3 密钥不会下发给前端，保存时留空表示保持原值。
+ * 单价不在这里配置：与易支付一样复用「常规」的价格。
  */
 export type WechatSettingsValues = {
   WechatMchId: string
@@ -202,7 +202,6 @@ export type WechatSettingsValues = {
   WechatPrivateKey: string
   WechatPublicKeyPem: string
   WechatPublicKeyId: string
-  WechatUnitPrice: number
   WechatMinTopUp: number
 }
 
@@ -500,7 +499,6 @@ export function PaymentSettingsSection({
       WechatPrivateKey: values.WechatPrivateKey.trim(),
       WechatPublicKeyPem: values.WechatPublicKeyPem.trim(),
       WechatPublicKeyId: values.WechatPublicKeyId.trim(),
-      WechatUnitPrice: values.WechatUnitPrice,
       WechatMinTopUp: values.WechatMinTopUp,
     }
 
@@ -556,7 +554,6 @@ export function PaymentSettingsSection({
       WechatPrivateKey: initialRef.current.WechatPrivateKey.trim(),
       WechatPublicKeyPem: initialRef.current.WechatPublicKeyPem.trim(),
       WechatPublicKeyId: initialRef.current.WechatPublicKeyId.trim(),
-      WechatUnitPrice: initialRef.current.WechatUnitPrice,
       WechatMinTopUp: initialRef.current.WechatMinTopUp,
     }
 
@@ -584,10 +581,6 @@ export function PaymentSettingsSection({
         key: 'WechatPublicKeyId',
         value: sanitized.WechatPublicKeyId,
       })
-    }
-
-    if (sanitized.WechatUnitPrice !== initial.WechatUnitPrice) {
-      updates.push({ key: 'WechatUnitPrice', value: sanitized.WechatUnitPrice })
     }
 
     if (sanitized.WechatMinTopUp !== initial.WechatMinTopUp) {
@@ -1710,6 +1703,7 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
+                {/* 单价复用「常规」的价格，这里不再单独配置，避免展示金额与实际扣款分叉。 */}
                 <Alert>
                   <ShieldAlert className='h-4 w-4' />
                   <AlertTitle>{t('Notification URL')}</AlertTitle>
@@ -1719,27 +1713,6 @@ export function PaymentSettingsSection({
                     )}
                   </AlertDescription>
                 </Alert>
-
-                {/* 单价与「常规」共享价格不一致时，充值页展示的金额与实际扣款会不同，
-                    并且按余额换算会直接亏汇率倍数，因此必须显式拦一下。 */}
-                {Number(currentFormValues.WechatUnitPrice) !==
-                  Number(currentFormValues.Price) && (
-                  <Alert variant='destructive'>
-                    <ShieldAlert className='h-4 w-4' />
-                    <AlertTitle>
-                      {t('Price differs from the general top-up price')}
-                    </AlertTitle>
-                    <AlertDescription>
-                      {t(
-                        'The general price is {{price}} but WeChat Pay charges {{wechat}} per US dollar of balance. Users would see one amount on the recharge page and be charged another. Set them to the same value.',
-                        {
-                          price: String(currentFormValues.Price),
-                          wechat: String(currentFormValues.WechatUnitPrice),
-                        }
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
 
                 <div className='grid gap-6 md:grid-cols-2'>
                   <FormField
@@ -1838,32 +1811,6 @@ export function PaymentSettingsSection({
                 </div>
 
                 <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='WechatUnitPrice'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {t('Price (local currency / USD)')}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type='number'
-                            step='0.01'
-                            min='0'
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'How much to charge for each US dollar of balance (WeChat Pay)'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   <FormField
                     control={form.control}
                     name='WechatMinTopUp'

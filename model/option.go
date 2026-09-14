@@ -139,7 +139,6 @@ func InitOptionMap() {
 	common.OptionMap["WechatPrivateKey"] = setting.WechatPrivateKey
 	common.OptionMap["WechatPublicKeyPem"] = setting.WechatPublicKeyPem
 	common.OptionMap["WechatPublicKeyId"] = setting.WechatPublicKeyId
-	common.OptionMap["WechatUnitPrice"] = strconv.FormatFloat(setting.WechatUnitPrice, 'f', -1, 64)
 	common.OptionMap["WechatMinTopUp"] = strconv.Itoa(setting.WechatMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
@@ -540,8 +539,6 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WechatPublicKeyPem = value
 	case "WechatPublicKeyId":
 		setting.WechatPublicKeyId = value
-	case "WechatUnitPrice":
-		setting.WechatUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WechatMinTopUp":
 		setting.WechatMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":

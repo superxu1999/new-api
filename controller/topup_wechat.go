@@ -66,6 +66,10 @@ func getWechatMinTopup() int64 {
 	return int64(minTopUp)
 }
 
+// getWechatPayMoney 计算应付金额。
+//
+// 单价直接复用「常规」的 Price，与易支付保持一致：两者都是人民币计费，
+// 各自维护一份单价只会让充值页展示的金额和实际扣款悄悄分叉。
 func getWechatPayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
@@ -83,7 +87,7 @@ func getWechatPayMoney(amount int64, group string) float64 {
 	}
 
 	return dAmount.
-		Mul(decimal.NewFromFloat(setting.WechatUnitPrice)).
+		Mul(decimal.NewFromFloat(operation_setting.Price)).
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
 		Mul(decimal.NewFromFloat(discount)).
 		InexactFloat64()

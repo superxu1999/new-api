@@ -350,7 +350,6 @@ export type BillingSettings = {
   WechatPrivateKey: string
   WechatPublicKeyPem: string
   WechatPublicKeyId: string
-  WechatUnitPrice: number
   WechatMinTopUp: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number

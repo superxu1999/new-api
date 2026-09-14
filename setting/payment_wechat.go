@@ -24,8 +24,6 @@ var (
 	WechatPublicKeyPem string
 	// WechatPublicKeyId 微信支付公钥 ID，对应应答头 Wechatpay-Serial。
 	WechatPublicKeyId string
-	// WechatUnitPrice 每 1 美元余额收取的本地货币金额，与 Price / StripeUnitPrice 同义。
-	WechatUnitPrice float64 = 1.0
 	// WechatMinTopUp 最低充值金额（美元余额单位）。
 	WechatMinTopUp int = 1
 )

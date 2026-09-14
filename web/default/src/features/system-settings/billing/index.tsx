@@ -111,7 +111,6 @@ const defaultBillingSettings: BillingSettings = {
   WechatPrivateKey: '',
   WechatPublicKeyPem: '',
   WechatPublicKeyId: '',
-  WechatUnitPrice: 1,
   WechatMinTopUp: 1,
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
