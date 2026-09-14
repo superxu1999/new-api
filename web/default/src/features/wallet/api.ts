@@ -39,6 +39,10 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  WechatPaymentRequest,
+  WechatPaymentResponse,
+  TopupRefundRecord,
+  WechatRefundRequest,
 } from './types'
 
 // ============================================================================
@@ -170,6 +174,30 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
+ * Calculate payment amount for direct WeChat Pay (Native scan)
+ */
+export async function calculateWechatAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/wechat/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request direct WeChat Pay (Native scan) order, returns the QR payload
+ */
+export async function requestWechatPayment(
+  request: WechatPaymentRequest
+): Promise<ApiResponse<WechatPaymentResponse>> {
+  const res = await api.post('/api/user/wechat/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Get affiliate code
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
@@ -232,5 +260,32 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Refund a successful WeChat Pay order (admin only)
+ */
+export async function requestWechatRefund(
+  request: WechatRefundRequest
+): Promise<ApiResponse<TopupRefundRecord>> {
+  const res = await api.post('/api/user/topup/refund', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * List refund records of a topup order (admin only)
+ */
+export async function getTopupRefunds(
+  tradeNo: string
+): Promise<ApiResponse<TopupRefundRecord[]>> {
+  const res = await api.get(
+    `/api/user/topup/refunds?trade_no=${encodeURIComponent(tradeNo)}`,
+    {
+      skipBusinessError: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }

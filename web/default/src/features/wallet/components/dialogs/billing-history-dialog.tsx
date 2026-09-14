@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import {
@@ -54,11 +53,15 @@ import {
   getPaymentMethodName,
   formatTimestamp,
 } from '../../lib/billing'
+import type { TopupRecord } from '../../types'
 
 interface BillingHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+
+/** Stable keys for the loading placeholder rows (index keys are disallowed). */
+const SKELETON_ROWS = ['s1', 's2', 's3', 's4', 's5']
 
 export function BillingHistoryDialog({
   open,
@@ -73,14 +76,19 @@ export function BillingHistoryDialog({
     keyword,
     loading,
     completing,
+    refunding,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
     handleCompleteOrder,
+    handleRefundOrder,
   } = useBillingHistory()
 
   const [confirmTradeNo, setConfirmTradeNo] = useState<string | null>(null)
+  const [refundTarget, setRefundTarget] = useState<TopupRecord | null>(null)
+  const [refundMoney, setRefundMoney] = useState('')
+  const [refundReason, setRefundReason] = useState('')
   const { copyToClipboard, copiedText } = useCopyToClipboard({ notify: false })
 
   const totalPages = Math.ceil(total / pageSize)
@@ -91,6 +99,30 @@ export function BillingHistoryDialog({
       if (success) {
         setConfirmTradeNo(null)
       }
+    }
+  }
+
+  const openRefundDialog = (record: TopupRecord) => {
+    setRefundTarget(record)
+    setRefundMoney((record.money - (record.refunded_money ?? 0)).toFixed(2))
+    setRefundReason('')
+  }
+
+  const handleConfirmRefund = async () => {
+    if (!refundTarget) {
+      return
+    }
+    const money = Number(refundMoney)
+    if (!Number.isFinite(money) || money <= 0) {
+      return
+    }
+    const success = await handleRefundOrder(
+      refundTarget.trade_no,
+      money,
+      refundReason
+    )
+    if (success) {
+      setRefundTarget(null)
     }
   }
 
@@ -147,10 +179,10 @@ export function BillingHistoryDialog({
 
           {/* Records List */}
           <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
-            {loading ? (
+            {loading && (
               <div className='space-y-3'>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className='rounded-lg border p-3 sm:p-4'>
+                {SKELETON_ROWS.map((row) => (
+                  <div key={row} className='rounded-lg border p-3 sm:p-4'>
                     <div className='flex items-start justify-between'>
                       <div className='flex-1 space-y-2'>
                         <Skeleton className='h-4 w-48' />
@@ -166,7 +198,8 @@ export function BillingHistoryDialog({
                   </div>
                 ))}
               </div>
-            ) : records.length === 0 ? (
+            )}
+            {!loading && records.length === 0 && (
               <div className='text-muted-foreground flex min-h-40 flex-col items-center justify-center py-10 text-center'>
                 <p className='text-sm font-medium'>
                   {t('No billing records found')}
@@ -177,10 +210,17 @@ export function BillingHistoryDialog({
                     : t('Your transaction history will appear here')}
                 </p>
               </div>
-            ) : (
+            )}
+            {!loading && records.length > 0 && (
               <div className='space-y-3'>
                 {records.map((record) => {
                   const statusConfig = getStatusConfig(record.status)
+                  const refundable = record.money - (record.refunded_money ?? 0)
+                  const canRefund =
+                    isAdmin &&
+                    record.payment_provider === 'wechat' &&
+                    record.status === 'success' &&
+                    refundable > 0.000001
                   return (
                     <div
                       key={record.id}
@@ -258,19 +298,46 @@ export function BillingHistoryDialog({
                         </div>
                       </div>
 
-                      {/* Admin Actions */}
-                      {isAdmin && record.status === 'pending' && (
-                        <div className='mt-4 flex justify-end'>
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            onClick={() => setConfirmTradeNo(record.trade_no)}
-                            disabled={completing}
-                          >
-                            {t('Complete Order')}
-                          </Button>
+                      {/* Refunded amount (direct WeChat Pay only) */}
+                      {record.refunded_money ? (
+                        <div className='mt-3 flex items-center justify-between text-xs'>
+                          <span className='text-muted-foreground'>
+                            {t('Refunded')}
+                          </span>
+                          <span className='font-medium'>
+                            {formatNumber(record.refunded_money)}
+                          </span>
                         </div>
-                      )}
+                      ) : null}
+
+                      {/* Admin Actions */}
+                      {isAdmin &&
+                        (record.status === 'pending' || canRefund) && (
+                          <div className='mt-4 flex justify-end gap-2'>
+                            {record.status === 'pending' && (
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() =>
+                                  setConfirmTradeNo(record.trade_no)
+                                }
+                                disabled={completing}
+                              >
+                                {t('Complete Order')}
+                              </Button>
+                            )}
+                            {canRefund && (
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => openRefundDialog(record)}
+                                disabled={refunding}
+                              >
+                                {t('Refund')}
+                              </Button>
+                            )}
+                          </div>
+                        )}
                     </div>
                   )
                 })}
@@ -342,6 +409,86 @@ export function BillingHistoryDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Refund Dialog (direct WeChat Pay, admin only) */}
+      <Dialog
+        open={!!refundTarget}
+        onOpenChange={(open) => !open && setRefundTarget(null)}
+        title={t('Refund order')}
+        description={t(
+          'The refund is sent to WeChat Pay and the corresponding quota is deducted from the user balance.'
+        )}
+        contentClassName='sm:max-w-[460px]'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setRefundTarget(null)}
+              disabled={refunding}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='button'
+              onClick={handleConfirmRefund}
+              disabled={refunding || Number(refundMoney) <= 0}
+            >
+              {refunding ? t('Processing...') : t('Confirm refund')}
+            </Button>
+          </>
+        }
+      >
+        {refundTarget && (
+          <div className='space-y-4'>
+            <div className='text-muted-foreground font-mono text-xs break-all'>
+              {refundTarget.trade_no}
+            </div>
+            <div className='grid grid-cols-2 gap-3 text-sm'>
+              <div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Payment')}
+                </div>
+                <div className='font-medium'>
+                  {formatNumber(refundTarget.money)}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Refundable')}
+                </div>
+                <div className='font-medium'>
+                  {formatNumber(
+                    refundTarget.money - (refundTarget.refunded_money ?? 0)
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='refund-money'>{t('Refund amount')}</Label>
+              <Input
+                id='refund-money'
+                type='number'
+                step='0.01'
+                min='0'
+                value={refundMoney}
+                onChange={(e) => setRefundMoney(e.target.value)}
+              />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='refund-reason'>{t('Refund reason')}</Label>
+              <Input
+                id='refund-reason'
+                placeholder={t('Optional')}
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+      </Dialog>
     </>
   )
 }

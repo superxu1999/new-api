@@ -22,6 +22,28 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	// RefundedMoney 该订单已成功退款的总额（本地货币）。累计值，便于列表直接展示剩余可退金额。
+	RefundedMoney float64 `json:"refunded_money" gorm:"default:0"`
+}
+
+// TopUpRefund 记录每一次退款。同一笔充值订单允许多次部分退款，因此独立成表，
+// 逐笔记录渠道返回前的 pending 状态与最终结果。
+type TopUpRefund struct {
+	Id      int    `json:"id"`
+	UserId  int    `json:"user_id" gorm:"index"`
+	TopUpId int    `json:"top_up_id" gorm:"index"`
+	TradeNo string `json:"trade_no" gorm:"index;type:varchar(255)"` // 原充值订单号
+	// RefundNo 商户退款单号，也是与渠道对账的键
+	RefundNo string `json:"refund_no" gorm:"unique;type:varchar(255);index"`
+	// Money 退款金额（本地货币），Quota 为对应扣回的额度
+	Money        float64 `json:"money"`
+	Quota        int     `json:"quota"`
+	Status       string  `json:"status" gorm:"type:varchar(20)"`
+	Reason       string  `json:"reason" gorm:"type:varchar(255)"`
+	FailReason   string  `json:"fail_reason" gorm:"type:varchar(512)"`
+	OperatorId   int     `json:"operator_id"`
+	CreateTime   int64   `json:"create_time"`
+	CompleteTime int64   `json:"complete_time"`
 }
 
 const (
@@ -30,6 +52,7 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodBalance      = "balance"
+	PaymentMethodWechat       = "wechat"
 )
 
 const (
@@ -39,12 +62,20 @@ const (
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderBalance      = "balance"
+	PaymentProviderWechat       = "wechat"
+)
+
+const (
+	TopUpRefundStatusPending = "pending"
+	TopUpRefundStatusSuccess = "success"
+	TopUpRefundStatusFailed  = "failed"
 )
 
 var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrTopUpRefundNotFound   = errors.New("退款单不存在")
 )
 
 func (topUp *TopUp) Insert() error {
@@ -585,5 +616,169 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
+	return nil
+}
+
+// RechargeWechat 处理微信支付成功入账。
+// transactionId 为微信支付订单号，仅用于日志审计。
+func RechargeWechat(tradeNo string, transactionId string, callerIp string) (err error) {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quotaToAdd int
+	var userId int
+	var paymentMethod string
+	var paidMoney float64
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return errors.New("充值订单不存在")
+		}
+		if topUp.PaymentProvider != PaymentProviderWechat {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil // 幂等：微信会重推回调，已入账直接返回
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		quotaToAdd = common.QuotaFromFloat(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).InexactFloat64())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		userId = topUp.UserId
+		paymentMethod = topUp.PaymentMethod
+		paidMoney = topUp.Money
+		return nil
+	})
+
+	if err != nil {
+		common.SysError("wechat topup failed: " + err.Error())
+		return err
+	}
+	if quotaToAdd <= 0 {
+		return nil
+	}
+
+	// DB 已直接写入，需清掉 Redis 里的用户缓存，否则额度视图会滞后。
+	if err := InvalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache after wechat topup: " + err.Error())
+	}
+
+	RecordTopupLog(userId, fmt.Sprintf("微信支付充值成功，充值额度: %v，支付金额: %.2f，微信订单号: %s", logger.FormatQuota(quotaToAdd), paidMoney, transactionId), callerIp, paymentMethod, PaymentProviderWechat)
+	return nil
+}
+
+func (refund *TopUpRefund) Insert() error {
+	return DB.Create(refund).Error
+}
+
+func GetTopUpRefundByRefundNo(refundNo string) *TopUpRefund {
+	if refundNo == "" {
+		return nil
+	}
+	refund := &TopUpRefund{}
+	if err := DB.Where("refund_no = ?", refundNo).First(refund).Error; err != nil {
+		return nil
+	}
+	return refund
+}
+
+// GetTopUpRefundsByTradeNo 返回某笔充值订单的全部退款记录，按时间倒序。
+func GetTopUpRefundsByTradeNo(tradeNo string) ([]*TopUpRefund, error) {
+	refunds := make([]*TopUpRefund, 0)
+	err := DB.Where("trade_no = ?", tradeNo).Order("id desc").Find(&refunds).Error
+	return refunds, err
+}
+
+// SettleTopUpRefund 落地退款终态。成功时在同一事务里扣回用户额度并累加订单已退款金额；
+// 重复调用或已处于终态时返回 ErrTopUpRefundNotFound / 幂等成功。
+func SettleTopUpRefund(refundNo string, success bool, failReason string, callerIp string) error {
+	if refundNo == "" {
+		return ErrTopUpRefundNotFound
+	}
+
+	var (
+		userId      int
+		quotaToTake int
+		refundMoney float64
+		tradeNo     string
+	)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		refund := &TopUpRefund{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("refund_no = ?", refundNo).First(refund).Error; err != nil {
+			return ErrTopUpRefundNotFound
+		}
+		if refund.Status == TopUpRefundStatusSuccess {
+			return nil // 幂等
+		}
+		if refund.Status == TopUpRefundStatusFailed {
+			return nil
+		}
+
+		refund.CompleteTime = common.GetTimestamp()
+		if !success {
+			refund.Status = TopUpRefundStatusFailed
+			refund.FailReason = failReason
+			return tx.Save(refund).Error
+		}
+
+		refund.Status = TopUpRefundStatusSuccess
+		if err := tx.Save(refund).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&TopUp{}).Where("id = ?", refund.TopUpId).
+			Update("refunded_money", gorm.Expr("refunded_money + ?", refund.Money)).Error; err != nil {
+			return err
+		}
+		// 退款可能把额度扣成负数：用户已经消费掉的额度需要形成欠账，
+		// 这里不做下限截断，保持账目可追溯。
+		if refund.Quota > 0 {
+			if err := tx.Model(&User{}).Where("id = ?", refund.UserId).
+				Update("quota", gorm.Expr("quota - ?", refund.Quota)).Error; err != nil {
+				return err
+			}
+		}
+
+		userId = refund.UserId
+		quotaToTake = refund.Quota
+		refundMoney = refund.Money
+		tradeNo = refund.TradeNo
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if userId == 0 {
+		return nil
+	}
+
+	if err := InvalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache after wechat refund: " + err.Error())
+	}
+
+	RecordTopupLog(userId, fmt.Sprintf("微信支付退款成功，退款金额: %.2f，扣回额度: %v，订单号: %s", refundMoney, logger.FormatQuota(quotaToTake), tradeNo), callerIp, PaymentMethodWechat, PaymentProviderWechat)
 	return nil
 }

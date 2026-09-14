@@ -150,6 +150,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether direct WeChat Pay (Native scan) topup is enabled */
+  enable_wechat_topup?: boolean
+  /** Minimum topup amount for direct WeChat Pay */
+  wechat_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -202,6 +206,28 @@ export interface WaffoPaymentRequest {
 export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
+}
+
+/**
+ * Direct WeChat Pay (Native scan) payment request parameters
+ */
+export interface WechatPaymentRequest {
+  /** Topup amount */
+  amount: number
+  /** Fixed payment method identifier for the direct WeChat Pay gateway */
+  payment_method: 'wechat'
+}
+
+/**
+ * Direct WeChat Pay (Native scan) payment response
+ */
+export interface WechatPaymentResponse {
+  /** Payload to be rendered as a QR code (weixin://wxpay/bizpayurl?...) */
+  code_url: string
+  /** Local order number used to poll the settlement status */
+  trade_no: string
+  /** Amount to pay in local currency (2 decimals) */
+  money: string
 }
 
 /**
@@ -265,12 +291,44 @@ export interface TopupRecord {
   trade_no: string
   /** Payment method type */
   payment_method: string
+  /** Payment gateway that owns this order (epay / stripe / creem / waffo / wechat) */
+  payment_provider?: string
   /** Creation timestamp */
   create_time: number
   /** Completion timestamp */
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Total amount already refunded (local currency); only meaningful for direct WeChat Pay */
+  refunded_money?: number
+}
+
+/**
+ * Refund record of a topup order
+ */
+export interface TopupRefundRecord {
+  id: number
+  user_id: number
+  top_up_id: number
+  trade_no: string
+  refund_no: string
+  money: number
+  quota: number
+  status: 'pending' | 'success' | 'failed'
+  reason?: string
+  fail_reason?: string
+  create_time: number
+  complete_time?: number
+}
+
+/**
+ * Refund request (admin only)
+ */
+export interface WechatRefundRequest {
+  trade_no: string
+  /** Leave empty or 0 to refund the remaining refundable amount */
+  money?: number
+  reason?: string
 }
 
 /**

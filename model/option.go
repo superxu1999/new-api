@@ -132,6 +132,15 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["WechatMchId"] = setting.WechatMchId
+	common.OptionMap["WechatAppId"] = setting.WechatAppId
+	common.OptionMap["WechatApiV3Key"] = setting.WechatApiV3Key
+	common.OptionMap["WechatCertSerialNo"] = setting.WechatCertSerialNo
+	common.OptionMap["WechatPrivateKey"] = setting.WechatPrivateKey
+	common.OptionMap["WechatPublicKeyPem"] = setting.WechatPublicKeyPem
+	common.OptionMap["WechatPublicKeyId"] = setting.WechatPublicKeyId
+	common.OptionMap["WechatUnitPrice"] = strconv.FormatFloat(setting.WechatUnitPrice, 'f', -1, 64)
+	common.OptionMap["WechatMinTopUp"] = strconv.Itoa(setting.WechatMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -517,6 +526,24 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "WechatMchId":
+		setting.WechatMchId = value
+	case "WechatAppId":
+		setting.WechatAppId = value
+	case "WechatApiV3Key":
+		setting.WechatApiV3Key = value
+	case "WechatCertSerialNo":
+		setting.WechatCertSerialNo = value
+	case "WechatPrivateKey":
+		setting.WechatPrivateKey = value
+	case "WechatPublicKeyPem":
+		setting.WechatPublicKeyPem = value
+	case "WechatPublicKeyId":
+		setting.WechatPublicKeyId = value
+	case "WechatUnitPrice":
+		setting.WechatUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "WechatMinTopUp":
+		setting.WechatMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

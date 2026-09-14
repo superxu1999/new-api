@@ -108,3 +108,25 @@ func isEpayWebhookConfigured() bool {
 func isEpayWebhookEnabled() bool {
 	return isEpayTopUpEnabled()
 }
+
+// 微信支付直连（Native 扫码 + 退款）。凭据齐全即启用，与 Stripe / Creem 一致。
+func isWechatTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return isWechatWebhookConfigured()
+}
+
+func isWechatWebhookConfigured() bool {
+	return strings.TrimSpace(setting.WechatMchId) != "" &&
+		strings.TrimSpace(setting.WechatAppId) != "" &&
+		strings.TrimSpace(setting.WechatApiV3Key) != "" &&
+		strings.TrimSpace(setting.WechatCertSerialNo) != "" &&
+		strings.TrimSpace(setting.WechatPrivateKey) != "" &&
+		strings.TrimSpace(setting.WechatPublicKeyPem) != ""
+}
+
+// 回调/退款接口共用的开关：未配置时直接拒绝，避免未配置状态下被伪造回调。
+func isWechatWebhookEnabled() bool {
+	return isWechatTopUpEnabled()
+}

@@ -176,13 +176,41 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  WechatMchId: z.string(),
+  WechatAppId: z.string(),
+  WechatApiV3Key: z.string(),
+  WechatCertSerialNo: z.string(),
+  WechatPrivateKey: z.string(),
+  WechatPublicKeyPem: z.string(),
+  WechatPublicKeyId: z.string(),
+  WechatUnitPrice: z.coerce.number().min(0),
+  WechatMinTopUp: z.coerce.number().min(1),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
 type WaffoFormFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
+
+/**
+ * 微信支付直连（Native 扫码 + 退款）配置。
+ * 私钥与 APIv3 密钥不会下发给前端，保存时留空表示保持原值。
+ */
+export type WechatSettingsValues = {
+  WechatMchId: string
+  WechatAppId: string
+  WechatApiV3Key: string
+  WechatCertSerialNo: string
+  WechatPrivateKey: string
+  WechatPublicKeyPem: string
+  WechatPublicKeyId: string
+  WechatUnitPrice: number
+  WechatMinTopUp: number
+}
+
 type PaymentBaseFormValues = Omit<
   PaymentFormValues,
-  keyof WaffoFormFieldValues | keyof WaffoPancakeSettingsValues
+  | keyof WaffoFormFieldValues
+  | keyof WaffoPancakeSettingsValues
+  | keyof WechatSettingsValues
 >
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
@@ -201,6 +229,7 @@ type PaymentSettingsSectionProps = {
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
   waffoPancakeProvisionedStoreID?: string
   waffoPancakeProvisionedProductID?: string
+  wechatDefaultValues: WechatSettingsValues
   complianceDefaults: PaymentComplianceDefaults
 }
 
@@ -219,6 +248,7 @@ export function PaymentSettingsSection({
   waffoPancakeDefaultValues,
   waffoPancakeProvisionedStoreID,
   waffoPancakeProvisionedProductID,
+  wechatDefaultValues,
   complianceDefaults,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
@@ -229,8 +259,14 @@ export function PaymentSettingsSection({
       ...defaultValues,
       ...waffoDefaultValues,
       ...waffoPancakeDefaultValues,
+      ...wechatDefaultValues,
     }),
-    [defaultValues, waffoDefaultValues, waffoPancakeDefaultValues]
+    [
+      defaultValues,
+      waffoDefaultValues,
+      waffoPancakeDefaultValues,
+      wechatDefaultValues,
+    ]
   )
   const initialRef = React.useRef(initialFormValues)
   const defaultsSignature = React.useMemo(
@@ -457,6 +493,15 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      WechatMchId: values.WechatMchId.trim(),
+      WechatAppId: values.WechatAppId.trim(),
+      WechatApiV3Key: values.WechatApiV3Key.trim(),
+      WechatCertSerialNo: values.WechatCertSerialNo.trim(),
+      WechatPrivateKey: values.WechatPrivateKey.trim(),
+      WechatPublicKeyPem: values.WechatPublicKeyPem.trim(),
+      WechatPublicKeyId: values.WechatPublicKeyId.trim(),
+      WechatUnitPrice: values.WechatUnitPrice,
+      WechatMinTopUp: values.WechatMinTopUp,
     }
 
     const initial = {
@@ -504,9 +549,74 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      WechatMchId: initialRef.current.WechatMchId.trim(),
+      WechatAppId: initialRef.current.WechatAppId.trim(),
+      WechatApiV3Key: initialRef.current.WechatApiV3Key.trim(),
+      WechatCertSerialNo: initialRef.current.WechatCertSerialNo.trim(),
+      WechatPrivateKey: initialRef.current.WechatPrivateKey.trim(),
+      WechatPublicKeyPem: initialRef.current.WechatPublicKeyPem.trim(),
+      WechatPublicKeyId: initialRef.current.WechatPublicKeyId.trim(),
+      WechatUnitPrice: initialRef.current.WechatUnitPrice,
+      WechatMinTopUp: initialRef.current.WechatMinTopUp,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
+
+    // 微信支付直连。私钥与 APIv3 密钥不会下发到前端，因此只有用户重新填写时才提交，
+    // 留空即保持原值。
+    if (sanitized.WechatMchId !== initial.WechatMchId) {
+      updates.push({ key: 'WechatMchId', value: sanitized.WechatMchId })
+    }
+
+    if (sanitized.WechatAppId !== initial.WechatAppId) {
+      updates.push({ key: 'WechatAppId', value: sanitized.WechatAppId })
+    }
+
+    if (sanitized.WechatCertSerialNo !== initial.WechatCertSerialNo) {
+      updates.push({
+        key: 'WechatCertSerialNo',
+        value: sanitized.WechatCertSerialNo,
+      })
+    }
+
+    if (sanitized.WechatPublicKeyId !== initial.WechatPublicKeyId) {
+      updates.push({
+        key: 'WechatPublicKeyId',
+        value: sanitized.WechatPublicKeyId,
+      })
+    }
+
+    if (sanitized.WechatUnitPrice !== initial.WechatUnitPrice) {
+      updates.push({ key: 'WechatUnitPrice', value: sanitized.WechatUnitPrice })
+    }
+
+    if (sanitized.WechatMinTopUp !== initial.WechatMinTopUp) {
+      updates.push({ key: 'WechatMinTopUp', value: sanitized.WechatMinTopUp })
+    }
+
+    if (sanitized.WechatApiV3Key && sanitized.WechatApiV3Key !== initial.WechatApiV3Key) {
+      updates.push({ key: 'WechatApiV3Key', value: sanitized.WechatApiV3Key })
+    }
+
+    if (
+      sanitized.WechatPrivateKey &&
+      sanitized.WechatPrivateKey !== initial.WechatPrivateKey
+    ) {
+      updates.push({
+        key: 'WechatPrivateKey',
+        value: sanitized.WechatPrivateKey,
+      })
+    }
+
+    if (
+      sanitized.WechatPublicKeyPem &&
+      sanitized.WechatPublicKeyPem !== initial.WechatPublicKeyPem
+    ) {
+      updates.push({
+        key: 'WechatPublicKeyPem',
+        value: sanitized.WechatPublicKeyPem,
+      })
+    }
 
     if (sanitized.PayAddress !== initial.PayAddress) {
       updates.push({ key: 'PayAddress', value: sanitized.PayAddress })
@@ -877,11 +987,12 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[50rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
+                <TabsTrigger value='wechat'>{t('WeChat Pay')}</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
               </TabsList>
@@ -1580,6 +1691,248 @@ export function PaymentSettingsSection({
                       </FormControl>
                       <FormDescription>
                         {t('Configure Creem products. Provide a JSON array.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value='wechat' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>{t('WeChat Pay')}</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Direct WeChat Pay (Native scan). Funds settle to your own merchant account.'
+                    )}
+                  </p>
+                </div>
+
+                <Alert>
+                  <ShieldAlert className='h-4 w-4' />
+                  <AlertTitle>{t('Notification URL')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'Register /api/wechat/webhook on your site domain as the notification URL in the WeChat Pay merchant platform. It must be public HTTPS and must not carry query parameters.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='WechatMchId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Merchant ID (mchid)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='1900000001'
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Found under Account Center - Merchant Info in the WeChat Pay merchant platform.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='WechatAppId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Bound AppID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='wx1234567890abcdef'
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'AppID of the official account / mini program bound to this merchant ID. Required by Native orders.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='WechatCertSerialNo'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Certificate serial number')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='1DDE55AD98ED71D6EDD4A4A16996DE7B47773A8C'
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Serial number of the merchant API certificate, under Account Center - API Security.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='WechatPublicKeyId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('WeChat Pay public key ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='PUB_KEY_ID_0000000000000000000000000000000000'
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Public key ID shown under Account Center - API Security - Manage public key.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='WechatUnitPrice'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Price (local currency / USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min='0'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'How much to charge for each US dollar of balance (WeChat Pay)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='WechatMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormControl>
+                          <Input type='number' step='1' min='1' {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Smallest USD amount users can recharge (WeChat Pay)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='WechatApiV3Key'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('APIv3 key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            placeholder={t('Enter new key to update')}
+                            autoComplete='new-password'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            '32 characters. Used to decrypt notifications. Leave blank unless rotating.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='WechatPrivateKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Merchant API private key')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={5}
+                            className='font-mono text-xs'
+                            placeholder={t(
+                              'Paste the contents of apiclient_key.pem'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Used to sign APIv3 requests. Leave blank unless rotating.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='WechatPublicKeyPem'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('WeChat Pay public key')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={5}
+                          className='font-mono text-xs'
+                          placeholder={t('Paste the downloaded public key')}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Used to verify API responses and notifications. Leave blank unless rotating.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

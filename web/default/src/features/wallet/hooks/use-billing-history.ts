@@ -26,6 +26,7 @@ import {
   getUserBillingHistory,
   getAllBillingHistory,
   completeOrder,
+  requestWechatRefund,
   isApiSuccess,
 } from '../api'
 import type { TopupRecord } from '../types'
@@ -52,6 +53,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [refunding, setRefunding] = useState(false)
 
   /**
    * Fetch billing history
@@ -119,6 +121,47 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   )
 
   /**
+   * Refund a successful WeChat Pay order (admin only)
+   */
+  const handleRefundOrder = useCallback(
+    async (tradeNo: string, money: number, reason: string) => {
+      if (!isAdmin) {
+        toast.error(i18next.t('Admin access required'))
+        return false
+      }
+
+      setRefunding(true)
+      try {
+        const response = await requestWechatRefund({
+          trade_no: tradeNo,
+          money,
+          reason,
+        })
+        if (isApiSuccess(response)) {
+          const pending = response.data?.status === 'pending'
+          toast.success(
+            pending
+              ? i18next.t('Refund submitted, waiting for WeChat Pay result')
+              : i18next.t('Refund completed successfully')
+          )
+          await fetchBillingHistory()
+          return true
+        }
+        toast.error(response.message || i18next.t('Failed to refund order'))
+        return false
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to refund order:', error)
+        toast.error(i18next.t('Failed to refund order'))
+        return false
+      } finally {
+        setRefunding(false)
+      }
+    },
+    [isAdmin, fetchBillingHistory]
+  )
+
+  /**
    * Change page
    */
   const handlePageChange = useCallback((newPage: number) => {
@@ -154,11 +197,13 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     keyword,
     loading,
     completing,
+    refunding,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
     handleCompleteOrder,
+    handleRefundOrder,
     refresh: fetchBillingHistory,
   }
 }

@@ -87,6 +87,17 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 /**
+ * Check if payment method is direct WeChat Pay (Native scan)
+ *
+ * Native does not redirect anywhere: the backend returns a code_url that must be
+ * rendered as a QR code in our own page, then the order is polled until the
+ * upstream callback settles it. It therefore needs its own dispatch branch.
+ */
+export function isWechatPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.WECHAT_NATIVE
+}
+
+/**
  * Get default payment type from topup info
  */
 export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
