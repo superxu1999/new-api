@@ -126,9 +126,11 @@ export function RechargeFormCard({
     }
   }
 
+  // 每个网关都要在这里登记一次，否则只启用该网关时整块在线充值区域会被隐藏。
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
+    topupInfo?.enable_wechat_topup ||
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup

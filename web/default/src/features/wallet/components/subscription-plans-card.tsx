@@ -68,9 +68,17 @@ interface SubscriptionPlansCardProps {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
+// 订阅购买弹窗里标着「易支付」的那组方式，必须真的走 Epay。
+// 专属网关（stripe / creem / 直连微信 / waffo_pancake）各自有独立的支付入口，
+// 混进来只会在提交时报「支付方式不存在」。
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
   return payMethods.filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
+    (m) =>
+      m?.type &&
+      m.type !== 'stripe' &&
+      m.type !== 'creem' &&
+      m.type !== 'wechat' &&
+      m.type !== 'waffo_pancake'
   )
 }
 
