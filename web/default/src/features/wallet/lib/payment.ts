@@ -149,6 +149,13 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
   }
 
+  // Direct WeChat Pay is appended to pay_methods but, unlike the gateways above,
+  // it has no dedicated branch here. Without this the form would open below the
+  // configured minimum whenever WeChat Pay is the only enabled gateway.
+  if (topupInfo.enable_wechat_topup) {
+    return topupInfo.wechat_min_topup || DEFAULT_MIN_TOPUP
+  }
+
   return DEFAULT_MIN_TOPUP
 }
 
