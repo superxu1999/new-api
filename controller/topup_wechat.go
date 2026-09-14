@@ -144,7 +144,8 @@ func RequestWechatPay(c *gin.Context) {
 	client, err := service.NewWechatPayClient()
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("微信支付 未就绪 error=%q", err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置微信支付"})
+		// 回显具体原因（缺少哪个字段、密钥长度等），否则管理员只看到"未配置"无法定位。
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "微信支付配置有误：" + err.Error()})
 		return
 	}
 
@@ -379,7 +380,7 @@ func AdminRequestWechatRefund(c *gin.Context) {
 	client, err := service.NewWechatPayClient()
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("微信支付退款 网关未就绪 error=%q", err.Error()))
-		common.ApiErrorMsg(c, "微信支付未配置")
+		common.ApiErrorMsg(c, "微信支付配置有误："+err.Error())
 		return
 	}
 

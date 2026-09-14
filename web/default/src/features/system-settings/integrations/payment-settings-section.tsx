@@ -1720,6 +1720,27 @@ export function PaymentSettingsSection({
                   </AlertDescription>
                 </Alert>
 
+                {/* 单价与「常规」共享价格不一致时，充值页展示的金额与实际扣款会不同，
+                    并且按余额换算会直接亏汇率倍数，因此必须显式拦一下。 */}
+                {Number(currentFormValues.WechatUnitPrice) !==
+                  Number(currentFormValues.Price) && (
+                  <Alert variant='destructive'>
+                    <ShieldAlert className='h-4 w-4' />
+                    <AlertTitle>
+                      {t('Price differs from the general top-up price')}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {t(
+                        'The general price is {{price}} but WeChat Pay charges {{wechat}} per US dollar of balance. Users would see one amount on the recharge page and be charged another. Set them to the same value.',
+                        {
+                          price: String(currentFormValues.Price),
+                          wechat: String(currentFormValues.WechatUnitPrice),
+                        }
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className='grid gap-6 md:grid-cols-2'>
                   <FormField
                     control={form.control}
