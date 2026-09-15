@@ -66,6 +66,20 @@ export async function getUserQuotaDataByUsers(params: {
   return res.data
 }
 
+// Download the consumption bill grouped by user and model as CSV (admin only).
+// The endpoint answers with a file, not the { success, message, data } envelope,
+// so the response is requested as a blob and the caller saves it.
+export async function exportUsageBill(params: {
+  start_timestamp: number
+  end_timestamp: number
+  username?: string
+}) {
+  return api.get<Blob>('/api/data/export', {
+    params,
+    responseType: 'blob',
+  })
+}
+
 export async function getFlowQuotaDates(
   params: {
     start_timestamp: number

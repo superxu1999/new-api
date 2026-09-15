@@ -37,6 +37,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { UsageBillExportDialog } from './components/users/usage-bill-export-dialog'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -50,11 +51,11 @@ import {
   DASHBOARD_DEFAULT_SECTION,
   DASHBOARD_SECTION_IDS,
 } from './section-registry'
-import {
-  type DashboardChartPreferences,
-  type DashboardFilters,
-  type QuotaDataItem,
-  type UserChartsFilters,
+import type {
+  DashboardChartPreferences,
+  DashboardFilters,
+  QuotaDataItem,
+  UserChartsFilters,
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
@@ -95,12 +96,17 @@ const LazyFlowCharts = lazy(() =>
   }))
 )
 
+/** 骨架屏行的稳定 key（禁止用数组下标当 key）。 */
+const LOG_STAT_SKELETON_ROWS = ['s1', 's2', 's3', 's4', 's5']
+const PERF_SKELETON_PILLS = ['p1', 'p2', 'p3']
+const PERF_SKELETON_BADGES = ['b1', 'b2']
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
       <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+        {LOG_STAT_SKELETON_ROWS.map((row) => (
+          <div key={row} className='px-4 py-3.5 sm:px-5 sm:py-4'>
             <Skeleton className='h-3.5 w-16' />
             <Skeleton className='mt-2 h-7 w-20' />
             <Skeleton className='mt-1.5 h-3.5 w-28' />
@@ -132,15 +138,15 @@ function PerformanceOverviewFallback() {
         <div className='flex items-center gap-2'>
           <Skeleton className='h-4 w-24' />
         </div>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className='flex items-center gap-1.5'>
+        {PERF_SKELETON_PILLS.map((pill) => (
+          <div key={pill} className='flex items-center gap-1.5'>
             <Skeleton className='h-3 w-14' />
             <Skeleton className='h-4 w-16' />
           </div>
         ))}
         <div className='ml-auto flex items-center gap-2'>
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className='h-5 w-28 rounded-full' />
+          {PERF_SKELETON_BADGES.map((badge) => (
+            <Skeleton key={badge} className='h-5 w-28 rounded-full' />
           ))}
         </div>
       </div>
@@ -287,7 +293,9 @@ export function Dashboard() {
         />
       </>
     ) : null
-  const sectionActions = modelActions ?? flowActions
+  const userActions =
+    activeSection === 'users' ? <UsageBillExportDialog /> : null
+  const sectionActions = modelActions ?? flowActions ?? userActions
 
   return (
     <SectionPageLayout>

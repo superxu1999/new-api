@@ -1,11 +1,17 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -128,4 +134,76 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 		"data":    dates,
 	})
 	return
+}
+
+// quotaDataMoney 把 quota 换算成展示货币金额，跟随当前「额度展示类型」设置。
+func quotaDataMoney(quota int) float64 {
+	usd := float64(quota) / common.QuotaPerUnit
+	return usd * operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
+}
+
+// ExportQuotaData 导出「用户 × 模型」维度的消费账单 CSV。
+//
+// 输出 UTF-8 BOM，否则 Excel 打开中文表头会乱码。
+// 参数错误返回 400：这是文件下载接口，不能用 {success:false} + 200 表达失败，
+// 否则前端拿到的是一个内容是错误 JSON 的 .csv 文件。
+func ExportQuotaData(c *gin.Context) {
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid start_timestamp"})
+		return
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 || endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid end_timestamp"})
+		return
+	}
+
+	rows, err := model.GetQuotaDataGroupByUserModel(startTimestamp, endTimestamp, c.Query("username"))
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("导出消费账单查询失败 start=%d end=%d error=%q",
+			startTimestamp, endTimestamp, err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "导出失败，请稍后重试"})
+		return
+	}
+
+	moneyHeader := "金额"
+	if symbol := operation_setting.GetCurrencySymbol(); symbol != "" {
+		moneyHeader = "金额(" + symbol + ")"
+	}
+
+	records := make([][]string, 0, len(rows)+1)
+	records = append(records, []string{
+		"用户ID", "用户名", "模型", "请求数", "Token用量", "额度(quota)", moneyHeader,
+	})
+	for _, row := range rows {
+		records = append(records, []string{
+			strconv.Itoa(row.UserID),
+			row.Username,
+			row.ModelName,
+			strconv.Itoa(row.Count),
+			strconv.Itoa(row.TokenUsed),
+			strconv.Itoa(row.Quota),
+			strconv.FormatFloat(quotaDataMoney(row.Quota), 'f', 4, 64),
+		})
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM
+	writer := csv.NewWriter(&buf)
+	if err := writer.WriteAll(records); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("导出消费账单写入 CSV 失败 error=%q", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "导出失败，请稍后重试"})
+		return
+	}
+	writer.Flush()
+
+	fileName := fmt.Sprintf("usage-bill_%s_%s.csv",
+		time.Unix(startTimestamp, 0).Format("20060102"),
+		time.Unix(endTimestamp, 0).Format("20060102"))
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", buf.Bytes())
+
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("导出消费账单 user_id=%d start=%d end=%d username=%q rows=%d",
+		c.GetInt("id"), startTimestamp, endTimestamp, c.Query("username"), len(rows)))
 }

@@ -181,3 +181,22 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
 }
+
+// GetQuotaDataGroupByUserModel 按「用户 × 模型」聚合时间范围内的用量，用于导出消费账单。
+//
+// 数据来源是 quota_data（小时聚合表）而不是 logs：logs 会被「日志清理」删掉，
+// 而 quota_data 没有任何清理逻辑，是唯一能长期保留账单口径的表。
+func GetQuotaDataGroupByUserModel(startTime int64, endTime int64, username string) ([]*QuotaData, error) {
+	quotaDatas := make([]*QuotaData, 0)
+	query := DB.Table("quota_data").
+		Select("user_id, username, model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+	err := query.
+		Group("user_id, username, model_name").
+		Order("username asc, sum(quota) desc").
+		Find(&quotaDatas).Error
+	return quotaDatas, err
+}
