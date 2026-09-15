@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -67,6 +68,28 @@ func DecodeLocalTaskID(id string) (string, error) {
 // e.g., "https://your-server.com/v1/videos/task_xxxx/content"
 func BuildProxyURL(taskID string) string {
 	return fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+}
+
+// SettledVideoUsage 返回「已结算的真实视频用量」，未结算时返回 nil。
+//
+// 任务查询响应（new-api 原生格式的 data.usage，以及 OpenAI 视频格式的 usage）
+// 都要带上它：下游 new-api 实例靠 data.usage.total_tokens 决定能否在任务完成后
+// 按真实用量做差额结算，字段缺失就会一直按预扣额度收费。
+//
+// 未结算的任务返回 nil 而不是预估值：拿预估顶替会让下游记下一个恰好等于自己
+// 预扣的假「实际用量」，而这正是区分预估/实际要避免的。
+func SettledVideoUsage(task *model.Task) *dto.TaskUsage {
+	if task == nil || task.PrivateData.BillingContext == nil {
+		return nil
+	}
+	actualToken := task.PrivateData.BillingContext.VideoActualToken
+	if actualToken <= 0 {
+		return nil
+	}
+	return &dto.TaskUsage{
+		CompletionTokens: actualToken,
+		TotalTokens:      actualToken,
+	}
 }
 
 // Status-to-progress mapping constants for polling updates.

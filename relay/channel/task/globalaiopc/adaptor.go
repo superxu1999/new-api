@@ -32,17 +32,17 @@ type assetRef struct {
 }
 
 type requestPayload struct {
-	Model           string         `json:"model"`
-	Prompt          string         `json:"prompt"`
-	Duration        *int           `json:"duration,omitempty"`
-	AspectRatio     string         `json:"aspect_ratio,omitempty"`
-	Resolution      string         `json:"resolution,omitempty"`
-	GenerateAudio   *bool          `json:"generate_audio,omitempty"`
-	Watermark       *bool          `json:"watermark,omitempty"`
-	Seed            *int           `json:"seed,omitempty"`
-	ReferenceImages []assetRef     `json:"reference_images,omitempty"`
-	ReferenceVideos []assetRef     `json:"reference_videos,omitempty"`
-	ReferenceAudios []assetRef     `json:"reference_audios,omitempty"`
+	Model           string     `json:"model"`
+	Prompt          string     `json:"prompt"`
+	Duration        *int       `json:"duration,omitempty"`
+	AspectRatio     string     `json:"aspect_ratio,omitempty"`
+	Resolution      string     `json:"resolution,omitempty"`
+	GenerateAudio   *bool      `json:"generate_audio,omitempty"`
+	Watermark       *bool      `json:"watermark,omitempty"`
+	Seed            *int       `json:"seed,omitempty"`
+	ReferenceImages []assetRef `json:"reference_images,omitempty"`
+	ReferenceVideos []assetRef `json:"reference_videos,omitempty"`
+	ReferenceAudios []assetRef `json:"reference_audios,omitempty"`
 }
 
 type createResponse struct {
@@ -270,6 +270,8 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	if strings.ToLower(res.Status) == "failed" && res.Error != nil {
 		openAIVideo.Error = &dto.OpenAIVideoError{Message: *res.Error}
 	}
+	// 下游按 data.usage 结算，OpenAI 视频格式这里同样要带上已结算的真实用量
+	openAIVideo.Usage = taskcommon.SettledVideoUsage(originTask)
 	return common.Marshal(openAIVideo)
 }
 

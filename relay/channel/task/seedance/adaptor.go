@@ -117,9 +117,9 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 // 上游形态由 base_url 结尾判定：
-//  1) 本地 seedance-proxy：base_url 含 /aicc/seedance 前缀（或为纯代理地址），
+//  1. 本地 seedance-proxy：base_url 含 /aicc/seedance 前缀（或为纯代理地址），
 //     走 ARK 原生路径 /api/v3/contents/generations/tasks（下载需 ?model= 复用 Client）。
-//  2) 云厂商网关直连（base_url 已含 API 版本前缀）：公开路径直接拼接
+//  2. 云厂商网关直连（base_url 已含 API 版本前缀）：公开路径直接拼接
 //     /contents/generations/tasks。包括两种：
 //     - ARK 风格网关挂在 /v1 下（如天翼云息壤，base_url 以 /v1 结尾）；
 //     - 移动云 MaaS 网关（base_url 以 /api/v3 结尾），/api/v3 即其版本前缀。
@@ -451,5 +451,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		}
 	}
 
+	// 下游按 data.usage 结算，OpenAI 视频格式这里同样要带上已结算的真实用量
+	openAIVideo.Usage = taskcommon.SettledVideoUsage(originTask)
 	return common.Marshal(openAIVideo)
 }

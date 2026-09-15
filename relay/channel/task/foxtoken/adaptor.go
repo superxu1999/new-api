@@ -28,10 +28,10 @@ import (
 // ============================
 
 type requestPayload struct {
-	Model     string         `json:"model"`
-	Prompt    string         `json:"prompt"`
-	Duration  *int           `json:"duration,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	Model    string         `json:"model"`
+	Prompt   string         `json:"prompt"`
+	Duration *int           `json:"duration,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 type createResponse struct {
@@ -236,5 +236,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName
+	// 下游按 data.usage 结算，OpenAI 视频格式这里同样要带上已结算的真实用量
+	openAIVideo.Usage = taskcommon.SettledVideoUsage(originTask)
 	return common.Marshal(openAIVideo)
 }

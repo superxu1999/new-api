@@ -28,6 +28,11 @@ type OpenAIVideo struct {
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`
 	Error              *OpenAIVideoError `json:"error,omitempty"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
+	// Usage 是上游官方口径的视频用量（与 new-api 原生任务格式的 data.usage 同构），
+	// 让走 OpenAI 视频协议的下游实例也能在任务完成后做差额结算。
+	// 只在「上游返回过真实用量、本站已结算」时填充。OpenAI 官方响应没有该字段，
+	// 多出来的键对标准客户端无影响。
+	Usage *TaskUsage `json:"usage,omitempty"`
 }
 
 func (m *OpenAIVideo) SetProgressStr(progress string) {

@@ -566,12 +566,6 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 	}
 	// 下游 new-api 实例按 data.usage.total_tokens 决定是否做完成后的差额结算，
 	// 这里必须把「上游返回过的真实用量」带出去，否则下游只能一直按预扣额度收费。
-	// 未结算的任务不填：拿预估值顶上会让下游记下一个假的「实际用量」。
-	if billingContext := task.PrivateData.BillingContext; billingContext != nil && billingContext.VideoActualToken > 0 {
-		result.Usage = &dto.TaskUsage{
-			CompletionTokens: billingContext.VideoActualToken,
-			TotalTokens:      billingContext.VideoActualToken,
-		}
-	}
+	result.Usage = taskcommon.SettledVideoUsage(task)
 	return result
 }

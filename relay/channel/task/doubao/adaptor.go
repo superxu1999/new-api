@@ -359,5 +359,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		}
 	}
 
+	// 下游按 data.usage 结算，OpenAI 视频格式这里同样要带上已结算的真实用量
+	openAIVideo.Usage = taskcommon.SettledVideoUsage(originTask)
 	return common.Marshal(openAIVideo)
 }
