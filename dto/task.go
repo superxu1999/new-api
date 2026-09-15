@@ -29,6 +29,16 @@ func (t *TaskResponse[T]) IsSuccess() bool {
 	return t.Code == TaskSuccessCode
 }
 
+// TaskUsage 是上游官方口径的用量。
+//
+// 字段名必须与下游适配器的解析结构保持一致（relay/channel/task/foxtoken
+// 与内嵌它的 cyai 读的是 data.usage.total_tokens）；下游的 new-api 实例靠它
+// 在任务完成后按真实用量做差额结算，名字对不上就等于没返回。
+type TaskUsage struct {
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 type TaskDto struct {
 	ID         int64           `json:"id"`
 	CreatedAt  int64           `json:"created_at"`
@@ -50,6 +60,10 @@ type TaskDto struct {
 	Properties any             `json:"properties"`
 	Username   string          `json:"username,omitempty"`
 	Data       json.RawMessage `json:"data"`
+	// Usage 只在「上游返回过真实用量、本站已按它完成差额结算」时填充，
+	// 供下游 new-api 实例做同样的差额结算。
+	// 未结算的任务绝不能拿预估值冒充：那会让下游记下一个恰好像预估的假实际用量。
+	Usage *TaskUsage `json:"usage,omitempty"`
 	// PreConsumedQuota 是提交时的预扣额度。Quota 是差额结算后的最终额度，
 	// 想还原「预扣 → 实付 → 差额」必须把它一起返回。
 	PreConsumedQuota int `json:"pre_consumed_quota,omitempty"`
