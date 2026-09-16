@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -264,25 +265,39 @@ func EstimateSeedanceBilling(c *gin.Context, info *relaycommon.RelayInfo, suppor
 	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
+		// 到这里模型已确认是 seedance 系：放弃计费会静默退化成基础额度兜底，必须留痕。
+		logger.LogWarn(c, fmt.Sprintf("seedance 计费估算失败（读取任务请求）：model=%s, err=%v", info.OriginModelName, err))
 		return nil
 	}
 	res, _ := req.Metadata["resolution"].(string)
 	// 仅在该渠道确实支持参考视频时才按「含视频」计费。
 	hasVideo := supportsInputVideo && HasInputVideo(req.Metadata)
+	// 未填(0)或自动(-1)时拿不到用户声明的时长：按上游默认时长预扣，绝不能在这里放弃。
+	// 放弃会让整个视频分档计费失效，退化成 ModelRatio 基础额度兜底，而且因为
+	// OtherRatios 里没有 video_billing，任务完成后也不会做 token 差额结算（实测少收近十倍）。
 	seconds := ExtractSeconds(&req)
+	if seconds <= 0 {
+		seconds = SeedanceDefaultSeconds(info.OriginModelName)
+	}
 
 	token, err := SeedanceToken(seconds, res, hasVideo)
 	if err != nil || token <= 0 {
+		logger.LogWarn(c, fmt.Sprintf("seedance 计费估算失败（时长非法）：model=%s, seconds=%d, res=%s, err=%v",
+			info.OriginModelName, seconds, res, err))
 		return nil
 	}
 	tierPrice, ok := SeedanceTierPrice(info.OriginModelName, res, hasVideo)
 	if !ok || tierPrice <= 0 {
+		logger.LogWarn(c, fmt.Sprintf("seedance 计费估算失败（分档单价缺失）：model=%s, res=%s, hasVideo=%v",
+			info.OriginModelName, res, hasVideo))
 		return nil
 	}
 	multiplier := SeedanceModelMultiplier(info.OriginModelName)
 	ratio, ok := ComputeSeedanceBillRatio(
 		tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate, multiplier)
 	if !ok {
+		logger.LogWarn(c, fmt.Sprintf("seedance 计费估算失败（倍率换算）：model=%s, tierPrice=%.4f, token=%d, modelRatio=%v, rate=%v",
+			info.OriginModelName, tierPrice, token, info.PriceData.ModelRatio, operation_setting.USDExchangeRate))
 		return nil
 	}
 	c.Set(SeedanceBillingContextKey, SeedanceBillingDetail{
@@ -305,6 +320,11 @@ func IsSeedanceModel(modelName string) bool {
 // 用于针对单个模型加价/打折：最终价格 = 分档单价 × token/1e6 × groupRatio × 该倍率。
 func SeedanceModelMultiplier(modelName string) float64 {
 	return operation_setting.GetModelMultiplier(modelName)
+}
+
+// SeedanceDefaultSeconds 返回请求未指定时长（0 未填 / -1 自动）时用于预扣的秒数。
+func SeedanceDefaultSeconds(modelName string) int {
+	return operation_setting.SeedanceDefaultSeconds(modelName)
 }
 
 // SeedanceToken 计算官方 token 用量：token = (输入时长+输出时长) × 宽 × 高 × 帧率 / 1024。

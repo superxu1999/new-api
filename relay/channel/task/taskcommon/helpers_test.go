@@ -1,9 +1,15 @@
 package taskcommon
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -225,6 +231,72 @@ func TestSeedanceUnsupportedInputVideoChargedAsNoVideo(t *testing.T) {
 	withVideoRatio, ok := ComputeSeedanceBillRatio(withVideoPrice, withVideoToken, modelRatio, rate, 1.0)
 	require.True(t, ok)
 	assert.InDelta(t, 6.048, modelRatio/2*withVideoRatio*rate, 0.02)
+}
+
+// TestSeedanceDefaultSeconds 锁定「未指定时长时按哪个默认秒数预扣」：
+// 2.5 系列实测上游默认 10 秒，其余 seedance 系按文档默认 5 秒。
+func TestSeedanceDefaultSeconds(t *testing.T) {
+	assert.Equal(t, 10, SeedanceDefaultSeconds("seedance2.0-cyai-25-260628"))
+	assert.Equal(t, 10, SeedanceDefaultSeconds("doubao-seedance-2-5-260628"))
+	assert.Equal(t, 5, SeedanceDefaultSeconds("doubao-seedance-2-0-260128"))
+	assert.Equal(t, 5, SeedanceDefaultSeconds("seedance2.0-cyai-260128"))
+	assert.Equal(t, 5, SeedanceDefaultSeconds("seedance2.0-cyai-mini-260615"))
+}
+
+// TestEstimateSeedanceBillingUnspecifiedDuration 锁定契约：请求未声明时长
+// （duration 缺省=0，或 -1 表示由模型自动选择，两者都是 validateTaskDurationBounds
+// 允许的合法输入）时，视频分档计费必须照常生效。
+//
+// 一旦这里退化成 nil，整条链会静默降级：预扣变成 ModelRatio 基础额度，而且因为
+// OtherRatios 里没有 video_billing，任务完成后也不会做 token 差额结算
+// （云端 task 146 实测：10 秒 720p 只收 ¥1.5122，少收约 9 倍）。
+func TestEstimateSeedanceBillingUnspecifiedDuration(t *testing.T) {
+	const model = "seedance2.0-cyai-25-260628"
+	const modelRatio = 0.4143
+
+	tests := []struct {
+		name string
+		req  relaycommon.TaskSubmitReq
+	}{
+		{
+			name: "duration 未填",
+			req:  relaycommon.TaskSubmitReq{Model: model, Metadata: map[string]interface{}{"resolution": "720p"}},
+		},
+		{
+			name: "duration 为 -1 自动",
+			req:  relaycommon.TaskSubmitReq{Model: model, Duration: -1, Metadata: map[string]interface{}{"resolution": "720p"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Set("task_request", tt.req)
+
+			info := &relaycommon.RelayInfo{
+				OriginModelName: model,
+				PriceData:       types.PriceData{ModelRatio: modelRatio},
+			}
+
+			ratios := EstimateSeedanceBilling(c, info, true)
+			require.NotNil(t, ratios, "未声明时长不得让视频计费退化为 nil")
+			require.Contains(t, ratios, SeedanceBillingRatioKey)
+
+			detail, ok := c.Get(SeedanceBillingContextKey)
+			require.True(t, ok, "必须留下计费明细快照，否则视频结算不会执行")
+			snapshot, ok := detail.(SeedanceBillingDetail)
+			require.True(t, ok)
+			assert.Equal(t, 10, snapshot.Seconds, "2.5 系列未指定时长时按上游默认 10 秒预扣")
+			assert.Equal(t, 216000, snapshot.Token)
+			assert.InDelta(t, 70, snapshot.TierPrice, 1e-6)
+
+			// 预扣额度 = 基础额度 × OtherRatio，应精确等于「分档单价 × token/1e6」元。
+			quota := modelRatio / 2 * common.QuotaPerUnit * ratios[SeedanceBillingRatioKey]
+			yuan := quota / common.QuotaPerUnit * operation_setting.USDExchangeRate
+			assert.InDelta(t, 15.12, yuan, 0.02)
+		})
+	}
 }
 
 // TestIsSeedanceModel 锁定模型判断：只有 seedance 系模型走官方 token 公式计费，

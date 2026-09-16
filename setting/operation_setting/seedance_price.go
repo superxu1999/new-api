@@ -38,6 +38,31 @@ var seedanceDefaultPriceTable = map[string]map[string]float64{
 	},
 }
 
+// seedanceDefaultSeconds 是请求未指定时长时上游实际使用的输出时长（秒）。
+//
+// 请求里的 duration 允许两种「无秒数」取值（见 relay/common/relay_utils.go 的
+// validateTaskDurationBounds）：0 表示未填，-1 表示由模型自动选择。这两种情况下
+// 我们拿不到秒数，但绝不能因此放弃计费 —— 那会退化成 ModelRatio 基础额度兜底，
+// 并按「非视频任务」处理而不做完成后的 token 结算，实测少收近十倍。
+//
+// 未填时上游默认 5 秒（与移动云 MaaS SDK、百拓转售文档一致）；
+// 2.5 系列实测默认 10 秒（云端 2.5 任务在未传时长时上游产出 10 秒、198458 token）。
+var seedanceDefaultSeconds = map[string]int{
+	"doubao-seedance-2-5-260628": 10,
+}
+
+// seedanceUnspecifiedSeconds 是价目表未覆盖的模型在未指定时长时的兜底秒数。
+const seedanceUnspecifiedSeconds = 5
+
+// SeedanceDefaultSeconds 返回请求未指定时长（0 未填 / -1 自动）时应按多少秒预扣。
+// 预扣只是上界估计：任务完成后仍会按上游真实 token 做差额结算。
+func SeedanceDefaultSeconds(modelName string) int {
+	if sec, ok := seedanceDefaultSeconds[NormalizeSeedanceModel(modelName)]; ok {
+		return sec
+	}
+	return seedanceUnspecifiedSeconds
+}
+
 // IsSeedanceModel 判断模型名是否属于 seedance 视频系（据此决定是否按官方 token 公式计费、
 // 以及在模型广场展示分档价格）。
 func IsSeedanceModel(modelName string) bool {
