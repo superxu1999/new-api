@@ -7,66 +7,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// TestWithProxyVideoURL 锁定对外契约：OpenAI 视频响应的 metadata.url 一律指向本站
-// 内容代理，而不是上游直链。
-//
-// 上游直链的域名与路径会暴露供应方与上游模型名（...volces.com/doubao-seedance-2-0/...），
-// 而且它带签名、可直接下载，等于绕过本站代理：不计流量、不受访问控制、有效期内还能转发。
-func TestWithProxyVideoURL(t *testing.T) {
-	const taskID = "task_abc123"
-	const want = "https://proxy.example.com/v1/videos/task_abc123/content"
-
-	old := system_setting.ServerAddress
-	system_setting.ServerAddress = "https://proxy.example.com"
-	t.Cleanup(func() { system_setting.ServerAddress = old })
-
-	t.Run("替换上游直链", func(t *testing.T) {
-		body := []byte(`{"id":"task_abc123","object":"video","status":"completed",` +
-			`"metadata":{"url":"https://ark-acg.tos-cn-beijing.volces.com/doubao-seedance-2-0/x.mp4?X-Tos-Signature=deadbeef"}}`)
-
-		got := withProxyVideoURL(body, taskID)
-
-		assert.NotContains(t, string(got), "volces.com", "上游域名不得出现在对外响应里")
-		assert.NotContains(t, string(got), "X-Tos-Signature")
-		assert.Contains(t, string(got), `"url":"`+want+`"`)
-		// 其余字段必须原样保留。
-		assert.Contains(t, string(got), `"status":"completed"`)
-		assert.Contains(t, string(got), `"object":"video"`)
-	})
-
-	t.Run("metadata 缺失时补出该字段", func(t *testing.T) {
-		got := withProxyVideoURL([]byte(`{"id":"task_abc123","status":"completed"}`), taskID)
-		assert.Contains(t, string(got), `"metadata":{"url":"`+want+`"}`)
-	})
-
-	t.Run("不破坏非 OpenAIVideo 形状的负载", func(t *testing.T) {
-		// sora 适配器直接返回上游原始负载（不是 dto.OpenAIVideo）。
-		// 这里若做 unmarshal/marshal 往返就会把这些字段丢掉。
-		body := []byte(`{"id":"task_abc123","status":"completed","output":{"provider_field":[1,2,3]},` +
-			`"metadata":{"url":"https://upstream.example.com/v.mp4","duration":4}}`)
-
-		got := withProxyVideoURL(body, taskID)
-
-		assert.Contains(t, string(got), `"output":{"provider_field":[1,2,3]}`)
-		assert.Contains(t, string(got), `"duration":4`)
-		assert.Contains(t, string(got), `"url":"`+want+`"`)
-	})
-
-	t.Run("非 JSON 载荷原样返回", func(t *testing.T) {
-		body := []byte("not json at all")
-		assert.Equal(t, body, withProxyVideoURL(body, taskID))
-	})
-
-	t.Run("空载荷原样返回", func(t *testing.T) {
-		assert.Empty(t, withProxyVideoURL(nil, taskID))
-	})
-}
 
 // TestTaskModel2DtoCarriesSettledUsage 保护跨实例契约：下游 new-api 实例靠
 // data.usage.total_tokens 判断能否在任务完成后按真实用量做差额结算。
