@@ -171,7 +171,6 @@ export function UsageBillExportDialog(props: { scope?: 'all' | 'self' }) {
               'Download a CSV with each user and model total for the selected period.'
             )
       }
-      contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
@@ -194,7 +193,9 @@ export function UsageBillExportDialog(props: { scope?: 'all' | 'self' }) {
       <div className='space-y-4'>
         <div className='space-y-2'>
           <Label>{t('Quick Range')}</Label>
-          <div className='grid grid-cols-2 gap-2 sm:flex'>
+          {/* 固定两列而不是 sm:flex 单行：四个标签在俄语等语种下加起来会超过弹窗宽度，
+              单行 flex 不换行就会被 body 的 overflow-x-hidden 裁掉。 */}
+          <div className='grid grid-cols-2 gap-2'>
             {RANGE_PRESETS.map((preset) => (
               <Button
                 key={preset.key}
@@ -214,7 +215,10 @@ export function UsageBillExportDialog(props: { scope?: 'all' | 'self' }) {
           </div>
         </div>
 
-        <div className='grid gap-2.5 sm:grid-cols-2'>
+        {/* 起始/结束各占一整行：DateTimePicker 是「日期按钮 + w-32 时间框 + 清除按钮」
+            的固定组合（约 300px），挤进两列网格会溢出，然后被 body 的 overflow-x-hidden
+            裁掉，连带把同级的输入框一起撑出可视区。 */}
+        <div className='grid gap-2.5'>
           <div className='grid gap-2'>
             <Label htmlFor='bill-start'>{t('Start Time')}</Label>
             <DateTimePicker
