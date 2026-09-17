@@ -85,8 +85,16 @@ async function readBlobErrorMessage(error: unknown): Promise<string | null> {
   }
 }
 
-export function UsageBillExportDialog() {
+/**
+ * 消费账单导出弹窗。
+ *
+ * scope='all'（默认，管理员）：导出所有用户 × 模型的汇总，可按用户名过滤。
+ * scope='self'（普通用户）：只导出自己的账单——服务端按登录态限定用户维度，
+ * 因此这里不显示用户名输入框，传了也会被忽略。
+ */
+export function UsageBillExportDialog(props: { scope?: 'all' | 'self' }) {
   const { t } = useTranslation()
+  const isSelf = props.scope === 'self'
   const [open, setOpen] = useState(false)
   const [range, setRange] = useState<BillRange>(() => monthRange(0))
   const [presetKey, setPresetKey] = useState<string | null>('this-month')
@@ -115,11 +123,14 @@ export function UsageBillExportDialog() {
 
     setExporting(true)
     try {
-      const response = await exportUsageBill({
-        start_timestamp: dateToUnixTimestamp(range.start),
-        end_timestamp: dateToUnixTimestamp(range.end),
-        username: username.trim() || undefined,
-      })
+      const response = await exportUsageBill(
+        {
+          start_timestamp: dateToUnixTimestamp(range.start),
+          end_timestamp: dateToUnixTimestamp(range.end),
+          username: isSelf ? undefined : username.trim() || undefined,
+        },
+        !isSelf
+      )
 
       const url = URL.createObjectURL(response.data)
       const link = document.createElement('a')
@@ -153,9 +164,13 @@ export function UsageBillExportDialog() {
         </Button>
       }
       title={t('Export consumption bill')}
-      description={t(
-        'Download a CSV with each user and model total for the selected period.'
-      )}
+      description={
+        isSelf
+          ? t('Download a CSV with your own usage total per model for the selected period.')
+          : t(
+              'Download a CSV with each user and model total for the selected period.'
+            )
+      }
       contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -224,15 +239,17 @@ export function UsageBillExportDialog() {
           </div>
         </div>
 
-        <div className='grid gap-2'>
-          <Label htmlFor='bill-username'>{t('Username')}</Label>
-          <Input
-            id='bill-username'
-            placeholder={t('Leave empty to export every user')}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </div>
+        {isSelf ? null : (
+          <div className='grid gap-2'>
+            <Label htmlFor='bill-username'>{t('Username')}</Label>
+            <Input
+              id='bill-username'
+              placeholder={t('Leave empty to export every user')}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+        )}
       </div>
     </Dialog>
   )

@@ -25,16 +25,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+// 账单导出弹窗与「数据看板 → 用户分析」的管理员全量导出共用同一组件，
+// 这里固定 scope='self'：服务端按登录态限定用户维度，只能导出自己的账单。
+import { UsageBillExportDialog } from '@/features/dashboard/components/users/usage-bill-export-dialog'
 
 import { CommonLogsStats } from './common-logs-stats'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 /**
- * Page-header actions for the Common Logs view: live usage stats plus a
- * toggle for masking sensitive values (token names, usernames, group names,
- * and the quota figure shown in stats). Both controls live in the page
- * header so the toolbar below stays focused on filter inputs and form
- * actions only.
+ * Page-header actions for the Common Logs view: live usage stats, a toggle for
+ * masking sensitive values (token names, usernames, group names, and the quota
+ * figure shown in stats), and self-service CSV export of the caller's own bill.
+ * Both the stats and the mask toggle stay in the page header so the toolbar
+ * below keeps only filter inputs and form actions.
  */
 export function CommonLogsHeaderActions() {
   const { t } = useTranslation()
@@ -43,6 +46,7 @@ export function CommonLogsHeaderActions() {
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      <UsageBillExportDialog scope='self' />
       <Tooltip>
         <TooltipTrigger
           render={

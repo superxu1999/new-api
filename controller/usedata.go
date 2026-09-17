@@ -142,24 +142,18 @@ func quotaDataMoney(quota int) float64 {
 	return usd * operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
 }
 
-// ExportQuotaData 导出「用户 × 模型」维度的消费账单 CSV。
+// ExportQuotaData 导出「用户 × 模型」维度的消费账单 CSV（管理员，可导出所有用户）。
 //
 // 输出 UTF-8 BOM，否则 Excel 打开中文表头会乱码。
 // 参数错误返回 400：这是文件下载接口，不能用 {success:false} + 200 表达失败，
 // 否则前端拿到的是一个内容是错误 JSON 的 .csv 文件。
 func ExportQuotaData(c *gin.Context) {
-	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	if err != nil || startTimestamp <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid start_timestamp"})
-		return
-	}
-	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	if err != nil || endTimestamp <= 0 || endTimestamp < startTimestamp {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid end_timestamp"})
+	startTimestamp, endTimestamp, ok := parseBillTimeRange(c)
+	if !ok {
 		return
 	}
 
-	rows, err := model.GetQuotaDataGroupByUserModel(startTimestamp, endTimestamp, c.Query("username"))
+	rows, err := model.GetQuotaDataGroupByUserModel(startTimestamp, endTimestamp, 0, c.Query("username"))
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("导出消费账单查询失败 start=%d end=%d error=%q",
 			startTimestamp, endTimestamp, err.Error()))
@@ -167,6 +161,53 @@ func ExportQuotaData(c *gin.Context) {
 		return
 	}
 
+	writeQuotaBillCSV(c, rows, startTimestamp, endTimestamp)
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("导出消费账单(全部用户) user_id=%d start=%d end=%d username=%q rows=%d",
+		c.GetInt("id"), startTimestamp, endTimestamp, c.Query("username"), len(rows)))
+}
+
+// ExportSelfQuotaData 用户自助导出自己的消费账单 CSV。
+//
+// 用户维度强制取登录态，不接受任何查询参数：这是与管理员导出唯一的、也是最关键的差别。
+// 管理员那版支持 username 过滤和全量导出，直接复用它就是一个越权读别人账单的洞。
+func ExportSelfQuotaData(c *gin.Context) {
+	startTimestamp, endTimestamp, ok := parseBillTimeRange(c)
+	if !ok {
+		return
+	}
+
+	userID := c.GetInt("id")
+	rows, err := model.GetQuotaDataGroupByUserModel(startTimestamp, endTimestamp, userID, "")
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("导出消费账单查询失败 user_id=%d start=%d end=%d error=%q",
+			userID, startTimestamp, endTimestamp, err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "导出失败，请稍后重试"})
+		return
+	}
+
+	writeQuotaBillCSV(c, rows, startTimestamp, endTimestamp)
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("导出消费账单(本人) user_id=%d start=%d end=%d rows=%d",
+		userID, startTimestamp, endTimestamp, len(rows)))
+}
+
+// parseBillTimeRange 解析并校验账单导出的时间区间；不合法时已写出 400，调用方直接返回。
+func parseBillTimeRange(c *gin.Context) (int64, int64, bool) {
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid start_timestamp"})
+		return 0, 0, false
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 || endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid end_timestamp"})
+		return 0, 0, false
+	}
+	return startTimestamp, endTimestamp, true
+}
+
+// writeQuotaBillCSV 把「用户 × 模型」聚合结果写成 CSV 附件返回。
+// 管理员导出与用户自助导出共用，保证两边文件格式完全一致。
+func writeQuotaBillCSV(c *gin.Context, rows []*model.QuotaData, startTimestamp, endTimestamp int64) {
 	moneyHeader := "金额"
 	if symbol := operation_setting.GetCurrencySymbol(); symbol != "" {
 		moneyHeader = "金额(" + symbol + ")"
@@ -203,7 +244,4 @@ func ExportQuotaData(c *gin.Context) {
 		time.Unix(endTimestamp, 0).Format("20060102"))
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
 	c.Data(http.StatusOK, "text/csv; charset=utf-8", buf.Bytes())
-
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("导出消费账单 user_id=%d start=%d end=%d username=%q rows=%d",
-		c.GetInt("id"), startTimestamp, endTimestamp, c.Query("username"), len(rows)))
 }

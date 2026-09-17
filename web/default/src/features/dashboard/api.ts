@@ -66,15 +66,21 @@ export async function getUserQuotaDataByUsers(params: {
   return res.data
 }
 
-// Download the consumption bill grouped by user and model as CSV (admin only).
+// Download the consumption bill grouped by user and model as CSV.
 // The endpoint answers with a file, not the { success, message, data } envelope,
 // so the response is requested as a blob and the caller saves it.
-export async function exportUsageBill(params: {
-  start_timestamp: number
-  end_timestamp: number
-  username?: string
-}) {
-  return api.get<Blob>('/api/data/export', {
+// isAdmin=false hits /api/data/self/export, which the server scopes to the
+// caller's own user id — the username filter is meaningless there and ignored.
+export async function exportUsageBill(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    username?: string
+  },
+  isAdmin = true
+) {
+  const endpoint = isAdmin ? '/api/data/export' : '/api/data/self/export'
+  return api.get<Blob>(endpoint, {
     params,
     responseType: 'blob',
   })

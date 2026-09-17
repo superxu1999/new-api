@@ -303,6 +303,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/export", middleware.AdminAuth(), controller.ExportQuotaData)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		// 用户自助导出自己的消费账单：用户维度强制取登录态，不接受 username 参数。
+		dataRoute.GET("/self/export", middleware.UserAuth(), controller.ExportSelfQuotaData)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 

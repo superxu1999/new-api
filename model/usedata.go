@@ -186,11 +186,17 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 //
 // 数据来源是 quota_data（小时聚合表）而不是 logs：logs 会被「日志清理」删掉，
 // 而 quota_data 没有任何清理逻辑，是唯一能长期保留账单口径的表。
-func GetQuotaDataGroupByUserModel(startTime int64, endTime int64, username string) ([]*QuotaData, error) {
+//
+// userID > 0 时只统计该用户：用户自助导出必须走这个分支。不能靠 username 过滤来限定
+// 「只看自己」——username 可以改名、也不保证唯一，那样就是一个读别人账单的越权口子。
+func GetQuotaDataGroupByUserModel(startTime int64, endTime int64, userID int, username string) ([]*QuotaData, error) {
 	quotaDatas := make([]*QuotaData, 0)
 	query := DB.Table("quota_data").
 		Select("user_id, username, model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
 	if username != "" {
 		query = query.Where("username = ?", username)
 	}

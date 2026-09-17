@@ -1459,6 +1459,7 @@
     "Downgrade to this group after the subscription expires": "サブスクリプションの有効期限が切れた後、このグループにダウングレードします",
     "Download": "ダウンロード",
     "Download a CSV with each user and model total for the selected period.": "選択した期間のユーザー別・モデル別の合計をCSVでダウンロードします。",
+    "Download a CSV with your own usage total per model for the selected period.": "選択した期間のご自身のモデル別利用合計をCSVでダウンロードします。",
     "Download video": "動画をダウンロード",
     "Draw": "描画",
     "Drawing": "画像生成",

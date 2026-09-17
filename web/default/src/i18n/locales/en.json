@@ -1459,6 +1459,7 @@
     "Downgrade to this group after the subscription expires": "Downgrade to this group after the subscription expires",
     "Download": "Download",
     "Download a CSV with each user and model total for the selected period.": "Download a CSV with each user and model total for the selected period.",
+    "Download a CSV with your own usage total per model for the selected period.": "Download a CSV with your own usage total per model for the selected period.",
     "Download video": "Download video",
     "Draw": "Draw",
     "Drawing": "Drawing",

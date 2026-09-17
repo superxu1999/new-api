@@ -1459,6 +1459,7 @@
     "Downgrade to this group after the subscription expires": "订阅过期后降级到该分组",
     "Download": "下载",
     "Download a CSV with each user and model total for the selected period.": "下载所选时间段内「用户 × 模型」的消费汇总 CSV。",
+    "Download a CSV with your own usage total per model for the selected period.": "下载所选时间段内你自己的「模型消费汇总」CSV。",
     "Download video": "下载视频",
     "Draw": "绘图",
     "Drawing": "绘图",

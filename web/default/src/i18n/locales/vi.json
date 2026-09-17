@@ -1459,6 +1459,7 @@
     "Downgrade to this group after the subscription expires": "Hạ xuống nhóm này sau khi đăng ký hết hạn",
     "Download": "Tải xuống",
     "Download a CSV with each user and model total for the selected period.": "Tải xuống CSV tổng hợp theo từng người dùng và mô hình trong khoảng thời gian đã chọn.",
+    "Download a CSV with your own usage total per model for the selected period.": "Tải xuống CSV tổng mức sử dụng theo từng mô hình của chính bạn trong khoảng thời gian đã chọn.",
     "Download video": "Tải video xuống",
     "Draw": "Vẽ",
     "Drawing": "Vẽ",
