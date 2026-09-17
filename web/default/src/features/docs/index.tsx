@@ -17,8 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[] = [
@@ -76,17 +75,21 @@ function ET(props: { title: string }) {
   return <p className='text-[13px] font-medium'>{props.title}</p>
 }
 
+/** 方法徽章的配色（GET 蓝 / POST 绿 / DELETE 红） */
+const METHOD_CHIP_CLASS: Record<'GET' | 'POST' | 'DELETE', string> = {
+  GET: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+  POST: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  DELETE: 'bg-red-500/15 text-red-600 dark:text-red-400',
+}
+
 /** 方法徽章（GET 蓝 / POST 绿 / DELETE 红） */
 function MethodChip(props: { method: 'GET' | 'POST' | 'DELETE' }) {
-  const cls =
-    props.method === 'GET'
-      ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
-      : props.method === 'POST'
-        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-        : 'bg-red-500/15 text-red-600 dark:text-red-400'
   return (
     <span
-      className={cn('rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold', cls)}
+      className={cn(
+        'rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold',
+        METHOD_CHIP_CLASS[props.method]
+      )}
     >
       {props.method}
     </span>
@@ -127,10 +130,10 @@ function T(props: { headers: string[]; rows: string[][] }) {
           </tr>
         </thead>
         <tbody>
-          {props.rows.map((row, i) => (
-            <tr key={i} className='hover:bg-muted/30 border-t'>
-              {row.map((cell, j) => (
-                <td key={j} className='px-4 py-2.5 align-top'>
+          {props.rows.map((row) => (
+            <tr key={row.join('|')} className='hover:bg-muted/30 border-t'>
+              {row.map((cell) => (
+                <td key={cell} className='px-4 py-2.5 align-top'>
                   {cell}
                 </td>
               ))}
@@ -410,7 +413,7 @@ data: [DONE]`}</Code>
               <p className='font-medium'>{t('通用约定')}</p>
               <ul className='mt-2 list-disc pl-5 space-y-1'>
                 <li>{t('必填参数：model、prompt。其余字段均可省略，省略时由上游使用默认值。')}</li>
-                <li>{t('duration：可选，缺省时由上游决定（通常默认 5 秒）；不支持 0 与 -1。')}</li>
+                <li>{t('duration：可选，取值 4–15 的整数（秒）。省略或填 -1 表示由模型自动选择时长（Seedance 2.0 系列默认 5 秒、2.5 系列默认 10 秒）；超出 4–15 会返回 invalid_seconds。')}</li>
                 <li>{t('resolution：可选，缺省或为空时使用 720p；支持 480p/720p/1080p/4k，不支持 2k。')}</li>
                 <li>{t('各字段的取值范围、默认值与参考输入上限以实际使用的模型规格为准，不同模型可能不同。')}</li>
               </ul>
@@ -423,7 +426,7 @@ data: [DONE]`}</Code>
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
                   ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）'],
-                  ['duration', 'integer', '否', '5', '时长（秒），不支持 0 与 -1'],
+                  ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['metadata', 'object', '否', '见下表', '扩展参数，见下表'],
                 ]}
               />
@@ -501,10 +504,13 @@ data: [DONE]`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
+  "id": "<task_id>",
   "task_id": "<task_id>",
   "object": "video",
   "model": "<model-id>",
-  "status": "queued"
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1788598144
 }`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
@@ -534,6 +540,20 @@ data: [DONE]`}</Code>
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{"model": "<model-id>", "prompt": "调整为电影感"}'`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "id": "<task_id>",
+  "task_id": "<task_id>",
+  "object": "video",
+  "model": "<model-id>",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1788598144
+}`}</Code>
+              <p className='text-[13px]'>
+                {t('Remix 会产生一个新任务，返回新的 task_id；原视频不会被修改。')}
+              </p>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
               <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
@@ -551,7 +571,7 @@ data: [DONE]`}</Code>
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
                   ['prompt', 'string', '是', '—', '画面描述'],
-                  ['duration', 'integer', '否', '5', '时长（秒），不支持 0 与 -1'],
+                  ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
                   ['metadata.content', 'array', '是', '—', '多模态参考数组，元素结构见下表'],
@@ -603,10 +623,13 @@ data: [DONE]`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
+  "id": "<task_id>",
   "task_id": "<task_id>",
   "object": "video",
   "model": "<model-id>",
-  "status": "queued"
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1788598144
 }`}</Code>
             </Sub>
             <Sub id='sec-6-5' title={t('6.5 查询任务状态')}>
@@ -629,6 +652,25 @@ data: [DONE]`}</Code>
     "url": "https://ghyc.top/v1/videos/<task_id>/content"
   }
 }`}</Code>
+              <ET title={t('响应示例（已完成）')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "id": "<task_id>",
+  "task_id": "<task_id>",
+  "object": "video",
+  "model": "<model-id>",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1788598144,
+  "completed_at": 1788598270,
+  "metadata": {
+    "url": "https://ghyc.top/v1/videos/<task_id>/content"
+  },
+  "usage": {
+    "completion_tokens": 198458,
+    "total_tokens": 198458
+  }
+}`}</Code>
               <p className='text-[13px]'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
@@ -645,6 +687,9 @@ data: [DONE]`}</Code>
                   ['created_at', 'integer', '任务创建时间戳（秒）'],
                   ['completed_at', 'integer', '任务完成时间戳（秒），未完成时可能为空'],
                   ['metadata.url', 'string', '成片下载地址（completed 后有效，见 6.6）'],
+                  ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
+                  ['usage.completion_tokens', 'integer', '本次生成的 token 用量'],
+                  ['usage.total_tokens', 'integer', '本次任务的总 token 用量（视频任务与 completion_tokens 相同）'],
                 ]}
               />
               <ET title={t('状态说明')} />
