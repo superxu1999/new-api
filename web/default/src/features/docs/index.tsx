@@ -649,7 +649,7 @@ data: [DONE]`}</Code>
   "created_at": 1788598144,
   "completed_at": 1788598270,
   "metadata": {
-    "url": "https://ghyc.top/v1/videos/<task_id>/content"
+    "url": "<成片地址>"
   }
 }`}</Code>
               <ET title={t('响应示例（已完成）')} />
@@ -664,7 +664,7 @@ data: [DONE]`}</Code>
   "created_at": 1788598144,
   "completed_at": 1788598270,
   "metadata": {
-    "url": "https://ghyc.top/v1/videos/<task_id>/content"
+    "url": "<成片地址>"
   },
   "usage": {
     "completion_tokens": 198458,
@@ -686,7 +686,7 @@ data: [DONE]`}</Code>
                   ['progress', 'number', '进度（0-100），completed 时为 100'],
                   ['created_at', 'integer', '任务创建时间戳（秒）'],
                   ['completed_at', 'integer', '任务完成时间戳（秒），未完成时可能为空'],
-                  ['metadata.url', 'string', '成片下载地址（completed 后有效，见 6.6）'],
+                  ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.6，把 task_id 代入即可'],
                   ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
                   ['usage.completion_tokens', 'integer', '本次生成的 token 用量'],
                   ['usage.total_tokens', 'integer', '本次任务的总 token 用量（视频任务与 completion_tokens 相同）'],
@@ -710,7 +710,9 @@ data: [DONE]`}</Code>
   -H "Authorization: Bearer sk-..." \\
   -o output.mp4`}</Code>
               <ET title={t('响应说明')} />
-              <p className='text-[13px]'>{t('任务完成后返回 video/mp4 二进制内容；未完成时返回错误 JSON。')}</p>
+              <p className='text-[13px]'>
+                {t('任务完成后返回 video/mp4 二进制内容；未完成时返回错误 JSON。该接口需要带鉴权（登录会话或 Bearer key）。6.5 返回的 metadata.url 本身已可直接下载；本节是给希望统一走本站内容代理的调用方准备的。')}
+              </p>
             </Sub>
           </Section>
 
