@@ -20,6 +20,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type TaskSubmitResult struct {
@@ -392,7 +394,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			respBody = withProxyVideoURL(openAIVideoData, originTask.TaskID)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -408,6 +410,30 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// withProxyVideoURL 把 OpenAI 视频响应里的 metadata.url 改写成本站的内容代理地址。
+//
+// 各适配器原本填的是上游直链（有的还是 provider 的临时地址）。直链的域名与路径本身
+// 就暴露供应方与上游模型名（如 ...volces.com/doubao-seedance-2-0/...），而且它是带签名的，
+// 调用方可以直接下载——绕过本站代理，不计流量、不受访问控制，签名在有效期内还能转发。
+//
+// 在这里统一改写而不是逐个适配器改：ConvertToOpenAIVideo 有 12 个实现，将来新增的必然漏。
+// 用 sjson 做字节级改写，不做 unmarshal/marshal 往返——sora 的实现直接返回上游原始负载，
+// 往返会把它压成 OpenAIVideo 的字段而丢数据。
+//
+// 只改写 JSON 对象；其他形状（含非法 JSON）原样返回——这里只管成片地址，
+// 不能影响任务状态与计费，更不能把载荷换成别的东西（sjson 对非对象输入会直接
+// 造出一个新对象，把原内容丢掉）。
+func withProxyVideoURL(body []byte, taskID string) []byte {
+	if common.GetJsonType(body) != "object" || !gjson.ValidBytes(body) {
+		return body
+	}
+	patched, err := sjson.SetBytes(body, "metadata.url", taskcommon.BuildProxyURL(taskID))
+	if err != nil {
+		return body
+	}
+	return patched
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
