@@ -58,12 +58,64 @@ func TestParseTaskResultStatusMapping(t *testing.T) {
 	}
 }
 
+// collectReferenceAssets 决定哪些参考素材会被上传给上游。只认顶层 images 的话，
+// 参考视频/参考音频、以及 content 形式的参考图（含顶层 content 与扁平写法的归一结果）
+// 都会被静默丢掉。
+func TestCollectReferenceAssets(t *testing.T) {
+	content := []interface{}{
+		map[string]interface{}{"type": "image_url", "image_url": map[string]interface{}{"url": "https://cdn/ref.png"}, "role": "reference_image"},
+		map[string]interface{}{"type": "video_url", "video_url": map[string]interface{}{"url": "https://cdn/ref.mp4"}, "role": "reference_video"},
+		map[string]interface{}{"type": "audio_url", "audio_url": map[string]interface{}{"url": "https://cdn/ref.mp3"}, "role": "reference_audio"},
+		map[string]interface{}{"type": "text", "text": "提示词"},
+	}
+
+	t.Run("顶层 images 按参考图收集", func(t *testing.T) {
+		got := collectReferenceAssets(&relaycommon.TaskSubmitReq{Images: []string{" https://cdn/a.png "}})
+		assert.Equal(t, []referenceAsset{{assetType: "Image", url: "https://cdn/a.png"}}, got)
+	})
+
+	t.Run("content 按类型分别收集图/视频/音频", func(t *testing.T) {
+		got := collectReferenceAssets(&relaycommon.TaskSubmitReq{
+			Metadata: map[string]interface{}{"content": content},
+		})
+		assert.Equal(t, []referenceAsset{
+			{assetType: "Image", url: "https://cdn/ref.png"},
+			{assetType: "Video", url: "https://cdn/ref.mp4"},
+			{assetType: "Audio", url: "https://cdn/ref.mp3"},
+		}, got)
+	})
+
+	t.Run("同一 URL 只上传一次", func(t *testing.T) {
+		got := collectReferenceAssets(&relaycommon.TaskSubmitReq{
+			Images: []string{"https://cdn/ref.png", "https://cdn/ref.png"},
+			Metadata: map[string]interface{}{"content": []interface{}{
+				map[string]interface{}{"type": "image_url", "image_url": map[string]interface{}{"url": "https://cdn/ref.png"}},
+			}},
+		})
+		assert.Equal(t, []referenceAsset{{assetType: "Image", url: "https://cdn/ref.png"}}, got)
+	})
+
+	t.Run("容错 {type,url} 扁平写法", func(t *testing.T) {
+		got := collectReferenceAssets(&relaycommon.TaskSubmitReq{
+			Metadata: map[string]interface{}{"content": []interface{}{
+				map[string]interface{}{"type": "video_url", "url": "https://cdn/flat.mp4"},
+			}},
+		})
+		assert.Equal(t, []referenceAsset{{assetType: "Video", url: "https://cdn/flat.mp4"}}, got)
+	})
+
+	t.Run("没有参考素材时为空", func(t *testing.T) {
+		assert.Empty(t, collectReferenceAssets(&relaycommon.TaskSubmitReq{}))
+		assert.Empty(t, collectReferenceAssets(nil))
+	})
+}
+
 // 请求体应把 resolution 缺省为 720p(上游 SKU 匹配需要),duration/seed 等按 metadata 透传。
 func TestConvertToRequestPayloadDefaults(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 	req := &relaycommon.TaskSubmitReq{
-		Prompt: "日落海边",
-		Model:  "sd_2.0_special",
+		Prompt:   "日落海边",
+		Model:    "sd_2.0_special",
 		Duration: 5,
 		Metadata: map[string]interface{}{
 			"ratio":          "16:9",

@@ -13,6 +13,7 @@ func TestBuildContent(t *testing.T) {
 	tests := []struct {
 		name    string
 		prompt  string
+		images  []string
 		meta    map[string]any
 		want    []contentItem
 		wantRef bool
@@ -20,6 +21,26 @@ func TestBuildContent(t *testing.T) {
 		{
 			name:    "no reference returns nothing",
 			prompt:  "一只猫在奔跑",
+			meta:    map[string]any{},
+			want:    nil,
+			wantRef: false,
+		},
+		{
+			name:   "顶层 images 作为参考图",
+			prompt: "参考这些图生成视频",
+			images: []string{"https://example.com/1.jpg", " https://example.com/2.jpg "},
+			meta:   map[string]any{},
+			want: []contentItem{
+				{Type: "text", Text: "参考这些图生成视频"},
+				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/1.jpg"}, Role: "reference_image"},
+				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/2.jpg"}, Role: "reference_image"},
+			},
+			wantRef: true,
+		},
+		{
+			name:    "images 为空串时忽略",
+			prompt:  "x",
+			images:  []string{"", "   "},
 			meta:    map[string]any{},
 			want:    nil,
 			wantRef: false,
@@ -94,7 +115,7 @@ func TestBuildContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, hasRef := buildContent(tt.prompt, tt.meta)
+			got, hasRef := buildContent(tt.prompt, tt.images, tt.meta)
 			assert.Equal(t, tt.wantRef, hasRef)
 			if tt.wantRef {
 				require.Equal(t, tt.want, got)
@@ -107,8 +128,8 @@ func TestBuildContent(t *testing.T) {
 
 // TestBuildRequestBodyBackwardCompat 无参考时保持透传顶层 prompt（不产生 content 数组）。
 func TestBuildRequestBodyBackwardCompat(t *testing.T) {
-	// 无 content 时 buildContent 应返回 hasRef=false
-	_, hasRef := buildContent("一只猫在奔跑", map[string]any{"resolution": "720p"})
+	// 无 content/images 时 buildContent 应返回 hasRef=false
+	_, hasRef := buildContent("一只猫在奔跑", nil, map[string]any{"resolution": "720p"})
 	assert.False(t, hasRef)
 
 	// normalizeResolution 仍保证非空 resolution

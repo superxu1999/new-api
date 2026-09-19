@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel/task/foxtoken"
@@ -77,10 +78,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	metadata := normalizeResolution(req.Metadata)
 
 	// CyAI 上游（Doubao/Seedance 风格）只认顶层 content 数组，不认顶层 prompt：
-	// 顶层 prompt 会 400（content is required）。因此当存在多模态参考（metadata.content）时
-	// 统一把 prompt 作为 content[0] 的 text，并把图/视频/音频参考追加进去；
+	// 顶层 prompt 会 400（content is required）。因此当存在多模态参考（metadata.content）
+	// 或顶层 images 时统一把 prompt 作为 content[0] 的 text，并把图/视频/音频参考追加进去；
 	// 无参考时保持向后兼容，透传顶层 prompt。
-	if content, hasRef := buildContent(req.Prompt, metadata); hasRef {
+	if content, hasRef := buildContent(req.Prompt, req.Images, metadata); hasRef {
 		body.Content = content
 		body.Prompt = ""
 		delete(metadata, "content")
@@ -94,17 +95,25 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(data), nil
 }
 
-// buildContent 把 prompt 与 metadata.content 参考项合并成 CyAI 的顶层 content 数组。
+// buildContent 把 prompt、顶层 images 与 metadata.content 参考项合并成 CyAI 的顶层 content 数组。
 // 返回 (content, hasReference)。hasReference 表示用户是否真的传了参考素材：为 false 时
 // 调用方保持向后兼容（透传顶层 prompt），不输出 content 数组。
 // 上游要求至少一条 text，且参考素材（图/视频/音频）必须带 role。
-func buildContent(prompt string, metadata map[string]any) ([]contentItem, bool) {
+func buildContent(prompt string, images []string, metadata map[string]any) ([]contentItem, bool) {
 	// content 里的 text 元素在这里丢弃：提示词统一由顶层 prompt 提供（校验阶段已把
 	// content 里的文本合并进 prompt），与 doubao/seedance 适配器保持同一套口径，
 	// 避免两处都写时其中一处被静默丢掉。
 	refs := lo.Filter(parseContentReferences(metadata), func(it contentItem, _ int) bool {
 		return it.Type != "text"
 	})
+	// 顶层 images（image / images / input_reference 的归一结果）也算参考图：
+	// 只认 metadata.content 的话，这些请求在多图场景下会被静默丢掉（doubao/seedance 认）。
+	for _, url := range images {
+		if url = strings.TrimSpace(url); url == "" {
+			continue
+		}
+		refs = append(refs, contentItem{Type: "image_url", ImageURL: &mediaURL{URL: url}})
+	}
 	if len(refs) == 0 {
 		return nil, false
 	}

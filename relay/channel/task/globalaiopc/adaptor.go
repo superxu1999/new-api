@@ -327,19 +327,83 @@ func (a *TaskAdaptor) convertToRequestPayload(c *gin.Context, req *relaycommon.T
 	return r, nil
 }
 
+// contentAssetTypes 把 content 元素类型映射到上游 assetUpload 的 assetType。
+var contentAssetTypes = map[string]string{
+	"image_url": "Image",
+	"video_url": "Video",
+	"audio_url": "Audio",
+}
+
+// referenceAsset 是待上传的参考素材：上游要求先用 assetUpload 换 assetId，
+// 再用 https://{assetId} 引用。
+type referenceAsset struct {
+	assetType string
+	url       string
+}
+
+// collectReferenceAssets 收集请求里的参考素材：顶层 images（image / images /
+// input_reference 的归一结果）一律按参考图，metadata.content 按其元素类型区分
+// 参考图/参考视频/参考音频（顶层 content 与扁平写法都已在校验阶段归一到 metadata.content）。
+// 同一个 URL 只上传一次，避免重复占用上游的参考素材数量上限。
+func collectReferenceAssets(req *relaycommon.TaskSubmitReq) []referenceAsset {
+	if req == nil {
+		return nil
+	}
+	assets := make([]referenceAsset, 0, len(req.Images)+2)
+	seen := make(map[string]bool, len(req.Images)+2)
+	appendAsset := func(url, assetType string) {
+		if url == "" || seen[url] {
+			return
+		}
+		seen[url] = true
+		assets = append(assets, referenceAsset{assetType: assetType, url: url})
+	}
+
+	for _, img := range req.Images {
+		appendAsset(strings.TrimSpace(img), "Image")
+	}
+
+	items, _ := req.Metadata["content"].([]interface{})
+	for _, raw := range items {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		typeName, _ := item["type"].(string)
+		assetType, ok := contentAssetTypes[typeName]
+		if !ok {
+			continue
+		}
+		var url string
+		if media, ok := item[typeName].(map[string]interface{}); ok {
+			url, _ = media["url"].(string)
+		}
+		if url == "" {
+			// 容错：{"type":"image_url","url":"..."}
+			url, _ = item["url"].(string)
+		}
+		appendAsset(strings.TrimSpace(url), assetType)
+	}
+	return assets
+}
+
 // populateReferenceAssets 若请求带参考素材,先调上游 /asset/seedance2/assetUpload 上传,
 // 再把返回的 assetId 以 https://{assetId} 形式填入 reference_images/videos/audios。
 func (a *TaskAdaptor) populateReferenceAssets(c *gin.Context, info *relaycommon.RelayInfo, req *relaycommon.TaskSubmitReq, r *requestPayload) error {
-	// 顶层 images 作为参考图
-	for _, img := range req.Images {
-		if strings.TrimSpace(img) == "" {
-			continue
-		}
-		assetID, err := a.uploadAsset(info, "Image", img)
+	for _, asset := range collectReferenceAssets(req) {
+		assetID, err := a.uploadAsset(info, asset.assetType, asset.url)
 		if err != nil {
 			return err
 		}
-		r.ReferenceImages = append(r.ReferenceImages, assetRef{URL: "https://" + assetID})
+		ref := assetRef{URL: "https://" + assetID}
+		switch asset.assetType {
+		case "Video":
+			r.ReferenceVideos = append(r.ReferenceVideos, ref)
+		case "Audio":
+			r.ReferenceAudios = append(r.ReferenceAudios, ref)
+		default:
+			r.ReferenceImages = append(r.ReferenceImages, ref)
+		}
 	}
 	return nil
 }
