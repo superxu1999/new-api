@@ -14,10 +14,15 @@ import (
 
 type TaskStatus string
 
+// ToVideoStatus 把内部任务状态映射成 OpenAI 视频协议的状态。
+//
+// 注意 TaskStatusNotStart：任务刚入库时就是这个状态（见 InitTask），要等第一次轮询
+// 才会被上游状态覆盖。它必须映射成 queued —— 落到 default 会让「刚提交的任务」
+// 对外返回 unknown，调用方会以为任务出了异常。
 func (t TaskStatus) ToVideoStatus() string {
 	var status string
 	switch t {
-	case TaskStatusQueued, TaskStatusSubmitted:
+	case TaskStatusNotStart, TaskStatusQueued, TaskStatusSubmitted:
 		status = dto.VideoStatusQueued
 	case TaskStatusInProgress:
 		status = dto.VideoStatusInProgress
