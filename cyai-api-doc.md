@@ -126,7 +126,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 ```
 
 - `type`：`text` / `image_url` / `video_url` / `audio_url`；素材 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。
-- `role`：`reference_image` / `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片多图参考**必须**带 `role`。
+- `role`：表达素材用途（意图），取值 `reference_image` / `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片只有**多图**参考必须带（单张不写即按首帧图片）。
 - 数组里至少要有一条 `type=text`，也可以把提示词写在顶层 `prompt`（两者都写会合并成一条提示词，不会丢其中一处）。
 - 参考音频不能单独输入，至少要配 1 张参考图或 1 个参考视频。
 

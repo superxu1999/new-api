@@ -591,19 +591,19 @@ data: [DONE]`}</Code>
                   ['image_url.url', 'string', 'type=image_url 时必填', '—', '参考图公网 URL'],
                   ['video_url.url', 'string', 'type=video_url 时必填', '—', '参考视频公网 URL'],
                   ['audio_url.url', 'string', 'type=audio_url 时必填', '—', '参考音频公网 URL'],
-                  ['role', 'string', 'type 为 image_url/video_url/audio_url 时必填', '—', 'reference_image / reference_video / reference_audio'],
+                  ['role', 'string', '可选（见下）', '—', '参考素材的用途。写了就按你写的来，不写则按「写法与参考意图」推断；视频/音频必须显式写'],
                 ]}
               />
-              <ET title={t('role 字段说明（图/视频/音频参考必填）')} />
+              <ET title={t('参考素材的用途（role）：表达意图，不是字段必填项')} />
               <p className='text-[13px]'>
-                {t('role 标识参考素材的用途，告诉上游把它当作「参考图」「参考视频」还是「参考音频」。取值与素材类型一一绑定，填错会返回 400。不带 role 的 image_url 会被当作「首帧图片」（首帧最多 1 张），多图参考必须带 role。')}
+                {t('role 描述的是这段素材要拿来做什么（首帧图片 / 参考图 / 参考视频 / 参考音频），不是元素类型的附属字段：可以显式写，也可以不写 —— 不写时本站按下面的「写法与参考意图」推断，写了就绝不会被覆盖。取值必须与元素类型匹配：image_url 配 reference_image、video_url 配 reference_video、audio_url 配 reference_audio。视频与音频上游强制要求标注用途，必须显式写；图片则区分两种意图：不带 role 表示「首帧图片」（最多 1 张），要放多张参考图时必须写 role，本站会在多图时自动补齐。各渠道支持的素材类型不同（部分渠道不支持参考音频），中转渠道还会把不带 role 的图片自行补成 reference_image —— 需要严格的首帧语义请走火山原生直连渠道。')}
               </p>
               <T
-                headers={['素材类型', 'role 取值', '说明']}
+                headers={['素材类型', 'role 取值', '是否必须显式写', '说明']}
                 rows={[
-                  ['image_url', 'reference_image', '参考图（多图参考必须；不带 role 会被当作首帧）'],
-                  ['video_url', 'reference_video', '参考视频（必须）'],
-                  ['audio_url', 'reference_audio', '参考音频（必须，且不可单独输入，至少配 1 图或 1 视频）'],
+                  ['image_url', 'reference_image', '单图可不写（= 首帧）；多图必须写', '不带 role 的图片按「首帧图片」处理，首帧最多 1 张；多图时本站自动补 reference_image'],
+                  ['video_url', 'reference_video', '必须', '参考视频；上游要求显式标注用途'],
+                  ['audio_url', 'reference_audio', '必须', '参考音频；且不可单独输入，至少配 1 张参考图或 1 个参考视频'],
                 ]}
               />
               <ET title={t('写法与参考意图的对应关系（没写 role 时按此推断）')} />

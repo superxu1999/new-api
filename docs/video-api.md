@@ -103,7 +103,7 @@ Content-Type: application/json
 }
 ```
 
-`type` 取值：`text` / `image_url` / `video_url` / `audio_url`；参考素材的 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。`role` 取值：`reference_image` / `reference_video` / `reference_audio`（视频与音频必须带 `role`，图片多图参考必须带）。
+`type` 取值：`text` / `image_url` / `video_url` / `audio_url`；参考素材的 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。`role` 表达的是素材用途（意图），取值 `reference_image` / `reference_video` / `reference_audio`：视频与音频必须显式写，图片只有多图参考必须写（单图不写即按首帧图片）。
 
 没写 `role` 时按写法推断意图（**显式写的 `role` 永远不会被覆盖**）：
 
