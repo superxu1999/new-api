@@ -20,6 +20,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type TaskSubmitResult struct {
@@ -392,7 +394,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			respBody = stripCompletedAtIfUnfinished(openAIVideoData, originTask.Status)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -408,6 +410,32 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// stripCompletedAtIfUnfinished 在任务尚未结束时，从 OpenAI 视频响应里去掉 completed_at。
+//
+// OpenAI 视频协议里 completed_at 是「完成时间」，未完成时不应出现（本站对外文档也是这么
+// 写的）。但各适配器都是无条件写 CompletedAt = task.UpdatedAt，而 UpdatedAt 永远非零，
+// 于是排队中的任务也带着一个时间戳，客户端容易误判成已完成。
+//
+// 在这里统一收口而不是逐个适配器改：ConvertToOpenAIVideo 有 10 个实现，将来新增的必然漏。
+// 用 sjson 做字节级删除，不做 unmarshal/marshal 往返——sora 的实现直接返回上游原始负载，
+// 往返会把它压成 OpenAIVideo 的字段而丢数据。
+//
+// 只处理 JSON 对象；其他形状原样返回（sjson 对非对象输入会直接造出一个新对象）。
+func stripCompletedAtIfUnfinished(body []byte, status model.TaskStatus) []byte {
+	// 成功与失败都算已结束：失败任务的 UpdatedAt 就是它的结束时间。
+	if status == model.TaskStatusSuccess || status == model.TaskStatusFailure {
+		return body
+	}
+	if common.GetJsonType(body) != "object" || !gjson.ValidBytes(body) {
+		return body
+	}
+	patched, err := sjson.DeleteBytes(body, "completed_at")
+	if err != nil {
+		return body
+	}
+	return patched
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
