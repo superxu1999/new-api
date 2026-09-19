@@ -73,99 +73,193 @@ var officialTopLevelTaskParams = []string{
 	"generate_audio",
 }
 
-// normalizeTaskSubmitReq 把火山方舟官方创建任务接口的顶层写法，归一到本站适配器
-// 真正读取的位置。两个校验入口都要在解析之后、校验之前调用它：提示词要能在 prompt
-// 必填校验之前合并出来，否则官方格式（没有顶层 prompt）会被 400。
+// NormalizeTaskSubmitReq 是 normalizeTaskSubmitReq 的对外入口，供不走标准校验函数的
+// 任务路径（如 Sora remix）复用同一套写法归一。
+func NormalizeTaskSubmitReq(req *TaskSubmitReq) {
+	normalizeTaskSubmitReq(req)
+}
+
+// normalizeTaskSubmitReq 把客户端各种等价写法，归一到本站适配器真正读取的位置。
+// 两个校验入口都要在解析之后、校验之前调用它：提示词要能在 prompt 必填校验之前
+// 合并出来，否则官方格式（没有顶层 prompt）会被 400。
 func normalizeTaskSubmitReq(req *TaskSubmitReq) {
-	normalizeTaskContent(req)
-	normalizeFlatReferences(req)
+	normalizeTaskReferences(req)
 	normalizeOfficialVideoParams(req)
 	normalizeReturnLastFrame(req)
 	normalizeTaskPrompt(req)
 }
 
-// normalizeTaskContent 把火山方舟官方的顶层 content 数组并入 metadata.content。
-//
-// 官方创建任务接口把提示词与参考图/视频/音频都放在顶层 content 里；本站的
-// cyai/doubao/seedance 适配器只读 metadata.content，顶层直接写会在解析阶段就被丢掉，
-// 上游连一张参考图都收不到（实测客户按官方格式传 3 张参考图，上游收到的 content
-// 只有一条 text，生成的视频与参考图毫无关系）。
-//
-// metadata.content 已显式写好的值优先，不覆盖；content 形状不是数组时按未传处理。
-func normalizeTaskContent(req *TaskSubmitReq) {
-	if req == nil || len(req.Content) == 0 {
+// referenceTypeKeys 是 content 元素里各素材类型对应的 URL 字段名（与 type 同名）。
+var referenceTypeKeys = []string{"image_url", "video_url", "audio_url"}
+
+// mediaURLOf 取参考素材字段里的 URL：既接受 "https://..."，也接受 {"url": "..."}。
+func mediaURLOf(raw interface{}) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case map[string]interface{}:
+		url, _ := value["url"].(string)
+		return strings.TrimSpace(url)
+	}
+	return ""
+}
+
+// referenceItemURL 取一个 content 元素里的素材 URL（文档写法 {"type":"image_url","image_url":{"url":...}}）。
+func referenceItemURL(item map[string]interface{}) string {
+	typeName, _ := item["type"].(string)
+	if typeName == "" {
+		for _, key := range referenceTypeKeys {
+			if _, exists := item[key]; exists {
+				typeName = key
+				break
+			}
+		}
+	}
+	return mediaURLOf(item[typeName])
+}
+
+// appendReference 追加一条参考素材（新建 content 元素），同一 URL 只保留一次。
+func appendReference(items []interface{}, seen map[string]bool, typeName, url, role string) []interface{} {
+	if url == "" || seen[url] {
+		return items
+	}
+	seen[url] = true
+	item := map[string]interface{}{
+		"type":   typeName,
+		typeName: map[string]interface{}{"url": url},
+	}
+	if role != "" {
+		item["role"] = role
+	}
+	return append(items, item)
+}
+
+// fillMissingImageRoles 给「没写 role 的参考图」补 reference_image，只在超过一张时补：
+// 单独一张不带 role 是官方约定的「首帧图片」（首帧最多 1 张），两张及以上必须带 role，
+// 否则上游只认第一张。
+func fillMissingImageRoles(items []interface{}) {
+	var pending []map[string]interface{}
+	for _, raw := range items {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if _, isImage := item["image_url"]; !isImage {
+			continue
+		}
+		if role, _ := item["role"].(string); role == "" {
+			pending = append(pending, item)
+		}
+	}
+	if len(pending) < 2 {
 		return
 	}
-	var items []interface{}
-	if err := common.Unmarshal(req.Content, &items); err != nil || len(items) == 0 {
+	for _, item := range pending {
+		item["role"] = "reference_image"
+	}
+}
+
+// normalizeTaskReferences 把所有参考素材写法归一成 metadata.content 里一份带明确意图的清单。
+//
+// 客户端表达同一种意图有多种写法，而各适配器只读 metadata.content。这里按
+// 「显式写的 role 绝不覆盖，没写 role 的按写法推断」统一收口，避免各渠道各判一套：
+//
+//	写法                                推断出的意图
+//	content 元素带 role                 原样保留（显式优先）
+//	content 里没写 role 的 image_url    一张按「首帧图片」；两张及以上补 reference_image
+//	input_reference / image（单值）     首帧图片
+//	images 数组                          一张按首帧；多张按参考图（首帧最多 1 张）
+//	metadata.image_url                  首帧图片（对外文档 6.2 图生视频）
+//	metadata.video_url                  reference_video（对外文档 6.3 视频生视频）
+//	metadata.audio_url                  reference_audio
+//
+// 顶层 content 与 metadata.content 两处都写时合并（同一 URL 只留一次），不再二选一丢一处。
+//
+// 注意：推断只是「本站发出的意图」。中转渠道（CyAI）会把没带 role 的图片自己补成
+// reference_image，实测上游 egress 报文如此 —— 首帧意图在中转链路上会被改写成参考图，
+// 需要严格首帧语义请走火山原生直连渠道。
+func normalizeTaskReferences(req *TaskSubmitReq) {
+	if req == nil {
 		return
 	}
 	if req.Metadata == nil {
 		req.Metadata = map[string]interface{}{}
 	}
-	if _, exists := req.Metadata["content"]; !exists {
-		// 必须存 []interface{}：doubao/seedance 适配器直接对 metadata["content"]
-		// 断言 []interface{} 来判断是否含参考视频（影响按含视频档计费）。
-		req.Metadata["content"] = items
-	}
-}
 
-// flatReferenceKeys 把对外文档里的扁平参考写法（metadata.image_url 等）映射成 content 元素。
-// role 为空表示按「首帧图片」处理 —— 与文档的 role 表一致：不带 role 的 image_url = 首帧。
-var flatReferenceKeys = []struct {
-	key  string // metadata 里的扁平键
-	typ  string // content 元素的 type
-	role string // 参考素材的 role
-}{
-	{"image_url", "image_url", ""},
-	{"video_url", "video_url", "reference_video"},
-	{"audio_url", "audio_url", "reference_audio"},
-}
-
-// normalizeFlatReferences 把扁平的参考素材写法归一到 metadata.content。
-//
-// 本站适配器只读 metadata.content：只写 metadata.video_url 的请求，doubao/seedance 会把
-// 参考视频整个丢掉（上游收到的是纯文生视频），而 HasInputVideo 也只认 content，于是连
-// 「含视频」档都没算 —— 官方公式里含视频时 token 翻倍、单价也不同（480p/720p 档 28 对 46），
-// 漏判等于少收近两成。
-//
-// metadata.content 已存在时不动：文档约定多图/多模态混搭用 content 数组，两者同时出现
-// 时以 content 为准。
-func normalizeFlatReferences(req *TaskSubmitReq) {
-	if req == nil || req.Metadata == nil {
-		return
-	}
-	if _, exists := req.Metadata["content"]; exists {
-		return
-	}
-	var items []interface{}
-	for _, flat := range flatReferenceKeys {
-		var url string
-		switch value := req.Metadata[flat.key].(type) {
-		case string:
-			url = strings.TrimSpace(value)
-		case map[string]interface{}:
-			// 也接受 {"url": "..."} 写法，避免又一处静默丢弃。
-			url, _ = value["url"].(string)
-			url = strings.TrimSpace(url)
+	items, _ := req.Metadata["content"].([]interface{})
+	seen := make(map[string]bool, len(items)+len(req.Images)+3)
+	for _, raw := range items {
+		if item, ok := raw.(map[string]interface{}); ok {
+			if url := referenceItemURL(item); url != "" {
+				seen[url] = true
+			}
 		}
+	}
+
+	// 火山方舟官方写法的顶层 content 数组：与 metadata.content 合并
+	if len(req.Content) > 0 {
+		var topLevel []interface{}
+		if err := common.Unmarshal(req.Content, &topLevel); err == nil {
+			for _, raw := range topLevel {
+				item, ok := raw.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				url := referenceItemURL(item)
+				if url == "" || seen[url] {
+					continue
+				}
+				seen[url] = true
+				items = append(items, item)
+			}
+		}
+	}
+
+	// 接口字段：images 数组（image、input_reference 也归到这里）
+	images := req.Images
+	if len(images) == 0 && strings.TrimSpace(req.Image) != "" {
+		images = []string{req.Image}
+	}
+	if len(images) == 0 && strings.TrimSpace(req.InputReference) != "" {
+		images = []string{req.InputReference}
+	}
+	imageRole := ""
+	if len(images) > 1 {
+		imageRole = "reference_image"
+	}
+	for _, url := range images {
+		items = appendReference(items, seen, "image_url", strings.TrimSpace(url), imageRole)
+	}
+
+	// metadata 里的扁平写法：字段名本身就表达意图。
+	// 转换成功后把扁平字段删掉 —— 素材已经进了 content，留着会让上游把同一份素材
+	// 看成两处输入（既占参考素材数量上限，也可能被当成两个参考）。
+	for _, flat := range []struct {
+		key  string
+		typ  string
+		role string
+	}{
+		{"image_url", "image_url", ""},
+		{"video_url", "video_url", "reference_video"},
+		{"audio_url", "audio_url", "reference_audio"},
+	} {
+		url := mediaURLOf(req.Metadata[flat.key])
 		if url == "" {
 			continue
 		}
-		item := map[string]interface{}{
-			"type": flat.typ,
-			flat.typ: map[string]interface{}{
-				"url": url,
-			},
+		before := len(items)
+		items = appendReference(items, seen, flat.typ, url, flat.role)
+		if len(items) > before {
+			delete(req.Metadata, flat.key)
 		}
-		if flat.role != "" {
-			item["role"] = flat.role
-		}
-		items = append(items, item)
 	}
+
+	fillMissingImageRoles(items)
 	if len(items) == 0 {
 		return
 	}
+	// 必须存 []interface{}：doubao/seedance 适配器直接对 metadata["content"]
+	// 断言 []interface{} 来判断是否含参考视频（影响按含视频档计费）。
 	req.Metadata["content"] = items
 }
 

@@ -579,7 +579,7 @@ data: [DONE]`}</Code>
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
                   ['content', 'array', '是（二选一）', '—', '多模态参考数组，火山方舟官方写法（与 model/prompt 同级）；元素结构见下表'],
                   ['metadata.content', 'array', '是（二选一）', '—', '多模态参考数组，本站兼容写法（写在 metadata 内）；与顶层 content 完全等价'],
-                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3），等价于 content 里对应的一条；与 content 同时存在时以 content 为准'],
+                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3）：会转成 content 里对应的一条（含 role），转换后不再重复下发；与 content 同时存在时同一个 URL 只保留一次'],
                 ]}
               />
               <ET title={t('metadata.content 数组元素（至少包含 1 条 type=text）')} />
@@ -606,6 +606,19 @@ data: [DONE]`}</Code>
                   ['audio_url', 'reference_audio', '参考音频（必须，且不可单独输入，至少配 1 图或 1 视频）'],
                 ]}
               />
+              <ET title={t('写法与参考意图的对应关系（没写 role 时按此推断）')} />
+              <T
+                headers={['写法', '推断出的意图', '说明']}
+                rows={[
+                  ['content 元素带 role', '原样使用', '显式优先：本站绝不覆盖你写的 role'],
+                  ['content 里没带 role 的图片', '一张=首帧；两张及以上=参考图', '首帧最多 1 张，多图必须带 role，本站自动补齐。注意中转渠道（CyAI）会把不带 role 的图片自行补成 reference_image，需要严格首帧语义请走火山原生直连渠道'],
+                  ['input_reference / image', '首帧图片', 'Sora 与该字段本身的语义'],
+                  ['images 数组', '一张=首帧；多张=参考图', '同一个 URL 只保留一次'],
+                  ['metadata.image_url', '首帧图片', '等价于 content 里一条不带 role 的 image_url（见 6.2）'],
+                  ['metadata.video_url', '参考视频', '自动带 role=reference_video（见 6.3）'],
+                  ['metadata.audio_url', '参考音频', '自动带 role=reference_audio'],
+                ]}
+              />
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
@@ -625,7 +638,7 @@ data: [DONE]`}</Code>
     }
   }'`}</Code>
               <p className='text-[13px]'>
-                {t('上面是火山方舟官方写法：多模态参考数组放在顶层 content。把整个数组挪到 metadata.content 里效果完全一样（两种写法二选一，不要同时写，同时写时以 metadata.content 为准）。')}
+                {t('上面是火山方舟官方写法：多模态参考数组放在顶层 content。写在 metadata.content 里效果完全一样；两处都写时会合并成一份素材清单，同一个 URL 只保留一次。')}
               </p>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK

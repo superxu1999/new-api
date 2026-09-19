@@ -77,11 +77,18 @@ func TestConvertToRequestPayload(t *testing.T) {
 		Prompt:  "日落时分的海边",
 		Model:   "doubao-seedance-2.0",
 		Seconds: "5",
-		Images:  []string{"https://example.com/first-frame.png"},
+		// 参考素材由校验阶段的 relaycommon.normalizeTaskReferences 归一到这里
+		// （顶层 images / 扁平写法同理，见 relay/common 的测试）。
 		Metadata: map[string]interface{}{
 			"ratio":          "16:9",
 			"generate_audio": false,
 			"watermark":      true,
+			"content": []interface{}{
+				map[string]interface{}{
+					"type":      "image_url",
+					"image_url": map[string]interface{}{"url": "https://example.com/first-frame.png"},
+				},
+			},
 		},
 	}
 

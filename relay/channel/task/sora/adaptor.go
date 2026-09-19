@@ -79,6 +79,9 @@ func validateRemixRequest(c *gin.Context) *dto.TaskError {
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
+	// remix 不走标准校验函数，这里复用同一套写法归一：官方格式把提示词写在 content
+	// 里时，prompt 也必须能合并出来，否则会被下面的必填校验 400。
+	relaycommon.NormalizeTaskSubmitReq(&req)
 	if strings.TrimSpace(req.Prompt) == "" {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("field prompt is required"), "invalid_request", http.StatusBadRequest)
 	}
