@@ -104,6 +104,69 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 
 视频输入能力：`metadata.image_url`（图生视频）、`metadata.video_url`（视频生视频）、`POST /v1/videos/{id}/remix`（视频 Remix）。也提供兼容接口 `POST /v1/video/generations`。
 
+### 5.1 参考素材（参考图 / 参考视频 / 参考音频）
+
+多模态参考用 `content` 数组表达。**数组放在顶层（火山方舟官方写法）或 `metadata.content` 里都可以**，两处都写会合并成一份（同一个 URL 只保留一次）：
+
+```bash
+curl -X POST "https://baseadd.vip/v1/videos" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{
+    "model": "<model-id>",
+    "prompt": "让参考图里的人物按参考视频的动作表演",
+    "duration": 5,
+    "content": [
+      { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" }, "role": "reference_image" },
+      { "type": "video_url", "video_url": { "url": "https://example.com/motion.mp4" }, "role": "reference_video" },
+      { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" }, "role": "reference_audio" }
+    ],
+    "metadata": { "resolution": "720p", "ratio": "16:9" }
+  }'
+```
+
+- `type`：`text` / `image_url` / `video_url` / `audio_url`；素材 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。
+- `role`：`reference_image` / `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片多图参考**必须**带 `role`。
+- 数组里至少要有一条 `type=text`，也可以把提示词写在顶层 `prompt`（两者都写会合并成一条提示词，不会丢其中一处）。
+- 参考音频不能单独输入，至少要配 1 张参考图或 1 个参考视频。
+
+没写 `role` 时按写法自动判断意图（**你自己写了 `role` 就一定按你写的来**）：
+
+| 你的写法 | 会被当作 |
+| --- | --- |
+| `content` 里带 `role` 的元素 | 按 `role` 原样使用 |
+| `content` 里不带 `role` 的图片 | 一张 = 首帧图片；两张及以上 = 参考图 |
+| `input_reference` / `image` | 首帧图片 |
+| `images` 数组 | 一张 = 首帧图片；多张 = 参考图 |
+| `metadata.image_url` | 首帧图片 |
+| `metadata.video_url` | 参考视频 |
+| `metadata.audio_url` | 参考音频 |
+
+> 注意：中转渠道会把不带 `role` 的图片自行补成 `reference_image`，因此**严格的首帧语义请走火山原生直连渠道**。
+
+视频分辨率/比例/水印/种子等参数既可以写在顶层（`resolution`、`ratio`、`watermark`、`seed`、`camera_fixed`、`generate_audio`），也可以写进 `metadata`；两处都写时以 `metadata` 为准。
+
+### 5.2 续拍（用上一段的尾帧继续生成）
+
+创建任务时带 `return_last_frame: true`，任务完成后查询结果里的 `metadata.last_frame_url` 就是这一段的尾帧图片地址，把它当作下一段的首帧参考即可续接：
+
+```bash
+curl -X POST "https://baseadd.vip/v1/videos" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{
+    "model": "<model-id>",
+    "prompt": "镜头推进，她抬头看向雨幕",
+    "duration": 5,
+    "return_last_frame": true,
+    "input_reference": "<上一段的 metadata.last_frame_url>"
+  }'
+```
+
+### 5.3 失败原因与退款
+
+任务失败时查询结果里的 `metadata.fail_reason` 是上游返回的真实原因（例如上游内容审核提示输出视频涉及版权限制）。**这类失败会自动全额退款**预扣额度，无需人工申请。
+
 ```
 GET /v1/videos/{task_id}        查询任务状态
 GET /v1/videos/{task_id}/content 下载成片
@@ -113,6 +176,8 @@ GET /v1/videos/{task_id}/content 下载成片
 curl "https://baseadd.vip/v1/videos/task_xxx" -H "Authorization: Bearer sk-..."
 curl -L "https://baseadd.vip/v1/videos/task_xxx/content" -H "Authorization: Bearer sk-..." -o output.mp4
 ```
+
+`status` 取值：`queued`（排队中）→ `in_progress`（生成中）→ `completed`（可取成片，`metadata.url` 即成片地址）/ `failed`（失败，看 `metadata.fail_reason`）。未完成时不会返回 `completed_at`。
 
 ## 6. 图像生成
 
@@ -180,6 +245,9 @@ POST /v1/audio/speech          语音合成（TTS）
 | `model_not_found` | 模型不存在或无可用渠道 |
 | `insufficient_user_quota` | 余额不足 |
 | `model_price_error` | 模型/参数不支持 |
-| `invalid_seconds` | 时长非法 |
+| `invalid_seconds` | 时长非法（4–15 秒的整数，或 -1 由模型自动选择） |
+| `invalid_resolution` | 分辨率档位不支持该渠道 |
 | `invalid_api_platform` | 调用了不支持的接口/模型类型 |
 | `task_not_exist` | 任务不存在 |
+
+> 注意：**不认识的请求字段会被忽略而不是报错**。参考素材请按第 5.1 节写在顶层 `content` 或 `metadata.content` 里；写在其它位置（如自造的字段名）不会生效。任务失败的具体原因看 `metadata.fail_reason`（见 5.3）。

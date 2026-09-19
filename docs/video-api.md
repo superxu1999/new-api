@@ -49,22 +49,26 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `model` | string | ✅ | 模型名称，如 `doubao-seedance-2-0-260128` |
-| `prompt` | string | ✅ | 视频内容描述 |
+| `prompt` | string | ✅ | 视频内容描述。也可省略：会与 `content` 内 `type=text` 元素合并成一条提示词，两处都写不会丢其中一处 |
+| `content` | array | | 多模态参考数组（火山方舟官方写法，与 `model` 同级）：参考图/视频/音频。与 `metadata.content` 完全等价，见「多模态参考」 |
 | `seconds` | int | | 视频时长（秒），默认 4，最大 3600 |
 | `size` | string | | 分辨率，如 `"1920x1080"`、`"1080x1920"` |
 | `ratio` | string | | 画面比例，如 `"16:9"`、`"9:16"`、`"1:1"` |
 | `resolution` | string | | 分辨率档位（doubao 专用），如 `"1080p"`、`"4k"` |
-| `images` | string[] | | 参考图 URL 列表（图生视频） |
-| `image` | string | | 单张参考图 URL |
-| `input_reference` | string | | 参考文件 URL（OpenAI 格式，参考图/视频） |
+| `images` | string[] | | 参考图 URL 列表：**一张按首帧图片，两张及以上按参考图**（首帧最多 1 张） |
+| `image` | string | | 单张参考图 URL（按首帧图片） |
+| `input_reference` | string | | 参考文件 URL（OpenAI 格式，按首帧图片） |
 | `duration` | int | | 同 `seconds`，部分渠道使用 |
 | `watermark` | bool | | 是否添加水印 |
 | `seed` | int | | 随机种子 |
 | `camera_fixed` | bool | | 是否固定镜头 |
 | `generate_audio` | bool | | 是否生成配乐 |
+| `return_last_frame` | bool | | 是否额外返回尾帧图，用于续拍（见「续拍」） |
 | `mode` | string | | 生成模式（渠道特定） |
 | `callback_url` | string | | 异步回调地址（渠道特定） |
 | `metadata` | object | | 透传给渠道适配器的额外参数 |
+
+> 表里的 `resolution` / `ratio` / `watermark` / `seed` / `camera_fixed` / `generate_audio` / `return_last_frame` 和 `content` 都可以写在顶层（火山方舟官方写法），也可以写进 `metadata`；两处都写时以 `metadata` 内的值为准。
 
 ##### metadata 扩展参数
 
@@ -81,22 +85,39 @@ Content-Type: application/json
 - `service_tier`
 - `priority`
 - `frames`
+- `image_url`（图生视频，按首帧图片）/ `video_url`（视频生视频，参考视频）/ `audio_url`（参考音频）：单素材扁平写法
 
-metadata 也支持通过 `content` 数组传递多模态参考输入（参考视频、角色视频等）：
+##### 多模态参考（content 数组）
+
+参考图/视频/音频用 `content` 数组表达，数组放顶层（火山方舟官方写法）或 `metadata.content` 里都可以，两处都写会合并成一份（同一个 URL 只保留一次）：
 
 ```json
 {
-  "metadata": {
-    "content": [
-      {
-        "type": "video_url",
-        "video_url": { "url": "https://example.com/ref.mp4" },
-        "role": "reference_video"
-      }
-    ]
-  }
+  "model": "doubao-seedance-2-0-260128",
+  "content": [
+    { "type": "text", "text": "让参考图里的人物按参考视频的动作表演" },
+    { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" }, "role": "reference_image" },
+    { "type": "video_url", "video_url": { "url": "https://example.com/motion.mp4" }, "role": "reference_video" },
+    { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" }, "role": "reference_audio" }
+  ]
 }
 ```
+
+`type` 取值：`text` / `image_url` / `video_url` / `audio_url`；参考素材的 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。`role` 取值：`reference_image` / `reference_video` / `reference_audio`（视频与音频必须带 `role`，图片多图参考必须带）。
+
+没写 `role` 时按写法推断意图（**显式写的 `role` 永远不会被覆盖**）：
+
+| 写法 | 推断出的意图 |
+|------|-------------|
+| `content` 元素带 `role` | 原样使用 |
+| `content` 里不带 `role` 的图片 | 一张 = 首帧图片；两张及以上 = 参考图（自动补 `reference_image`） |
+| `input_reference` / `image` | 首帧图片 |
+| `images` 数组 | 一张 = 首帧图片；多张 = 参考图 |
+| `metadata.image_url` | 首帧图片 |
+| `metadata.video_url` | `reference_video` |
+| `metadata.audio_url` | `reference_audio` |
+
+> 中转渠道（如 CyAI）会把不带 `role` 的图片自行补成 `reference_image`；需要严格的首帧语义请走火山原生直连渠道。
 
 #### 响应格式
 
@@ -104,11 +125,11 @@ metadata 也支持通过 `content` 数组传递多模态参考输入（参考视
 {
   "id": "task_xxxxxxxxxxxx",
   "task_id": "task_xxxxxxxxxxxx",
-  "status": "pending",
-  "progress": "10%",
+  "object": "video",
+  "status": "queued",
+  "progress": 0,
   "created_at": 1712345678,
-  "model": "doubao-seedance-2-0-260128",
-  "metadata": {}
+  "model": "doubao-seedance-2-0-260128"
 }
 ```
 
@@ -116,10 +137,11 @@ metadata 也支持通过 `content` 数组传递多模态参考输入（参考视
 |------|------|
 | `id` | 公共任务 ID，用于后续轮询和下载 |
 | `task_id` | 同 `id` |
-| `status` | 当前状态：`pending` / `processing` / `succeeded` / `failed` |
-| `progress` | 进度百分比字符串，如 `"10%"`、`"50%"`、`"100%"` |
-| `url` | 完成后出现，视频下载地址（指向本系统代理） |
-| `error` | 失败时出现，含 `code` 和 `message` |
+| `object` | 固定为 `video` |
+| `model` | 本次请求使用的模型 |
+| `status` | 刚提交时为 `queued`，完整取值见「状态取值」 |
+| `progress` | 进度（0-100 的数字） |
+| `created_at` | 任务创建时间戳（秒） |
 
 #### 示例：提交文本生视频
 
@@ -163,13 +185,15 @@ GET /v1/videos/:task_id
 {
   "id": "task_xxxxxxxxxxxx",
   "task_id": "task_xxxxxxxxxxxx",
-  "status": "processing",
-  "progress": "50%",
+  "status": "in_progress",
+  "progress": 50,
   "created_at": 1712345678,
   "model": "doubao-seedance-2-0-260128",
   "metadata": {}
 }
 ```
+
+未完成时**不返回** `completed_at`。
 
 #### 响应格式（已完成）
 
@@ -177,17 +201,23 @@ GET /v1/videos/:task_id
 {
   "id": "task_xxxxxxxxxxxx",
   "task_id": "task_xxxxxxxxxxxx",
-  "status": "succeeded",
-  "progress": "100%",
-  "url": "https://your-server.com/v1/videos/task_xxxxxxxxxxxx/content",
+  "status": "completed",
+  "progress": 100,
   "created_at": 1712345678,
   "completed_at": 1712345800,
   "model": "doubao-seedance-2-0-260128",
   "metadata": {
-    "url": "https://your-server.com/v1/videos/task_xxxxxxxxxxxx/content"
+    "url": "https://your-server.com/v1/videos/task_xxxxxxxxxxxx/content",
+    "last_frame_url": "https://.../last-frame.png"
+  },
+  "usage": {
+    "completion_tokens": 108000,
+    "total_tokens": 108000
   }
 }
 ```
+
+`metadata.last_frame_url` 仅在创建任务时带 `return_last_frame=true` 才有；`usage` 在结算完成后才出现。
 
 #### 响应格式（失败）
 
@@ -196,15 +226,26 @@ GET /v1/videos/:task_id
   "id": "task_xxxxxxxxxxxx",
   "task_id": "task_xxxxxxxxxxxx",
   "status": "failed",
-  "progress": "100%",
-  "error": {
-    "code": "content_rejected",
-    "message": "Content violates policy"
-  },
+  "progress": 100,
   "created_at": 1712345678,
-  "model": "doubao-seedance-2-0-260128"
+  "completed_at": 1712345800,
+  "model": "doubao-seedance-2-0-260128",
+  "metadata": {
+    "fail_reason": "The request failed because the output video may be related to copyright restrictions. Request id: 021789..."
+  }
 }
 ```
+
+`metadata.fail_reason` 是上游返回的真实失败原因（如上游内容审核）。任务失败会**自动全额退款**预扣额度。
+
+#### 状态取值
+
+| 查询接口 | `status` 取值 |
+|---------|--------------|
+| `GET /v1/videos/:task_id`（OpenAI 格式） | `queued` / `in_progress` / `completed` / `failed` |
+| `GET /v1/video/generations/:task_id`（原生格式） | 内部枚举：`NOT_START` / `SUBMITTED` / `QUEUED` / `IN_PROGRESS` / `SUCCESS` / `FAILURE` |
+
+原生格式把任务包在 `{"code":"success","message":"","data":{...}}` 里，字段为 `data.task_id` / `data.status` / `data.fail_reason` / `data.result_url` / `data.last_frame_url` / `data.usage`；其中 `data.data` 是上游的原始响应（排障用）。
 
 ### 下载视频
 
@@ -238,6 +279,24 @@ Content-Type: application/json
   "prompt": "新的视频描述"
 }
 ```
+
+### 续拍（尾帧图）
+
+创建任务时带 `return_last_frame=true`，任务完成后响应里的 `metadata.last_frame_url` 就是这一段的**尾帧图片地址**，把它作为下一段的首帧参考（`images` / `image` / `input_reference`，或 `content` 里一条不带 `role` 的 `image_url`）即可续接。
+
+```bash
+# 1) 第一段：请求尾帧
+curl https://your-server.com/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" -H "Content-Type: application/json" \
+  -d '{"model":"doubao-seedance-2-0-260128","prompt":"林晚站在便利店屋檐下","seconds":5,"return_last_frame":true}'
+
+# 2) 轮询拿到 metadata.last_frame_url 后，用它作为下一段首帧
+curl https://your-server.com/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" -H "Content-Type: application/json" \
+  -d '{"model":"doubao-seedance-2-0-260128","prompt":"镜头推进，她抬头看向雨幕","seconds":5,"input_reference":"<上一步的 last_frame_url>"}'
+```
+
+> 尾帧图地址是上游的带签名直链（有效期有限），建议拿到后立即使用或转存。
 
 ---
 
@@ -345,12 +404,11 @@ Content-Type: multipart/form-data
 
 | 渠道 | 计费乘数 | 说明 |
 |------|---------|------|
-| Seedance | `ModelRatio × seconds` | 按时长计费 |
-| Doubao Video | `ModelRatio × video_input_ratio` | 按分辨率/是否含视频输入计价 |
+| Seedance / Doubao Video | 分档单价 × token / 1e6 | token 按官方公式估算：`(输出时长 + 输入时长) × 宽 × 高 × 24 / 1024`；**含参考视频时输入时长 = 输出时长（token 翻倍）且单价取「含视频」档**，任务完成后按上游返回的真实 token 做差额结算 |
 | Sora | `ModelRatio` | 按次计费 |
 | Kling | 渠道特定 | 按模型 + 时长计费 |
 
-> `ModelRatio` 由管理员在系统设置中配置。
+> 分档单价由管理员在后台按「模型 × 分辨率档 × 是否含参考视频」配置；`ModelRatio` 与分组倍率照常参与换算。
 
 ---
 
