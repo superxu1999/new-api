@@ -51,7 +51,7 @@ Content-Type: application/json
 | `model` | string | ✅ | 模型名称，如 `doubao-seedance-2-0-260128` |
 | `prompt` | string | ✅ | 视频内容描述。也可省略：会与 `content` 内 `type=text` 元素合并成一条提示词，两处都写不会丢其中一处 |
 | `content` | array | | 多模态参考数组（火山方舟官方写法，与 `model` 同级）：参考图/视频/音频。与 `metadata.content` 完全等价，见「多模态参考」 |
-| `seconds` | int | | 视频时长（秒），默认 4，最大 3600 |
+| `seconds` | int | | 视频时长（秒）。Seedance 系（含本站中转渠道）为 4–15 的整数，省略或 `-1` 由模型自动选择（2.0 系列默认 5 秒、2.5 系列默认 10 秒）；其它模型族以各自模型规格为准 |
 | `size` | string | | 分辨率，如 `"1920x1080"`、`"1080x1920"` |
 | `ratio` | string | | 画面比例，如 `"16:9"`、`"9:16"`、`"1:1"` |
 | `resolution` | string | | 分辨率档位（doubao 专用），如 `"1080p"`、`"4k"` |
@@ -396,19 +396,13 @@ Content-Type: multipart/form-data
 
 ## 计费说明
 
-视频模型的计费公式：
-
-```
-消耗额度 = ModelRatio × OtherRatios 乘积
-```
-
-| 渠道 | 计费乘数 | 说明 |
+| 渠道 | 计费方式 | 说明 |
 |------|---------|------|
-| Seedance / Doubao Video | 分档单价 × token / 1e6 | token 按官方公式估算：`(输出时长 + 输入时长) × 宽 × 高 × 24 / 1024`；**含参考视频时输入时长 = 输出时长（token 翻倍）且单价取「含视频」档**，任务完成后按上游返回的真实 token 做差额结算 |
-| Sora | `ModelRatio` | 按次计费 |
-| Kling | 渠道特定 | 按模型 + 时长计费 |
+| Seedance / Doubao Video | 分档单价 × token / 1e6 | token 按官方公式计算：`(输出时长 + 输入时长) × 宽 × 高 × 24 / 1024`；**含参考视频时输入时长 = 输出时长（token 翻倍）且单价取「含视频」档**，任务完成后按上游返回的真实 token 做差额结算 |
+| Sora | 按次计费 | 每次调用固定价格 |
+| Kling、Vidu 等其它渠道 | 渠道特定 | 按模型 + 时长等参数计费 |
 
-> 分档单价由管理员在后台按「模型 × 分辨率档 × 是否含参考视频」配置；`ModelRatio` 与分组倍率照常参与换算。
+> 分档单价由管理员在后台按「模型 × 分辨率档 × 是否含参考视频」配置，另叠加模型倍率与分组倍率。
 
 ---
 
@@ -416,11 +410,12 @@ Content-Type: multipart/form-data
 
 | HTTP 状态码 | 错误类型 | 说明 |
 |------------|---------|------|
-| 400 | `invalid_seconds` | 时长必须在 1-3600 之间 |
+| 400 | `invalid_seconds` | 时长非法：Seedance 系须为 4–15 的整数或 -1（自动），超出范围报此错 |
 | 400 | `invalid_request_error` | 请求参数错误或缺少必填字段 |
 | 401 |  | 认证失败或 Token 无效 |
 | 403 |  | 无权限或模型被分组限制 |
-| 404 | `invalid_request_error` | 任务不存在 |
+| 400 | `task_not_exist` | 查询的任务不存在（核对 task_id） |
+| 404 | `invalid_request_error` | 仅下载接口 `/v1/videos/:task_id/content`：任务不存在 |
 | 502 |  | 上游服务返回错误 |
 | 503 |  | 无可用渠道（模型未启用或渠道不可用） |
 
@@ -436,7 +431,7 @@ Content-Type: multipart/form-data
 
 支持主流比例：`16:9`、`9:16`、`1:1`、`4:3`、`3:4` 等。具体取决于上游模型。
 
-### Q: 为什么我的任务一直卡在 processing？
+### Q: 为什么我的任务一直卡在 in_progress？
 
 检查渠道配置是否正确：渠道是否启用、Key 是否有效、模型是否已分配给分组。
 

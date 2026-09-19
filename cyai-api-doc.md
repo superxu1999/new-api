@@ -98,11 +98,12 @@ curl -X POST "https://baseadd.vip/v1/videos" \
   "object": "video",
   "model": "<model-id>",
   "status": "queued",
-  "progress": 0
+  "progress": 0,
+  "created_at": 1788598144
 }
 ```
 
-视频输入能力：`metadata.image_url`（图生视频）、`metadata.video_url`（视频生视频）、`POST /v1/videos/{id}/remix`（视频 Remix）。也提供兼容接口 `POST /v1/video/generations`。
+视频输入能力：`metadata.image_url`（图生视频）、`metadata.video_url`（视频生视频）、多模态参考数组（见 5.1）。也提供兼容接口 `POST /v1/video/generations`。
 
 ### 5.1 参考素材（参考图 / 参考视频 / 参考音频）
 
@@ -127,8 +128,10 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 
 - `type`：`text` / `image_url` / `video_url` / `audio_url`；素材 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。
 - `role`：表达素材用途（意图），取值 `reference_image` / `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片只有**多图**参考必须带（单张不写即按首帧图片）。
-- 数组里至少要有一条 `type=text`，也可以把提示词写在顶层 `prompt`（两者都写会合并成一条提示词，不会丢其中一处）。
-- 参考音频不能单独输入，至少要配 1 张参考图或 1 个参考视频。
+- 数组里的 `type=text` 可省：省略时用顶层 `prompt` 作为提示词（两者都写会合并成一条，不会丢其中一处）。
+- 参考音频不能单独输入，至少要配 1 张参考图或 1 个参考视频（上游约束，本站不做校验）。
+- `duration` 省略或填 `-1` 时，本站不向上游传时长、由上游按默认时长处理（本渠道默认 5 秒）；`metadata.resolution` 省略或为空时按 `720p` 处理。
+- 视频 Remix（`POST /v1/videos/{id}/remix`）目前仅部分渠道支持，本渠道请用 `metadata.video_url`（或 5.1 的 `content` 数组）传参考视频。
 
 没写 `role` 时按写法自动判断意图（**你自己写了 `role` 就一定按你写的来**）：
 

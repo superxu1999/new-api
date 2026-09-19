@@ -314,7 +314,7 @@ Authorization: Bearer sk-...`}</Code>
 {
   "data": [
     { "id": "<model-id>", "object": "model",
-      "created": 1626777600, "owned_by": "cyai seedance",
+      "created": 1626777600, "owned_by": "CyAI Seedance",
       "supported_endpoint_types": ["openai"] }
   ],
   "object": "list",
@@ -326,6 +326,8 @@ Authorization: Bearer sk-...`}</Code>
               rows={[
                 ['data[].id', 'string', '模型 ID，后续调用时传入'],
                 ['data[].object', 'string', '固定为 model'],
+                ['data[].created', 'integer', '模型条目创建时间戳（秒）'],
+                ['data[].owned_by', 'string', '归属方：优先显示渠道名，否则为渠道类型名'],
                 ['data[].supported_endpoint_types', 'string[]', '该模型支持的端点类型'],
                 ['object', 'string', '固定为 list'],
                 ['success', 'boolean', '请求是否成功'],
@@ -402,6 +404,9 @@ Authorization: Bearer sk-...`}</Code>
 data: {"id":"chatcmpl-xxxx","object":"chat.completion.chunk","choices":[{"delta":{"content":"，有什么可以帮你？"},"index":0}]}
 
 data: [DONE]`}</Code>
+              <p className='text-[13px]'>
+                {t('默认会在最后额外补一个带 usage 的 chunk（用量统计）；可用 stream_options.include_usage=false 关闭。')}
+              </p>
             </Sub>
           </Section>
 
@@ -412,9 +417,9 @@ data: [DONE]`}</Code>
             <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
               <p className='font-medium'>{t('通用约定')}</p>
               <ul className='mt-2 list-disc pl-5 space-y-1'>
-                <li>{t('必填参数：model、prompt。其余字段均可省略，省略时由上游使用默认值。')}</li>
-                <li>{t('duration：可选，取值 4–15 的整数（秒）。省略或填 -1 表示由模型自动选择时长（Seedance 2.0 系列默认 5 秒、2.5 系列默认 10 秒）；超出 4–15 会返回 invalid_seconds。')}</li>
-                <li>{t('resolution：可选，缺省或为空时使用 720p；支持 480p/720p/1080p/4k，不支持 2k。')}</li>
+                <li>{t('必填参数：model；prompt 也可省略，改用 content 里的 type=text 元素。其余字段均可省略，省略时由上游使用默认值。')}</li>
+                <li>{t('duration：可选。Seedance 系模型（含本站中转渠道）取值 4–15 的整数（秒），省略或填 -1 表示由模型自动选择（2.0 系列默认 5 秒、2.5 系列默认 10 秒），超出 4–15 返回 invalid_seconds；其它模型族以各自模型规格为准。')}</li>
+                <li>{t('resolution：可选，缺省或为空时按 720p 处理；常见取值 480p/720p/1080p/4k（个别渠道只接受 720p/1080p/2k/4k，传不支持的值会返回 invalid_resolution）。')}</li>
                 <li>{t('各字段的取值范围、默认值与参考输入上限以实际使用的模型规格为准，不同模型可能不同。')}</li>
               </ul>
             </div>
@@ -425,10 +430,10 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；与 content 内的 type=text 元素合并成一条提示词，可省其一'],
+                  ['prompt', 'string', '是（见说明）', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；与 content 内的 type=text 元素合并成一条提示词，可省其一'],
                   ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）的顶层写法，即火山方舟官方格式：见 6.4；与 metadata.content 等价'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
-                  ['resolution / ratio / generate_audio / watermark / seed / frames / camera_fixed', 'string / number / boolean', '否', '—', '火山方舟官方写法：与 model 同级直接传；与下面 metadata 里的同名字段等价，两处都写时以 metadata 为准'],
+                  ['resolution / ratio / generate_audio / watermark / seed / frames / camera_fixed', 'string / number / boolean', '否', '—', '火山方舟官方写法：与 model 同级直接传；与 metadata 里的同名字段等价，两处都写时以 metadata 为准'],
                   ['metadata', 'object', '否', '见下表', '扩展参数，见下表'],
                 ]}
               />
@@ -441,6 +446,8 @@ data: [DONE]`}</Code>
                   ['generate_audio', 'boolean', '否', 'true', '是否生成音频'],
                   ['watermark', 'boolean', '否', 'false', '是否带水印'],
                   ['seed', 'integer', '否', '随机', '随机种子'],
+                  ['frames', 'integer', '否', '模型默认', '总帧数（与 duration 二选一，具体支持情况以模型为准）'],
+                  ['camera_fixed', 'boolean', '否', '模型默认', '是否固定镜头（部分模型支持）'],
                   ['image_url', 'string', '否', '—', '图生视频：输入图片公网 URL'],
                   ['video_url', 'string', '否', '—', '视频生视频：输入视频公网 URL'],
                   ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）：见 6.4 多模态参考'],
@@ -517,7 +524,7 @@ data: [DONE]`}</Code>
 }`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
-              <p className='text-[13px]'>{t('方式一：metadata 传 video_url。方式二：POST /v1/videos/{video_id}/remix。')}</p>
+              <p className='text-[13px]'>{t('方式一：metadata 传 video_url（或 content 里一条带 role=reference_video 的 video_url）。方式二：POST /v1/videos/{video_id}/remix（仅部分渠道支持，见下）。')}</p>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
@@ -542,7 +549,7 @@ data: [DONE]`}</Code>
               <Code>{`curl -X POST https://ghyc.top/v1/videos/video_xxx/remix \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
-  -d '{"model": "<model-id>", "prompt": "调整为电影感"}'`}</Code>
+  -d '{"prompt": "调整为电影感"}'`}</Code>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
@@ -555,7 +562,7 @@ data: [DONE]`}</Code>
   "created_at": 1788598144
 }`}</Code>
               <p className='text-[13px]'>
-                {t('Remix 会产生一个新任务，返回新的 task_id；原视频不会被修改。')}
+                {t('Remix 会产生一个新任务，返回新的 task_id；原视频不会被修改。注意：Remix 目前只有透传类渠道（Sora / OpenAI 类型）支持，请求不要带 model（会用原任务的模型与渠道）；其它渠道调用不会报错，但会退化成普通文生视频、用不到原视频，请改用 metadata.video_url 传参考视频。')}
               </p>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
@@ -563,8 +570,8 @@ data: [DONE]`}</Code>
                 <p className='font-medium'>{t('多模态参考约定')}</p>
                 <ul className='mt-2 list-disc pl-5 space-y-1'>
                   <li>{t('单图/单视频也可用扁平写法：metadata.image_url（图生视频）、metadata.video_url（视频生视频），见 6.2 / 6.3。多图、多视频、多模态混搭请用 content 数组。')}</li>
-                  <li>{t('content 数组至少包含 1 条 type=text 的元素。')}</li>
-                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频。')}</li>
+                  <li>{t('content 数组里的 type=text 元素可省：省略时用顶层 prompt 作为提示词，两者都给会合并成一条。')}</li>
+                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频；部分渠道不支持参考音频，是否支持以渠道/模型为准。')}</li>
                   <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
                 </ul>
               </div>
@@ -579,10 +586,10 @@ data: [DONE]`}</Code>
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
                   ['content', 'array', '是（二选一）', '—', '多模态参考数组，火山方舟官方写法（与 model/prompt 同级）；元素结构见下表'],
                   ['metadata.content', 'array', '是（二选一）', '—', '多模态参考数组，本站兼容写法（写在 metadata 内）；与顶层 content 完全等价'],
-                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3）：会转成 content 里对应的一条（含 role），转换后不再重复下发；与 content 同时存在时同一个 URL 只保留一次'],
+                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3）：会转成 content 里对应的一条（参考视频/音频自动带 role，图片不带 role 即首帧），转换后不再重复下发；与 content 同时存在时同一个 URL 只保留一次'],
                 ]}
               />
-              <ET title={t('metadata.content 数组元素（至少包含 1 条 type=text）')} />
+              <ET title={t('metadata.content 数组元素')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
@@ -778,7 +785,7 @@ data: [DONE]`}</Code>
 {
   "created": 1788490000,
   "data": [
-    { "url": "https://ghyc.top/files/xxxx.png",
+    { "url": "https://<上游返回的图片地址>",
       "revised_prompt": "a red sunset over the sea" }
   ]
 }`}</Code>
@@ -787,7 +794,7 @@ data: [DONE]`}</Code>
               headers={['字段', '类型', '说明']}
               rows={[
                 ['created', 'integer', '创建时间戳'],
-                ['data[].url', 'string', '生成图片的 URL（response_format=url 时）'],
+                ['data[].url', 'string', '生成图片的 URL（response_format=url 时；地址由上游返回，本站不提供静态图片服务）'],
                 ['data[].b64_json', 'string', '生成图片的 base64（response_format=b64_json 时）'],
                 ['data[].revised_prompt', 'string', '模型改写后的提示词'],
               ]}
@@ -805,7 +812,9 @@ data: [DONE]`}</Code>
               rows={[
                 ['model', 'string', '是', '—', '向量模型 ID'],
                 ['input', 'string/array', '是', '—', '待向量化文本，支持批量（数组）'],
-                ['encoding_format', 'string', '否', 'float', '向量编码：float / base64'],
+                ['encoding_format', 'string', '否', '上游默认（float）', '向量编码：float / base64'],
+                ['dimensions', 'integer', '否', '模型默认', '输出向量维度（仅部分模型支持）'],
+                ['user', 'string', '否', '—', '调用方标识，用于上游侧统计/风控'],
               ]}
             />
             <ET title={t('请求示例')} />
@@ -849,8 +858,8 @@ data: [DONE]`}</Code>
                 ['file', 'file', '是', '—', '要转写/翻译的音频文件（multipart/form-data 上传）'],
                 ['model', 'string', '是', '—', '音频模型 ID'],
                 ['language', 'string', '否', '自动识别', '转写：输入音频语言（可选），如 zh / en'],
-                ['response_format', 'string', '否', 'json', '输出格式：json / text / srt / verbose_json'],
-                ['temperature', 'number', '否', '0', '采样温度'],
+                ['response_format', 'string', '否', '上游默认（json）', '输出格式：json / text / srt / verbose_json（以模型/上游支持为准）'],
+                ['temperature', 'number', '否', '上游默认', '采样温度（透传给上游）'],
               ]}
             />
             <ET title={t('请求参数（TTS 语音合成）')} />
@@ -860,7 +869,7 @@ data: [DONE]`}</Code>
                 ['model', 'string', '是', '—', 'TTS 模型 ID'],
                 ['input', 'string', '是', '—', '要合成的文本'],
                 ['voice', 'string', '否', '模型默认', '发音人，如 alloy / echo（以模型支持为准）'],
-                ['response_format', 'string', '否', 'mp3', '输出格式：mp3 / wav / opus / flac'],
+                ['response_format', 'string', '否', '上游默认（mp3）', '输出格式：mp3 / wav / opus / flac / pcm（透传给上游，以模型支持为准）'],
                 ['speed', 'number', '否', '1.0', '语速倍率'],
               ]}
             />
@@ -873,7 +882,7 @@ data: [DONE]`}</Code>
             <T
               headers={['能力', '响应']}
               rows={[
-                ['转写 / 翻译', 'response_format=json 时返回 { "text": "..." }；verbose_json 返回带分段/时间戳的 JSON'],
+                ['转写 / 翻译', 'response_format=json 时返回 { "text": "..." }；verbose_json 返回带分段/时间戳的 JSON（响应体由上游原样返回，字段以模型为准）'],
                 ['TTS 语音合成', '返回音频二进制（格式由 response_format 决定）'],
               ]}
             />
@@ -889,12 +898,16 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '模型 ID'],
-                  ['input', 'string/array', '是', '—', '输入文本或消息数组'],
-                  ['instructions', 'string', '否', '—', '系统指令'],
-                  ['max_output_tokens', 'integer', '否', '模型默认', '最大输出 token 数'],
-                  ['stream', 'boolean', '否', 'false', '是否流式返回'],
+                  ['input', 'string/array', '是（/v1/responses/compact 可省略）', '—', '输入文本或消息数组'],
+                  ['instructions', 'string', '否', '—', '系统指令（/compact 也支持）'],
+                  ['previous_response_id', 'string', '否', '—', '压缩时引用的上一条响应（仅 /v1/responses/compact）'],
+                  ['max_output_tokens', 'integer', '否', '模型默认', '最大输出 token 数（仅 /v1/responses）'],
+                  ['stream', 'boolean', '否', 'false', '是否流式返回（/v1/responses/compact 不支持流式）'],
                 ]}
               />
+              <p className='text-[13px]'>
+                {t('/v1/responses/compact 是压缩接口：只校验 model，input 可省略，也不支持 max_output_tokens 与流式返回。')}
+              </p>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/responses \\
   -H "Content-Type: application/json" \\
@@ -943,7 +956,7 @@ data: [DONE]`}</Code>
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
-                  ['model', 'string', '是', '—', '审核模型 ID'],
+                  ['model', 'string', '否', 'text-moderation-latest', '审核模型 ID，留空时自动使用默认审核模型'],
                   ['input', 'string/array', '是', '—', '待审核文本（支持批量）'],
                 ]}
               />
@@ -967,15 +980,17 @@ data: [DONE]`}</Code>
               rows={[
                 ['model_not_found', '503', '模型不存在或无可用渠道', '查询 /v1/models 确认模型名'],
                 ['insufficient_user_quota', '403', '余额不足', '充值或检查额度'],
-                ['model_price_error', '400', '模型/参数不支持', '检查参数（如 2k/-1 时长）'],
-                ['invalid_seconds', '400', '时长非法', '传固定秒数'],
+                ['model_price_error', '400', '模型/参数不支持', '核对参数与模型能力'],
+                ['invalid_seconds', '400', '时长非法（Seedance 系须为 4–15 的整数或 -1）', '按模型规格调整时长'],
+                ['invalid_resolution', '400', '分辨率档位该渠道不支持', '改用 720p/1080p 等受支持档位'],
+                ['invalid_request', '400', '缺少必填参数（如 prompt / model）', '按参数表补全必填项'],
                 ['invalid_api_platform', '400', '调用了不支持的接口/模型类型', '改用对应能力接口'],
                 ['task_not_exist', '400', '任务不存在', '核对 task_id'],
-                ['invalid_response', '400', '缺少必填参数', '按参数表补全必填项'],
+                ['invalid_response', '500', '上游返回体异常（拿不到 task_id 等）', '重试；持续出现请把 task_id 反馈给平台'],
               ]}
             />
             <p className='text-[13px]'>
-              {t('错误响应结构：{"error": {"message": "...", "code": "...", "type": "new_api_error"}}。')}
+              {t('错误响应结构：对话等接口为 {"error": {"message": "...", "code": "...", "type": "new_api_error"}}（鉴权类错误的 code 可能为空）；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {"code": "...", "message": "...", "data": null}，任务失败的详细原因见 6.5 的 metadata.fail_reason。')}
             </p>
           </Section>
         </div>
