@@ -609,7 +609,7 @@ data: [DONE]`}</Code>
                 headers={['素材类型', 'role 取值', '是否必须声明', '说明']}
                 rows={[
                   ['image_url', 'reference_image', '单张可省略；多张必须声明', '未声明时按「首帧图片」处理（最多 1 张）；多张时由本站自动补齐'],
-                  ['video_url', 'reference_video', '必须声明', '参考视频'],
+                  ['video_url', 'reference_video', '必须声明', '参考视频；含真人影像可能被上游输入审核拦截（InputVideoSensitiveContentDetected）'],
                   ['audio_url', 'reference_audio', '必须声明', '不可单独输入，须至少配合 1 张参考图或 1 个参考视频；部分渠道不支持'],
                 ]}
               />
