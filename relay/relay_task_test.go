@@ -12,6 +12,60 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAttachLastFrameURL 锁定尾帧图的对外形状：挂在 metadata.last_frame_url，
+// 与现有的 metadata.url 并列。没有尾帧时不凭空补字段。
+func TestAttachLastFrameURL(t *testing.T) {
+	const frame = "https://ark-acg.tos-cn-beijing.volces.com/last_frame.png?X-Tos-Signature=abc"
+	body := []byte(`{"id":"task_x","object":"video","status":"completed","progress":100,` +
+		`"metadata":{"url":"https://ghyc.top/v1/videos/task_x/content"}}`)
+
+	t.Run("有尾帧时挂到 metadata 下", func(t *testing.T) {
+		got := string(attachLastFrameURL(body, frame))
+		assert.Contains(t, got, `"last_frame_url":"`+frame+`"`)
+		// 原有字段必须保留
+		assert.Contains(t, got, `"url":"https://ghyc.top/v1/videos/task_x/content"`)
+		assert.Contains(t, got, `"status":"completed"`)
+	})
+
+	t.Run("没有尾帧时原样返回", func(t *testing.T) {
+		assert.Equal(t, body, attachLastFrameURL(body, ""))
+	})
+
+	t.Run("metadata 缺失时补出该层级", func(t *testing.T) {
+		got := string(attachLastFrameURL([]byte(`{"id":"task_x","status":"completed"}`), frame))
+		assert.Contains(t, got, `"metadata":{"last_frame_url":"`+frame+`"}`)
+	})
+
+	t.Run("非 JSON 载荷原样返回", func(t *testing.T) {
+		junk := []byte("not json at all")
+		assert.Equal(t, junk, attachLastFrameURL(junk, frame))
+	})
+
+	t.Run("空载荷原样返回", func(t *testing.T) {
+		assert.Empty(t, attachLastFrameURL(nil, frame))
+	})
+}
+
+// TestTaskModel2DtoCarriesLastFrameURL 确认原生 TaskDto 格式也带得出尾帧图。
+func TestTaskModel2DtoCarriesLastFrameURL(t *testing.T) {
+	const frame = "https://ark-acg.tos-cn-beijing.volces.com/last_frame.png"
+
+	withFrame := &model.Task{
+		TaskID:      "task_frame",
+		Status:      model.TaskStatusSuccess,
+		PrivateData: model.TaskPrivateData{LastFrameURL: frame},
+	}
+	payload, err := common.Marshal(TaskModel2Dto(withFrame))
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"last_frame_url":"`+frame+`"`)
+
+	// 没请求尾帧的任务不应该凭空多出该字段。
+	withoutFrame := &model.Task{TaskID: "task_plain", Status: model.TaskStatusSuccess}
+	payload, err = common.Marshal(TaskModel2Dto(withoutFrame))
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "last_frame_url")
+}
+
 // TestStripCompletedAtIfUnfinished 锁定 OpenAI 视频协议里 completed_at 的语义：
 // 它只在任务真正结束时才出现。各适配器无条件写 CompletedAt = UpdatedAt，
 // 未完成的任务也会带上时间戳，客户端容易误判成已完成。

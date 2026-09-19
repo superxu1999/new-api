@@ -56,9 +56,30 @@ func createTaskError(err error, code string, statusCode int, localError bool) *d
 }
 
 func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj TaskSubmitReq) {
+	normalizeReturnLastFrame(&requestObj)
 	info.Action = action
 	c.Set("task_request", requestObj)
 }
+
+// normalizeReturnLastFrame 把火山方舟官方的顶层 return_last_frame 并入 metadata。
+//
+// 官方创建任务接口把它放在顶层，而本站的任务适配器只透传 metadata —— doubao 适配器
+// 再从 metadata 反序列化、其余适配器原样带出去。顶层直接写会在解析阶段就被丢掉，
+// 上游一个字节都收不到（实测客户按官方文档写顶层，尾帧图一直不返回）。
+//
+// 已显式写在 metadata 里的值优先，不覆盖。
+func normalizeReturnLastFrame(req *TaskSubmitReq) {
+	if req == nil || req.ReturnLastFrame == nil {
+		return
+	}
+	if req.Metadata == nil {
+		req.Metadata = map[string]interface{}{}
+	}
+	if _, exists := req.Metadata["return_last_frame"]; !exists {
+		req.Metadata["return_last_frame"] = *req.ReturnLastFrame
+	}
+}
+
 func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	v, exists := c.Get("task_request")
 	if !exists {

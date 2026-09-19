@@ -442,6 +442,7 @@ data: [DONE]`}</Code>
                   ['image_url', 'string', '否', '—', '图生视频：输入图片公网 URL'],
                   ['video_url', 'string', '否', '—', '视频生视频：输入视频公网 URL'],
                   ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）：见 6.4 多模态参考'],
+                  ['return_last_frame', 'boolean', '否', 'false', '是否在结果里额外返回尾帧图。开启后 6.5 的 metadata.last_frame_url 会给出尾帧图片地址，可用作下一段视频的首帧参考'],
                 ]}
               />
               <ET title={t('请求示例')} />
@@ -687,6 +688,7 @@ data: [DONE]`}</Code>
                   ['created_at', 'integer', '任务创建时间戳（秒）'],
                   ['completed_at', 'integer', '任务完成时间戳（秒），未完成时可能为空'],
                   ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.6，把 task_id 代入即可'],
+                  ['metadata.last_frame_url', 'string', '成片尾帧图片地址；仅创建任务时带 metadata.return_last_frame=true 才有，可用于续拍（作为下一段的首帧参考）'],
                   ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
                   ['usage.completion_tokens', 'integer', '本次生成的 token 用量'],
                   ['usage.total_tokens', 'integer', '本次任务的总 token 用量（视频任务与 completion_tokens 相同）'],

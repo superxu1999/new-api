@@ -508,6 +508,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
 
+	// 尾帧图：只有创建任务时带了 return_last_frame=true 上游才会返回。
+	// 同样因为不都经过 adaptor.ParseTaskResult，且各渠道响应形状不同，所以在原始
+	// 响应体上按已知路径提取（与上面取 usage 同一套路子）。
+	taskResult.LastFrameURL = extractLastFrameURL(responseBody)
+
 	task.Data = redactVideoResponseBody(responseBody)
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
@@ -565,6 +570,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
+		// 尾帧图只在成功时存在；取到才写，避免覆盖之前已经拿到的值。
+		if taskResult.LastFrameURL != "" {
+			task.PrivateData.LastFrameURL = taskResult.LastFrameURL
+		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
@@ -615,6 +624,31 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+// extractLastFrameURL 从上游响应里取尾帧图地址（return_last_frame=true 时才有）。
+//
+// 按已知路径逐个尝试，因为同一批渠道的响应形状不同：
+//   - 直连火山方舟：provider 响应就是顶层，content.last_frame_url
+//   - 上游是 new-api 实例：provider 负载嵌在 data.data 里（与取 usage 时实测一致）
+//   - 上游 new-api 的 OpenAI 视频格式：data.metadata.last_frame_url
+//
+// 取不到返回空串，调用方据此不覆盖已存的值。
+func extractLastFrameURL(responseBody []byte) string {
+	for _, path := range []string{
+		"content.last_frame_url",
+		"data.data.content.last_frame_url",
+		"data.content.last_frame_url",
+		"data.data.metadata.last_frame_url",
+		"data.metadata.last_frame_url",
+		"data.data.last_frame_url",
+		"data.last_frame_url",
+	} {
+		if v := strings.TrimSpace(gjson.GetBytes(responseBody, path).String()); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func redactVideoResponseBody(body []byte) []byte {

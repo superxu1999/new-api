@@ -395,6 +395,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				return
 			}
 			respBody = stripCompletedAtIfUnfinished(openAIVideoData, originTask.Status)
+			respBody = attachLastFrameURL(respBody, originTask.PrivateData.LastFrameURL)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -432,6 +433,29 @@ func stripCompletedAtIfUnfinished(body []byte, status model.TaskStatus) []byte {
 		return body
 	}
 	patched, err := sjson.DeleteBytes(body, "completed_at")
+	if err != nil {
+		return body
+	}
+	return patched
+}
+
+// attachLastFrameURL 把上游返回的尾帧图挂到 OpenAI 视频响应的 metadata 里。
+//
+// 火山方舟 Seedance 系在请求带 return_last_frame=true 时会额外返回尾帧图，用于续拍
+// （拿上一段的尾帧当下一段的首帧）。OpenAI 视频协议没有对应字段，放在 metadata 里与
+// 现有的 metadata.url 并列，既带得出去又不破坏结构。
+//
+// 没有尾帧时（没请求、或上游没返回）原样返回，不凭空补字段。
+// 与其他出参修正一样用 sjson 字节级改写，只处理 JSON 对象——sora 的实现直接返回
+// 上游原始负载，往返序列化会丢数据。
+func attachLastFrameURL(body []byte, lastFrameURL string) []byte {
+	if lastFrameURL == "" {
+		return body
+	}
+	if common.GetJsonType(body) != "object" || !gjson.ValidBytes(body) {
+		return body
+	}
+	patched, err := sjson.SetBytes(body, "metadata.last_frame_url", lastFrameURL)
 	if err != nil {
 		return body
 	}
@@ -583,6 +607,8 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Properties: task.Properties,
 		Username:   task.Username,
 		Data:       task.Data,
+		// 尾帧图只有请求带 return_last_frame=true 时才有，取到才填。
+		LastFrameURL: task.PrivateData.LastFrameURL,
 	}
 	// 下游 new-api 实例按 data.usage.total_tokens 决定是否做完成后的差额结算，
 	// 这里必须把「上游返回过的真实用量」带出去，否则下游只能一直按预扣额度收费。

@@ -694,6 +694,10 @@ type TaskSubmitReq struct {
 	N              int                    `json:"n,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	// ReturnLastFrame 对应火山方舟创建任务接口的顶层 return_last_frame。
+	// 本站各适配器只透传 metadata，所以校验阶段会把它并入 metadata 再往下走
+	// （见 normalizeReturnLastFrame）——顶层与 metadata 两种写法都能用。
+	ReturnLastFrame *bool `json:"return_last_frame,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -766,12 +770,15 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 }
 
 type TaskInfo struct {
-	Code             int    `json:"code"`
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	Url              string `json:"url,omitempty"`
-	RemoteUrl        string `json:"remote_url,omitempty"`
+	Code      int    `json:"code"`
+	TaskID    string `json:"task_id"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+	Url       string `json:"url,omitempty"`
+	RemoteUrl string `json:"remote_url,omitempty"`
+	// LastFrameURL 是上游返回的尾帧图地址，只有在创建任务时带了
+	// return_last_frame=true 才会出现（火山方舟 Seedance 系的续拍用法）。
+	LastFrameURL     string `json:"last_frame_url,omitempty"`
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费

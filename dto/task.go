@@ -40,26 +40,29 @@ type TaskUsage struct {
 }
 
 type TaskDto struct {
-	ID         int64           `json:"id"`
-	CreatedAt  int64           `json:"created_at"`
-	UpdatedAt  int64           `json:"updated_at"`
-	TaskID     string          `json:"task_id"`
-	Platform   string          `json:"platform"`
-	UserId     int             `json:"user_id"`
-	Group      string          `json:"group"`
-	ChannelId  int             `json:"channel_id"`
-	Quota      int             `json:"quota"`
-	Action     string          `json:"action"`
-	Status     string          `json:"status"`
-	FailReason string          `json:"fail_reason"`
-	ResultURL  string          `json:"result_url,omitempty"` // 任务结果 URL（视频地址等）
-	SubmitTime int64           `json:"submit_time"`
-	StartTime  int64           `json:"start_time"`
-	FinishTime int64           `json:"finish_time"`
-	Progress   string          `json:"progress"`
-	Properties any             `json:"properties"`
-	Username   string          `json:"username,omitempty"`
-	Data       json.RawMessage `json:"data"`
+	ID         int64  `json:"id"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+	TaskID     string `json:"task_id"`
+	Platform   string `json:"platform"`
+	UserId     int    `json:"user_id"`
+	Group      string `json:"group"`
+	ChannelId  int    `json:"channel_id"`
+	Quota      int    `json:"quota"`
+	Action     string `json:"action"`
+	Status     string `json:"status"`
+	FailReason string `json:"fail_reason"`
+	ResultURL  string `json:"result_url,omitempty"` // 任务结果 URL（视频地址等）
+	// LastFrameURL 是上游返回的尾帧图地址，只有请求带 return_last_frame=true 才有。
+	// 用于 Seedance 系的续拍：拿上一段的尾帧当下一段的首帧。
+	LastFrameURL string          `json:"last_frame_url,omitempty"`
+	SubmitTime   int64           `json:"submit_time"`
+	StartTime    int64           `json:"start_time"`
+	FinishTime   int64           `json:"finish_time"`
+	Progress     string          `json:"progress"`
+	Properties   any             `json:"properties"`
+	Username     string          `json:"username,omitempty"`
+	Data         json.RawMessage `json:"data"`
 	// Usage 只在「上游返回过真实用量、本站已按它完成差额结算」时填充，
 	// 供下游 new-api 实例做同样的差额结算。
 	// 未结算的任务绝不能拿预估值冒充：那会让下游记下一个恰好像预估的假实际用量。
