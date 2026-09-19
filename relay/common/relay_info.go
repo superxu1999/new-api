@@ -699,6 +699,9 @@ type TaskSubmitReq struct {
 	// （见 normalizeTaskContent）——顶层与 metadata 两种写法都能用。
 	// 用 RawMessage 是为了容错：content 形状不是数组时按未传处理，不报 400。
 	Content json.RawMessage `json:"content,omitempty"`
+	// officialParams 保存火山方舟创建任务接口放在顶层、而本站适配器只从 metadata 读取的
+	// 参数（白名单见 officialTopLevelTaskParams）。它们在校验阶段被并入 metadata。
+	officialParams map[string]interface{}
 	// ReturnLastFrame 对应火山方舟创建任务接口的顶层 return_last_frame。
 	// 本站各适配器只透传 metadata，所以校验阶段会把它并入 metadata 再往下走
 	// （见 normalizeReturnLastFrame）——顶层与 metadata 两种写法都能用。
@@ -725,6 +728,26 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
+	}
+
+	// 顶层官方参数按白名单捞出来，交给 normalizeOfficialVideoParams 并入 metadata。
+	// 这里必须放在下面 metadata 分支的提前 return 之前。
+	var rawFields map[string]json.RawMessage
+	if err := common.Unmarshal(data, &rawFields); err == nil {
+		for _, key := range officialTopLevelTaskParams {
+			raw, exists := rawFields[key]
+			if !exists {
+				continue
+			}
+			var value interface{}
+			if err := common.Unmarshal(raw, &value); err != nil {
+				continue
+			}
+			if t.officialParams == nil {
+				t.officialParams = map[string]interface{}{}
+			}
+			t.officialParams[key] = value
+		}
 	}
 
 	if len(aux.Duration) > 0 {

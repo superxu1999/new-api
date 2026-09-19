@@ -67,19 +67,28 @@ func TestBuildContent(t *testing.T) {
 			wantRef: true,
 		},
 		{
-			name:   "existing text reference is kept and not duplicated",
-			prompt: "兜底提示词",
+			name:   "content 里的 text 元素被丢弃，文本统一由 prompt 提供",
+			prompt: "顶层提示词",
 			meta: map[string]any{
 				"content": []any{
-					map[string]any{"type": "text", "text": "用户自带提示词"},
+					map[string]any{"type": "text", "text": "content 里的文本"},
 					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/a.jpg"}},
 				},
 			},
 			want: []contentItem{
-				{Type: "text", Text: "用户自带提示词"},
+				{Type: "text", Text: "顶层提示词"},
 				{Type: "image_url", ImageURL: &mediaURL{URL: "https://example.com/a.jpg"}, Role: "reference_image"},
 			},
 			wantRef: true,
+		},
+		{
+			name:   "content 只有 text、没有参考素材时走顶层 prompt 兼容路径",
+			prompt: "只有文本的提示词",
+			meta: map[string]any{
+				"content": []any{map[string]any{"type": "text", "text": "只有文本的提示词"}},
+			},
+			want:    nil,
+			wantRef: false,
 		},
 	}
 

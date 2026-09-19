@@ -60,16 +60,30 @@ func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj
 	c.Set("task_request", requestObj)
 }
 
-// normalizeTaskSubmitReq 把火山方舟官方创建任务接口的顶层写法，归一到本站适配器
-// 真正读取的位置。两个校验入口都要在解析之后、校验之前调用它：顶层 content 里的
-// 文本项要能补出 prompt，否则官方格式（没有顶层 prompt）会被 prompt 必填校验 400。
-func normalizeTaskSubmitReq(req *TaskSubmitReq) {
-	normalizeTaskContent(req)
-	normalizeReturnLastFrame(req)
+// officialTopLevelTaskParams 是火山方舟创建任务接口放在顶层、而本站适配器只从 metadata
+// 读取的参数。只按官方写法传的请求，这些参数会在解析阶段被丢掉 —— 其中 resolution
+// 还会让计费按默认档（720p）算，进而少收。白名单之外的顶层字段一律不转发。
+var officialTopLevelTaskParams = []string{
+	"resolution",
+	"ratio",
+	"frames",
+	"seed",
+	"camera_fixed",
+	"watermark",
+	"generate_audio",
 }
 
-// normalizeTaskContent 把火山方舟官方的顶层 content 数组并入 metadata.content，
-// 并在顶层 prompt 缺省时用 content 里的文本项补出 prompt。
+// normalizeTaskSubmitReq 把火山方舟官方创建任务接口的顶层写法，归一到本站适配器
+// 真正读取的位置。两个校验入口都要在解析之后、校验之前调用它：提示词要能在 prompt
+// 必填校验之前合并出来，否则官方格式（没有顶层 prompt）会被 400。
+func normalizeTaskSubmitReq(req *TaskSubmitReq) {
+	normalizeTaskContent(req)
+	normalizeOfficialVideoParams(req)
+	normalizeReturnLastFrame(req)
+	normalizeTaskPrompt(req)
+}
+
+// normalizeTaskContent 把火山方舟官方的顶层 content 数组并入 metadata.content。
 //
 // 官方创建任务接口把提示词与参考图/视频/音频都放在顶层 content 里；本站的
 // cyai/doubao/seedance 适配器只读 metadata.content，顶层直接写会在解析阶段就被丢掉，
@@ -93,21 +107,59 @@ func normalizeTaskContent(req *TaskSubmitReq) {
 		// 断言 []interface{} 来判断是否含参考视频（影响按含视频档计费）。
 		req.Metadata["content"] = items
 	}
-	if strings.TrimSpace(req.Prompt) != "" {
+}
+
+// normalizeOfficialVideoParams 把火山方舟官方的顶层视频参数（见白名单）并入 metadata。
+//
+// 官方创建任务接口把 resolution/ratio/watermark 等放在顶层，而本站适配器只读 metadata：
+// 只按官方写法传的请求，这些参数会被静默丢掉 —— 客户传顶层 resolution=1080p 时，
+// 出片按默认 720p，计费也按 720p 档算，属于少收。
+//
+// metadata 里已显式写好的值优先，不覆盖。
+func normalizeOfficialVideoParams(req *TaskSubmitReq) {
+	if req == nil || len(req.officialParams) == 0 {
 		return
 	}
+	if req.Metadata == nil {
+		req.Metadata = map[string]interface{}{}
+	}
+	for key, value := range req.officialParams {
+		if _, exists := req.Metadata[key]; !exists {
+			req.Metadata[key] = value
+		}
+	}
+}
+
+// normalizeTaskPrompt 统一提示词来源：顶层 prompt 与 content 里的 text 元素都算提示词。
+//
+// 各适配器最终只会发出一条 text —— doubao/seedance 丢弃 content 里的 text 元素后补
+// req.Prompt，cyai 同样 —— 所以两处都写时必然有一处被静默丢掉。这里先合并成一条
+// （换行拼接，完全重复的只保留一次），再交给适配器发出去。
+func normalizeTaskPrompt(req *TaskSubmitReq) {
+	if req == nil {
+		return
+	}
+	var texts []string
+	if prompt := strings.TrimSpace(req.Prompt); prompt != "" {
+		texts = append(texts, prompt)
+	}
+	items, _ := req.Metadata["content"].([]interface{})
 	for _, item := range items {
 		entry, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		text, _ := entry["text"].(string)
-		if strings.TrimSpace(text) == "" {
+		text = strings.TrimSpace(text)
+		if text == "" || lo.Contains(texts, text) {
 			continue
 		}
-		req.Prompt = text
+		texts = append(texts, text)
+	}
+	if len(texts) == 0 {
 		return
 	}
+	req.Prompt = strings.Join(texts, "\n")
 }
 
 // normalizeReturnLastFrame 把火山方舟官方的顶层 return_last_frame 并入 metadata。

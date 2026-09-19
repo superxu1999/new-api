@@ -32,7 +32,7 @@ func TestNormalizeTaskContent(t *testing.T) {
 			]
 		}`, &req))
 
-		normalizeTaskContent(&req)
+		normalizeTaskSubmitReq(&req)
 
 		require.NotNil(t, req.Metadata)
 		items, ok := req.Metadata["content"].([]interface{})
@@ -44,45 +44,6 @@ func TestNormalizeTaskContent(t *testing.T) {
 		assert.Equal(t, "reference_image", first["role"])
 	})
 
-	t.Run("顶层 prompt 缺省时用 content 的文本项补出", func(t *testing.T) {
-		var req TaskSubmitReq
-		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
-			"model":"seedance2.0-cyai-260128",
-			"content":[
-				{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"},
-				{"type":"text","text":"官方格式的提示词"}
-			]
-		}`, &req))
-
-		normalizeTaskContent(&req)
-
-		assert.Equal(t, "官方格式的提示词", req.Prompt)
-	})
-
-	t.Run("已有 prompt 不被 content 的文本项覆盖", func(t *testing.T) {
-		var req TaskSubmitReq
-		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
-			"model":"m","prompt":"顶层提示词",
-			"content":[{"type":"text","text":"content 里的文本"}]
-		}`, &req))
-
-		normalizeTaskContent(&req)
-
-		assert.Equal(t, "顶层提示词", req.Prompt)
-	})
-
-	t.Run("content 里没有文本项时不补 prompt", func(t *testing.T) {
-		var req TaskSubmitReq
-		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
-			"model":"m",
-			"content":[{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"}]
-		}`, &req))
-
-		normalizeTaskContent(&req)
-
-		assert.Empty(t, req.Prompt)
-	})
-
 	t.Run("metadata.content 已显式写好的不被覆盖", func(t *testing.T) {
 		var req TaskSubmitReq
 		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
@@ -91,7 +52,7 @@ func TestNormalizeTaskContent(t *testing.T) {
 			"content":[{"type":"image_url","image_url":{"url":"https://x/top.png"}}]
 		}`, &req))
 
-		normalizeTaskContent(&req)
+		normalizeTaskSubmitReq(&req)
 
 		items, ok := req.Metadata["content"].([]interface{})
 		require.True(t, ok)
@@ -110,7 +71,7 @@ func TestNormalizeTaskContent(t *testing.T) {
 			`{"model":"m","prompt":"p"}`} {
 			var req TaskSubmitReq
 			require.NoError(t, newapicommon.UnmarshalJsonStr(body, &req))
-			require.NotPanics(t, func() { normalizeTaskContent(&req) })
+			require.NotPanics(t, func() { normalizeTaskSubmitReq(&req) })
 			if req.Metadata != nil {
 				_, exists := req.Metadata["content"]
 				assert.False(t, exists, "body=%s", body)
@@ -123,12 +84,141 @@ func TestNormalizeTaskContent(t *testing.T) {
 	})
 }
 
+// TestNormalizeTaskPrompt 锁定提示词口径：顶层 prompt 与 content 里的 text 元素都算
+// 提示词，合并成一条（各适配器只会发出一条 text，分两处写必然丢一处）。
+func TestNormalizeTaskPrompt(t *testing.T) {
+	decode := func(t *testing.T, body string) *TaskSubmitReq {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(body, &req))
+		return &req
+	}
+
+	t.Run("顶层 prompt 缺省时用 content 的文本项补出", func(t *testing.T) {
+		req := decode(t, `{
+			"model":"m",
+			"content":[
+				{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"},
+				{"type":"text","text":"官方格式的提示词"}
+			]
+		}`)
+		normalizeTaskSubmitReq(req)
+		assert.Equal(t, "官方格式的提示词", req.Prompt)
+	})
+
+	t.Run("两处都写时合并而不是丢掉一处", func(t *testing.T) {
+		req := decode(t, `{
+			"model":"m","prompt":"顶层提示词",
+			"content":[
+				{"type":"text","text":"content 里的文本"},
+				{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"}
+			]
+		}`)
+		normalizeTaskSubmitReq(req)
+		assert.Equal(t, "顶层提示词\ncontent 里的文本", req.Prompt)
+	})
+
+	t.Run("多个 text 元素全部保留", func(t *testing.T) {
+		req := decode(t, `{
+			"model":"m",
+			"content":[
+				{"type":"text","text":"第一段"},
+				{"type":"text","text":"第二段"},
+				{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"}
+			]
+		}`)
+		normalizeTaskSubmitReq(req)
+		assert.Equal(t, "第一段\n第二段", req.Prompt)
+	})
+
+	t.Run("完全重复的文本只保留一次", func(t *testing.T) {
+		req := decode(t, `{
+			"model":"m","prompt":"同一段提示词",
+			"content":[{"type":"text","text":"同一段提示词"}]
+		}`)
+		normalizeTaskSubmitReq(req)
+		assert.Equal(t, "同一段提示词", req.Prompt)
+	})
+
+	t.Run("content 里没有文本项时不补 prompt", func(t *testing.T) {
+		req := decode(t, `{
+			"model":"m",
+			"content":[{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"}]
+		}`)
+		normalizeTaskSubmitReq(req)
+		assert.Empty(t, req.Prompt)
+	})
+}
+
+// TestNormalizeOfficialVideoParams 锁定计费不变量：火山方舟官方放在顶层的视频参数
+// （其中 resolution 决定计费档）必须并入 metadata，否则按默认档计费 —— 客户传
+// 1080p 会按 720p 出片并按 720p 收费。
+func TestNormalizeOfficialVideoParams(t *testing.T) {
+	t.Run("顶层参数并入 metadata", func(t *testing.T) {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
+			"model":"m","prompt":"p",
+			"resolution":"1080p","ratio":"9:16","frames":121,"seed":12345,
+			"camera_fixed":true,"watermark":false,"generate_audio":true
+		}`, &req))
+
+		normalizeTaskSubmitReq(&req)
+
+		assert.Equal(t, "1080p", req.Metadata["resolution"])
+		assert.Equal(t, "9:16", req.Metadata["ratio"])
+		assert.Equal(t, float64(121), req.Metadata["frames"])
+		assert.Equal(t, float64(12345), req.Metadata["seed"])
+		assert.Equal(t, true, req.Metadata["camera_fixed"])
+		assert.Equal(t, false, req.Metadata["watermark"], "显式 false 也要带下去，不能被当成未传")
+		assert.Equal(t, true, req.Metadata["generate_audio"])
+	})
+
+	t.Run("metadata 里已显式写好的值优先", func(t *testing.T) {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
+			"model":"m","prompt":"p",
+			"resolution":"1080p",
+			"metadata":{"resolution":"480p","ratio":"16:9"}
+		}`, &req))
+
+		normalizeTaskSubmitReq(&req)
+
+		assert.Equal(t, "480p", req.Metadata["resolution"])
+		assert.Equal(t, "16:9", req.Metadata["ratio"])
+	})
+
+	t.Run("白名单之外的顶层字段不转发", func(t *testing.T) {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(`{
+			"model":"m","prompt":"p","callback_url":"https://evil.example/cb","安全":"x"
+		}`, &req))
+
+		normalizeTaskSubmitReq(&req)
+
+		if req.Metadata != nil {
+			_, hasCallback := req.Metadata["callback_url"]
+			assert.False(t, hasCallback, "白名单之外的顶层字段不能进 metadata 转发给上游")
+		}
+	})
+
+	t.Run("未传时不往 metadata 里塞默认值", func(t *testing.T) {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(`{"model":"m","prompt":"p"}`, &req))
+
+		normalizeTaskSubmitReq(&req)
+
+		if req.Metadata != nil {
+			_, exists := req.Metadata["resolution"]
+			assert.False(t, exists)
+		}
+	})
+}
+
 // TestValidateBasicTaskRequestAcceptsOfficialContentShape 保护调用顺序：归一化必须在
 // prompt 校验之前完成，否则官方格式（提示词写在 content 里、没有顶层 prompt）会被
 // 「prompt is required」400，参考图也永远到不了上游。
 func TestValidateBasicTaskRequestAcceptsOfficialContentShape(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := `{"model":"seedance2.0-cyai-260128","seconds":"5","content":[
+	body := `{"model":"seedance2.0-cyai-260128","seconds":"5","resolution":"1080p","content":[
 		{"type":"image_url","image_url":{"url":"https://x/a.png"},"role":"reference_image"},
 		{"type":"text","text":"用图1人物图生成写真视频"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(body))
@@ -142,6 +232,7 @@ func TestValidateBasicTaskRequestAcceptsOfficialContentShape(t *testing.T) {
 	stored, err := GetTaskRequest(context)
 	require.NoError(t, err)
 	require.Equal(t, "用图1人物图生成写真视频", stored.Prompt)
+	assert.Equal(t, "1080p", stored.Metadata["resolution"], "计费读取的清晰度档必须来自顶层 resolution")
 	items, ok := stored.Metadata["content"].([]interface{})
 	require.True(t, ok, "必须原样落到适配器读取的 metadata.content")
 	require.Len(t, items, 2)

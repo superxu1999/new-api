@@ -46,6 +46,53 @@ func TestAttachLastFrameURL(t *testing.T) {
 	})
 }
 
+// TestAttachFailReason 锁定失败任务的对外形状：OpenAI 视频协议只有 status=failed，
+// 上游真实原因（如火山方舟内容审核）挂在 metadata.fail_reason 上，否则轮询的客户端
+// 只能看到一个没有解释的 failed。非失败状态不补字段。
+func TestAttachFailReason(t *testing.T) {
+	const reason = "The request failed because the output video may be related to copyright restrictions. Request id: 0217897862"
+	body := []byte(`{"id":"task_x","object":"video","status":"failed","progress":100,` +
+		`"metadata":{"url":"https://ghyc.top/v1/videos/task_x/content"}}`)
+
+	failed := &model.Task{Status: model.TaskStatusFailure, FailReason: reason}
+
+	t.Run("失败时挂到 metadata 下", func(t *testing.T) {
+		got := string(attachFailReason(body, failed))
+		assert.Contains(t, got, `"fail_reason":"`+reason+`"`)
+		// 原有字段必须保留
+		assert.Contains(t, got, `"status":"failed"`)
+		assert.Contains(t, got, `"url":"https://ghyc.top/v1/videos/task_x/content"`)
+	})
+
+	t.Run("成功任务不补", func(t *testing.T) {
+		success := &model.Task{Status: model.TaskStatusSuccess, FailReason: reason}
+		assert.Equal(t, body, attachFailReason(body, success))
+	})
+
+	t.Run("失败但没有原因时不凭空补字段", func(t *testing.T) {
+		empty := &model.Task{Status: model.TaskStatusFailure}
+		assert.Equal(t, body, attachFailReason(body, empty))
+	})
+
+	t.Run("metadata 缺失时补出该层级", func(t *testing.T) {
+		got := string(attachFailReason([]byte(`{"id":"task_x","status":"failed"}`), failed))
+		assert.Contains(t, got, `"metadata":{"fail_reason":"`+reason+`"}`)
+	})
+
+	t.Run("非 JSON 载荷原样返回", func(t *testing.T) {
+		junk := []byte("not json at all")
+		assert.Equal(t, junk, attachFailReason(junk, failed))
+	})
+
+	t.Run("空载荷原样返回", func(t *testing.T) {
+		assert.Empty(t, attachFailReason(nil, failed))
+	})
+
+	t.Run("nil 任务原样返回", func(t *testing.T) {
+		assert.Equal(t, body, attachFailReason(body, nil))
+	})
+}
+
 // TestTaskModel2DtoCarriesLastFrameURL 确认原生 TaskDto 格式也带得出尾帧图。
 func TestTaskModel2DtoCarriesLastFrameURL(t *testing.T) {
 	const frame = "https://ark-acg.tos-cn-beijing.volces.com/last_frame.png"

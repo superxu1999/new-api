@@ -425,9 +425,10 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；省略时自动取 content 中第一条 type=text 元素的文本'],
+                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；与 content 内的 type=text 元素合并成一条提示词，可省其一'],
                   ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）的顶层写法，即火山方舟官方格式：见 6.4；与 metadata.content 等价'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
+                  ['resolution / ratio / generate_audio / watermark / seed / frames / camera_fixed', 'string / number / boolean', '否', '—', '火山方舟官方写法：与 model 同级直接传；与下面 metadata 里的同名字段等价，两处都写时以 metadata 为准'],
                   ['metadata', 'object', '否', '见下表', '扩展参数，见下表'],
                 ]}
               />
@@ -572,7 +573,7 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是（见说明）', '—', '画面描述；也可省略，改用 content 内第一条 type=text 元素的文本'],
+                  ['prompt', 'string', '是（见说明）', '—', '画面描述；与 content 内的 type=text 元素合并成一条提示词发给上游，可只写其一'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
@@ -585,7 +586,7 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['type', 'string', '是', '—', '元素类型：text / image_url / video_url / audio_url'],
-                  ['text', 'string', 'type=text 时必填', '—', '文本提示词'],
+                  ['text', 'string', 'type=text 时必填', '—', '文本提示词；会与顶层 prompt 合并成一条发给上游（换行拼接，完全重复的只发一次），不会丢其中一处'],
                   ['image_url.url', 'string', 'type=image_url 时必填', '—', '参考图公网 URL'],
                   ['video_url.url', 'string', 'type=video_url 时必填', '—', '参考视频公网 URL'],
                   ['audio_url.url', 'string', 'type=audio_url 时必填', '—', '参考音频公网 URL'],
@@ -678,6 +679,22 @@ data: [DONE]`}</Code>
               <p className='text-[13px]'>
                 {t('状态流转：queued → in_progress → completed / failed。completed 后 metadata.url 即为成片地址。')}
               </p>
+              <ET title={t('响应示例（失败）')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "id": "<task_id>",
+  "task_id": "<task_id>",
+  "object": "video",
+  "model": "<model-id>",
+  "status": "failed",
+  "progress": 100,
+  "created_at": 1788598144,
+  "completed_at": 1788598270,
+  "metadata": {
+    "url": "<失败原因文本>",
+    "fail_reason": "The request failed because the output video may be related to copyright restrictions. Request id: 021789..."
+  }
+}`}</Code>
               <ET title={t('响应字段')} />
               <T
                 headers={['字段', '类型', '说明']}
@@ -692,6 +709,7 @@ data: [DONE]`}</Code>
                   ['completed_at', 'integer', '任务完成时间戳（秒）；未完成时不返回该字段'],
                   ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.6，把 task_id 代入即可'],
                   ['metadata.last_frame_url', 'string', '成片尾帧图片地址；仅创建任务时带 metadata.return_last_frame=true 才有，可用于续拍（作为下一段的首帧参考）'],
+                  ['metadata.fail_reason', 'string', '失败原因（仅 failed 且上游给了原因时返回），例如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation'],
                   ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
                   ['usage.completion_tokens', 'integer', '本次生成的 token 用量'],
                   ['usage.total_tokens', 'integer', '本次任务的总 token 用量（视频任务与 completion_tokens 相同）'],
@@ -704,7 +722,7 @@ data: [DONE]`}</Code>
                   ['queued', '已提交，排队中'],
                   ['in_progress', '生成中（progress 显示进度）'],
                   ['completed', '已完成，可取成片'],
-                  ['failed', '失败；上游返回的失败原因记录在任务记录中（如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation），此类失败会自动全额退款'],
+                  ['failed', '失败；上游返回的失败原因见 metadata.fail_reason（如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation），此类失败会自动全额退款'],
                 ]}
               />
             </Sub>

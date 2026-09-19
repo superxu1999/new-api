@@ -396,6 +396,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			}
 			respBody = stripCompletedAtIfUnfinished(openAIVideoData, originTask.Status)
 			respBody = attachLastFrameURL(respBody, originTask.PrivateData.LastFrameURL)
+			respBody = attachFailReason(respBody, originTask)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -456,6 +457,28 @@ func attachLastFrameURL(body []byte, lastFrameURL string) []byte {
 		return body
 	}
 	patched, err := sjson.SetBytes(body, "metadata.last_frame_url", lastFrameURL)
+	if err != nil {
+		return body
+	}
+	return patched
+}
+
+// attachFailReason 把任务失败原因挂到 OpenAI 视频响应的 metadata 里。
+//
+// OpenAI 视频协议只有 status=failed，不带任何原因；上游的真实失败信息（如火山方舟的
+// 内容审核 OutputVideoSensitiveContentDetected）只落在任务记录里，用 /v1/videos/{id}
+// 轮询的客户端拿不到，只能看到一个没有解释的 failed。
+//
+// 只在失败且确有原因时追加，其他状态原样返回。与其它出参修正一样用 sjson 字节级改写，
+// 只处理 JSON 对象（sora 的实现直接返回上游原始负载）。
+func attachFailReason(body []byte, task *model.Task) []byte {
+	if task == nil || task.Status != model.TaskStatusFailure || strings.TrimSpace(task.FailReason) == "" {
+		return body
+	}
+	if common.GetJsonType(body) != "object" || !gjson.ValidBytes(body) {
+		return body
+	}
+	patched, err := sjson.SetBytes(body, "metadata.fail_reason", strings.TrimSpace(task.FailReason))
 	if err != nil {
 		return body
 	}

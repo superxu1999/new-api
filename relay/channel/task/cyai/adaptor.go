@@ -95,29 +95,23 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 }
 
 // buildContent 把 prompt 与 metadata.content 参考项合并成 CyAI 的顶层 content 数组。
-// 返回 (content, hasReference)。hasReference 表示用户是否真的传了 metadata.content 参考：
-// 为 false 时调用方应保持向后兼容（透传顶层 prompt），不输出 content 数组。
+// 返回 (content, hasReference)。hasReference 表示用户是否真的传了参考素材：为 false 时
+// 调用方保持向后兼容（透传顶层 prompt），不输出 content 数组。
 // 上游要求至少一条 text，且参考素材（图/视频/音频）必须带 role。
 func buildContent(prompt string, metadata map[string]any) ([]contentItem, bool) {
-	items := parseContentReferences(metadata)
-	if len(items) == 0 {
+	// content 里的 text 元素在这里丢弃：提示词统一由顶层 prompt 提供（校验阶段已把
+	// content 里的文本合并进 prompt），与 doubao/seedance 适配器保持同一套口径，
+	// 避免两处都写时其中一处被静默丢掉。
+	refs := lo.Filter(parseContentReferences(metadata), func(it contentItem, _ int) bool {
+		return it.Type != "text"
+	})
+	if len(refs) == 0 {
 		return nil, false
 	}
-	for i := range items {
-		normalizeContentRole(&items[i])
+	for i := range refs {
+		normalizeContentRole(&refs[i])
 	}
-	// 上游要求至少一条 text：参考项中没有 text 时，用 prompt 作为 text 补到最前。
-	hasText := false
-	for _, it := range items {
-		if it.Type == "text" {
-			hasText = true
-			break
-		}
-	}
-	if !hasText {
-		items = append([]contentItem{{Type: "text", Text: prompt}}, items...)
-	}
-	return items, true
+	return append([]contentItem{{Type: "text", Text: prompt}}, refs...), true
 }
 
 // parseContentReferences 解析 metadata["content"] 为 []contentItem。
