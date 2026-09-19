@@ -78,6 +78,7 @@ var officialTopLevelTaskParams = []string{
 // 必填校验之前合并出来，否则官方格式（没有顶层 prompt）会被 400。
 func normalizeTaskSubmitReq(req *TaskSubmitReq) {
 	normalizeTaskContent(req)
+	normalizeFlatReferences(req)
 	normalizeOfficialVideoParams(req)
 	normalizeReturnLastFrame(req)
 	normalizeTaskPrompt(req)
@@ -107,6 +108,65 @@ func normalizeTaskContent(req *TaskSubmitReq) {
 		// 断言 []interface{} 来判断是否含参考视频（影响按含视频档计费）。
 		req.Metadata["content"] = items
 	}
+}
+
+// flatReferenceKeys 把对外文档里的扁平参考写法（metadata.image_url 等）映射成 content 元素。
+// role 为空表示按「首帧图片」处理 —— 与文档的 role 表一致：不带 role 的 image_url = 首帧。
+var flatReferenceKeys = []struct {
+	key  string // metadata 里的扁平键
+	typ  string // content 元素的 type
+	role string // 参考素材的 role
+}{
+	{"image_url", "image_url", ""},
+	{"video_url", "video_url", "reference_video"},
+	{"audio_url", "audio_url", "reference_audio"},
+}
+
+// normalizeFlatReferences 把扁平的参考素材写法归一到 metadata.content。
+//
+// 本站适配器只读 metadata.content：只写 metadata.video_url 的请求，doubao/seedance 会把
+// 参考视频整个丢掉（上游收到的是纯文生视频），而 HasInputVideo 也只认 content，于是连
+// 「含视频」档都没算 —— 官方公式里含视频时 token 翻倍、单价也不同（480p/720p 档 28 对 46），
+// 漏判等于少收近两成。
+//
+// metadata.content 已存在时不动：文档约定多图/多模态混搭用 content 数组，两者同时出现
+// 时以 content 为准。
+func normalizeFlatReferences(req *TaskSubmitReq) {
+	if req == nil || req.Metadata == nil {
+		return
+	}
+	if _, exists := req.Metadata["content"]; exists {
+		return
+	}
+	var items []interface{}
+	for _, flat := range flatReferenceKeys {
+		var url string
+		switch value := req.Metadata[flat.key].(type) {
+		case string:
+			url = strings.TrimSpace(value)
+		case map[string]interface{}:
+			// 也接受 {"url": "..."} 写法，避免又一处静默丢弃。
+			url, _ = value["url"].(string)
+			url = strings.TrimSpace(url)
+		}
+		if url == "" {
+			continue
+		}
+		item := map[string]interface{}{
+			"type": flat.typ,
+			flat.typ: map[string]interface{}{
+				"url": url,
+			},
+		}
+		if flat.role != "" {
+			item["role"] = flat.role
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return
+	}
+	req.Metadata["content"] = items
 }
 
 // normalizeOfficialVideoParams 把火山方舟官方的顶层视频参数（见白名单）并入 metadata。

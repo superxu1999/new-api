@@ -579,6 +579,7 @@ data: [DONE]`}</Code>
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
                   ['content', 'array', '是（二选一）', '—', '多模态参考数组，火山方舟官方写法（与 model/prompt 同级）；元素结构见下表'],
                   ['metadata.content', 'array', '是（二选一）', '—', '多模态参考数组，本站兼容写法（写在 metadata 内）；与顶层 content 完全等价'],
+                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3），等价于 content 里对应的一条；与 content 同时存在时以 content 为准'],
                 ]}
               />
               <ET title={t('metadata.content 数组元素（至少包含 1 条 type=text）')} />

@@ -153,12 +153,12 @@ func TestSeedanceEndToEndPriceAcrossChannels(t *testing.T) {
 	const rate = 7.3
 
 	tests := []struct {
-		name      string
-		model     string
-		res       string
-		hasVideo  bool
-		sec       int
-		wantYuan  float64
+		name     string
+		model    string
+		res      string
+		hasVideo bool
+		sec      int
+		wantYuan float64
 	}{
 		// seedance 适配器（type 59）
 		{"yd 5s 720p", "seedance2.0-yd", "720p", false, 5, 4.968},
@@ -185,6 +185,7 @@ func TestSeedanceEndToEndPriceAcrossChannels(t *testing.T) {
 		})
 	}
 }
+
 // TestSeedanceUnsupportedInputVideoChargedAsNoVideo 锁定契约：当渠道不支持参考视频时
 // （EstimateSeedanceBilling 的 supportsInputVideo=false），即使请求携带 video_url，
 // 也按「输入不含视频」计费，避免对上游会忽略的素材多收费。
@@ -231,6 +232,37 @@ func TestSeedanceUnsupportedInputVideoChargedAsNoVideo(t *testing.T) {
 	withVideoRatio, ok := ComputeSeedanceBillRatio(withVideoPrice, withVideoToken, modelRatio, rate, 1.0)
 	require.True(t, ok)
 	assert.InDelta(t, 6.048, modelRatio/2*withVideoRatio*rate, 0.02)
+}
+
+// TestHasInputVideoAcceptsFlatVideoURL 锁定契约：扁平写法 metadata.video_url（对外文档
+// 6.3 的「方式一」）必须算作含视频输入。只认 content 数组的话，这类请求会按不含视频档
+// 计费：官方公式里含视频时 token 翻倍、单价也不同（480p/720p 档 28 对 46），少收近两成。
+func TestHasInputVideoAcceptsFlatVideoURL(t *testing.T) {
+	t.Run("扁平 metadata.video_url", func(t *testing.T) {
+		assert.True(t, HasInputVideo(map[string]interface{}{"video_url": "https://example.com/ref.mp4"}))
+	})
+
+	t.Run("content 数组里的 video_url", func(t *testing.T) {
+		assert.True(t, HasInputVideo(map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "video_url"},
+			},
+		}))
+	})
+
+	t.Run("只有图/音频时不算含视频", func(t *testing.T) {
+		assert.False(t, HasInputVideo(map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "image_url"},
+				map[string]interface{}{"type": "audio_url"},
+			},
+		}))
+	})
+
+	t.Run("nil 与空 metadata 不算", func(t *testing.T) {
+		assert.False(t, HasInputVideo(nil))
+		assert.False(t, HasInputVideo(map[string]interface{}{}))
+	})
 }
 
 // TestSeedanceDefaultSeconds 锁定「未指定时长时按哪个默认秒数预扣」：

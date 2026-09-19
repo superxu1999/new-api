@@ -150,10 +150,16 @@ func ResolutionDimensions(res string) (w, h int, rel float64) {
 	}
 }
 
-// HasInputVideo 判断请求 metadata 是否携带参考视频（content 含 video_url）。
+// HasInputVideo 判断请求 metadata 是否携带参考视频。
+// 认两种写法：content 数组里的 video_url 元素，以及扁平写法 metadata.video_url
+// （对外文档 6.3 的方式一）。后者不能漏：含视频档 token 翻倍、单价也不同，
+// 漏判会按不含视频档少收。
 func HasInputVideo(metadata map[string]interface{}) bool {
 	if metadata == nil {
 		return false
+	}
+	if _, has := metadata["video_url"]; has {
+		return true
 	}
 	raw, ok := metadata["content"]
 	if !ok {

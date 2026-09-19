@@ -149,6 +149,94 @@ func TestNormalizeTaskPrompt(t *testing.T) {
 	})
 }
 
+// TestNormalizeFlatReferences 锁定契约：对外文档里的扁平参考写法（metadata.image_url /
+// metadata.video_url / metadata.audio_url）必须归一到 metadata.content。
+//
+// 本站适配器只读 metadata.content：只写 metadata.video_url 时 doubao/seedance 会把参考
+// 视频整个丢掉，而且 HasInputVideo 认不出视频输入，按不含视频档少收（官方公式含视频时
+// token 翻倍、单价也不同）。
+func TestNormalizeFlatReferences(t *testing.T) {
+	decode := func(t *testing.T, body string) *TaskSubmitReq {
+		var req TaskSubmitReq
+		require.NoError(t, newapicommon.UnmarshalJsonStr(body, &req))
+		return &req
+	}
+
+	t.Run("扁平视频参考补出带 role 的 content 元素", func(t *testing.T) {
+		req := decode(t, `{"model":"m","prompt":"p","metadata":{"video_url":"https://x/ref.mp4"}}`)
+		normalizeTaskSubmitReq(req)
+
+		items, ok := req.Metadata["content"].([]interface{})
+		require.True(t, ok, "必须是 []interface{}")
+		require.Len(t, items, 1)
+		item, ok := items[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "video_url", item["type"])
+		assert.Equal(t, "reference_video", item["role"], "video/audio 必须带 role，上游才认")
+		assert.Equal(t, map[string]interface{}{"url": "https://x/ref.mp4"}, item["video_url"])
+	})
+
+	t.Run("扁平图片参考不带 role（首帧语义）", func(t *testing.T) {
+		req := decode(t, `{"model":"m","prompt":"p","metadata":{"image_url":"https://x/a.png"}}`)
+		normalizeTaskSubmitReq(req)
+
+		items, _ := req.Metadata["content"].([]interface{})
+		require.Len(t, items, 1)
+		item, _ := items[0].(map[string]interface{})
+		assert.Equal(t, "image_url", item["type"])
+		_, hasRole := item["role"]
+		assert.False(t, hasRole, "文档约定不带 role 的 image_url = 首帧图片，不能改成语义")
+	})
+
+	t.Run("三种扁平写法按 图/视频/音频 顺序合成", func(t *testing.T) {
+		req := decode(t, `{"model":"m","prompt":"p","metadata":{
+			"audio_url":"https://x/s.mp3","video_url":"https://x/r.mp4","image_url":"https://x/a.png"}}`)
+		normalizeTaskSubmitReq(req)
+
+		items, _ := req.Metadata["content"].([]interface{})
+		require.Len(t, items, 3)
+		types := make([]string, 0, 3)
+		for _, raw := range items {
+			item, _ := raw.(map[string]interface{})
+			types = append(types, item["type"].(string))
+		}
+		assert.Equal(t, []string{"image_url", "video_url", "audio_url"}, types)
+	})
+
+	t.Run("也接受 {url: ...} 写法", func(t *testing.T) {
+		req := decode(t, `{"model":"m","prompt":"p","metadata":{"video_url":{"url":"https://x/r.mp4"}}}`)
+		normalizeTaskSubmitReq(req)
+
+		items, _ := req.Metadata["content"].([]interface{})
+		require.Len(t, items, 1)
+		item, _ := items[0].(map[string]interface{})
+		assert.Equal(t, map[string]interface{}{"url": "https://x/r.mp4"}, item["video_url"])
+	})
+
+	t.Run("已有 content 时不动（content 优先）", func(t *testing.T) {
+		req := decode(t, `{"model":"m","prompt":"p","metadata":{
+			"video_url":"https://x/flat.mp4",
+			"content":[{"type":"video_url","video_url":{"url":"https://x/content.mp4"},"role":"reference_video"}]}}`)
+		normalizeTaskSubmitReq(req)
+
+		items, _ := req.Metadata["content"].([]interface{})
+		require.Len(t, items, 1)
+		item, _ := items[0].(map[string]interface{})
+		assert.Equal(t, map[string]interface{}{"url": "https://x/content.mp4"}, item["video_url"])
+	})
+
+	t.Run("空值与非字符串不合成", func(t *testing.T) {
+		for _, body := range []string{`{"model":"m","prompt":"p","metadata":{"video_url":""}}`,
+			`{"model":"m","prompt":"p","metadata":{"video_url":"   "}}`,
+			`{"model":"m","prompt":"p","metadata":{"video_url":123}}`} {
+			req := decode(t, body)
+			require.NotPanics(t, func() { normalizeTaskSubmitReq(req) })
+			_, exists := req.Metadata["content"]
+			assert.False(t, exists, "body=%s", body)
+		}
+	})
+}
+
 // TestNormalizeOfficialVideoParams 锁定计费不变量：火山方舟官方放在顶层的视频参数
 // （其中 resolution 决定计费档）必须并入 metadata，否则按默认档计费 —— 客户传
 // 1080p 会按 720p 出片并按 720p 收费。
