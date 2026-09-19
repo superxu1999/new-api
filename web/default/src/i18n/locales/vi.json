@@ -120,6 +120,7 @@
     "7 Days": "7 ngày",
     "7 days ago": "7 ngày trước",
     "80,443,8080": "80,443,8080",
+    "上面是火山方舟官方写法：多模态参考数组放在顶层 content。把整个数组挪到 metadata.content 里效果完全一样（两种写法二选一，不要同时写，同时写时以 metadata.content 为准）。": "Ví dụ trên dùng đúng định dạng chính thức của Volcano Ark: mảng tham chiếu đa phương thức nằm ở cấp cao nhất trong content. Chuyển toàn bộ mảng vào metadata.content cho kết quả hoàn toàn giống nhau (chỉ dùng một trong hai cách; nếu ghi cả hai thì metadata.content được ưu tiên).",
     "A billing multiplier. Lower ratios mean lower API call costs.": "Hệ số tính phí. Tỷ lệ càng thấp thì chi phí gọi API càng thấp.",
     "A focused home for keys, balance, routing, and service health.": "Trang tổng quan tập trung cho khóa, số dư, định tuyến và trạng thái dịch vụ.",
     "A separate ModelRatio used when the request includes a reference video. Official pricing has two tiers: no-video vs with-video. Set 0 to fall back to the no-video ModelRatio.": "ModelRatio riêng dùng khi yêu cầu chứa video tham chiếu. Giá chính thức có hai mức: không video và có video. Đặt 0 để quay về ModelRatio không video.",

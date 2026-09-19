@@ -694,6 +694,11 @@ type TaskSubmitReq struct {
 	N              int                    `json:"n,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	// Content 对应火山方舟创建任务接口的顶层 content 数组（文本提示词 + 参考图/视频/音频）。
+	// 本站的任务适配器只读 metadata.content，所以校验阶段会把它并入 metadata
+	// （见 normalizeTaskContent）——顶层与 metadata 两种写法都能用。
+	// 用 RawMessage 是为了容错：content 形状不是数组时按未传处理，不报 400。
+	Content json.RawMessage `json:"content,omitempty"`
 	// ReturnLastFrame 对应火山方舟创建任务接口的顶层 return_last_frame。
 	// 本站各适配器只透传 metadata，所以校验阶段会把它并入 metadata 再往下走
 	// （见 normalizeReturnLastFrame）——顶层与 metadata 两种写法都能用。

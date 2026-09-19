@@ -425,7 +425,8 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）'],
+                  ['prompt', 'string', '是', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；省略时自动取 content 中第一条 type=text 元素的文本'],
+                  ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）的顶层写法，即火山方舟官方格式：见 6.4；与 metadata.content 等价'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['metadata', 'object', '否', '见下表', '扩展参数，见下表'],
                 ]}
@@ -571,11 +572,12 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是', '—', '画面描述'],
+                  ['prompt', 'string', '是（见说明）', '—', '画面描述；也可省略，改用 content 内第一条 type=text 元素的文本'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['metadata.resolution', 'string', '否', '720p', '480p/720p/1080p/4k'],
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
-                  ['metadata.content', 'array', '是', '—', '多模态参考数组，元素结构见下表'],
+                  ['content', 'array', '是（二选一）', '—', '多模态参考数组，火山方舟官方写法（与 model/prompt 同级）；元素结构见下表'],
+                  ['metadata.content', 'array', '是（二选一）', '—', '多模态参考数组，本站兼容写法（写在 metadata 内）；与顶层 content 完全等价'],
                 ]}
               />
               <ET title={t('metadata.content 数组元素（至少包含 1 条 type=text）')} />
@@ -608,19 +610,21 @@ data: [DONE]`}</Code>
   -H "Authorization: Bearer sk-..." \\
   -d '{
     "model": "<model-id>",
-    "prompt": "参考这些素材生成一段连贯视频",
     "duration": 5,
+    "content": [
+      { "type": "text", "text": "让参考图里的人物按参考视频的动作表演" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" }, "role": "reference_image" },
+      { "type": "video_url", "video_url": { "url": "https://example.com/motion.mp4" }, "role": "reference_video" },
+      { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" }, "role": "reference_audio" }
+    ],
     "metadata": {
       "resolution": "720p",
-      "ratio": "16:9",
-      "content": [
-        { "type": "text", "text": "让参考图里的人物按参考视频的动作表演" },
-        { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" } },
-        { "type": "video_url", "video_url": { "url": "https://example.com/motion.mp4" }, "role": "reference_video" },
-        { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" }, "role": "reference_audio" }
-      ]
+      "ratio": "16:9"
     }
   }'`}</Code>
+              <p className='text-[13px]'>
+                {t('上面是火山方舟官方写法：多模态参考数组放在顶层 content。把整个数组挪到 metadata.content 里效果完全一样（两种写法二选一，不要同时写，同时写时以 metadata.content 为准）。')}
+              </p>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
 {
@@ -648,7 +652,6 @@ data: [DONE]`}</Code>
   "status": "in_progress",
   "progress": 50,
   "created_at": 1788598144,
-  "completed_at": 1788598270,
   "metadata": {
     "url": "<成片地址>"
   }
@@ -686,7 +689,7 @@ data: [DONE]`}</Code>
                   ['status', 'string', '任务状态：queued / in_progress / completed / failed'],
                   ['progress', 'number', '进度（0-100），completed 时为 100'],
                   ['created_at', 'integer', '任务创建时间戳（秒）'],
-                  ['completed_at', 'integer', '任务完成时间戳（秒），未完成时可能为空'],
+                  ['completed_at', 'integer', '任务完成时间戳（秒）；未完成时不返回该字段'],
                   ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.6，把 task_id 代入即可'],
                   ['metadata.last_frame_url', 'string', '成片尾帧图片地址；仅创建任务时带 metadata.return_last_frame=true 才有，可用于续拍（作为下一段的首帧参考）'],
                   ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
@@ -701,7 +704,7 @@ data: [DONE]`}</Code>
                   ['queued', '已提交，排队中'],
                   ['in_progress', '生成中（progress 显示进度）'],
                   ['completed', '已完成，可取成片'],
-                  ['failed', '失败，可查看错误信息'],
+                  ['failed', '失败；上游返回的失败原因记录在任务记录中（如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation），此类失败会自动全额退款'],
                 ]}
               />
             </Sub>

@@ -56,9 +56,58 @@ func createTaskError(err error, code string, statusCode int, localError bool) *d
 }
 
 func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj TaskSubmitReq) {
-	normalizeReturnLastFrame(&requestObj)
 	info.Action = action
 	c.Set("task_request", requestObj)
+}
+
+// normalizeTaskSubmitReq 把火山方舟官方创建任务接口的顶层写法，归一到本站适配器
+// 真正读取的位置。两个校验入口都要在解析之后、校验之前调用它：顶层 content 里的
+// 文本项要能补出 prompt，否则官方格式（没有顶层 prompt）会被 prompt 必填校验 400。
+func normalizeTaskSubmitReq(req *TaskSubmitReq) {
+	normalizeTaskContent(req)
+	normalizeReturnLastFrame(req)
+}
+
+// normalizeTaskContent 把火山方舟官方的顶层 content 数组并入 metadata.content，
+// 并在顶层 prompt 缺省时用 content 里的文本项补出 prompt。
+//
+// 官方创建任务接口把提示词与参考图/视频/音频都放在顶层 content 里；本站的
+// cyai/doubao/seedance 适配器只读 metadata.content，顶层直接写会在解析阶段就被丢掉，
+// 上游连一张参考图都收不到（实测客户按官方格式传 3 张参考图，上游收到的 content
+// 只有一条 text，生成的视频与参考图毫无关系）。
+//
+// metadata.content 已显式写好的值优先，不覆盖；content 形状不是数组时按未传处理。
+func normalizeTaskContent(req *TaskSubmitReq) {
+	if req == nil || len(req.Content) == 0 {
+		return
+	}
+	var items []interface{}
+	if err := common.Unmarshal(req.Content, &items); err != nil || len(items) == 0 {
+		return
+	}
+	if req.Metadata == nil {
+		req.Metadata = map[string]interface{}{}
+	}
+	if _, exists := req.Metadata["content"]; !exists {
+		// 必须存 []interface{}：doubao/seedance 适配器直接对 metadata["content"]
+		// 断言 []interface{} 来判断是否含参考视频（影响按含视频档计费）。
+		req.Metadata["content"] = items
+	}
+	if strings.TrimSpace(req.Prompt) != "" {
+		return
+	}
+	for _, item := range items {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		text, _ := entry["text"].(string)
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		req.Prompt = text
+		return
+	}
 }
 
 // normalizeReturnLastFrame 把火山方舟官方的顶层 return_last_frame 并入 metadata。
@@ -194,6 +243,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
 	}
+	normalizeTaskSubmitReq(&req)
 
 	prompt = req.Prompt
 	model = req.Model
@@ -281,6 +331,7 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
+	normalizeTaskSubmitReq(&req)
 
 	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
 		return taskErr

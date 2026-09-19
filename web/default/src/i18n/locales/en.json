@@ -120,6 +120,7 @@
     "7 Days": "7 Days",
     "7 days ago": "7 days ago",
     "80,443,8080": "80,443,8080",
+    "上面是火山方舟官方写法：多模态参考数组放在顶层 content。把整个数组挪到 metadata.content 里效果完全一样（两种写法二选一，不要同时写，同时写时以 metadata.content 为准）。": "The example above uses the official Volcano Ark format, with the multimodal reference array at the top level as content. Moving the whole array into metadata.content behaves exactly the same (use one of the two forms; if both are present, metadata.content wins).",
     "A billing multiplier. Lower ratios mean lower API call costs.": "A billing multiplier. Lower ratios mean lower API call costs.",
     "A focused home for keys, balance, routing, and service health.": "A focused home for keys, balance, routing, and service health.",
     "A separate ModelRatio used when the request includes a reference video. Official pricing has two tiers: no-video vs with-video. Set 0 to fall back to the no-video ModelRatio.": "A separate ModelRatio used when the request includes a reference video. Official pricing has two tiers: no-video vs with-video. Set 0 to fall back to the no-video ModelRatio.",
