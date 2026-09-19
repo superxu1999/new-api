@@ -405,7 +405,7 @@ data: {"id":"chatcmpl-xxxx","object":"chat.completion.chunk","choices":[{"delta"
 
 data: [DONE]`}</Code>
               <p className='text-[13px]'>
-                {t('默认会在最后额外补一个带 usage 的 chunk（用量统计）；可用 stream_options.include_usage=false 关闭。')}
+                {t('默认会在末尾额外返回一个携带 usage 的 chunk（用量统计）；可通过 stream_options.include_usage=false 关闭。')}
               </p>
             </Sub>
           </Section>
@@ -417,9 +417,9 @@ data: [DONE]`}</Code>
             <div className='rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-[13px] leading-relaxed'>
               <p className='font-medium'>{t('通用约定')}</p>
               <ul className='mt-2 list-disc pl-5 space-y-1'>
-                <li>{t('必填参数：model；prompt 也可省略，改用 content 里的 type=text 元素。其余字段均可省略，省略时由上游使用默认值。')}</li>
-                <li>{t('duration：可选。Seedance 系模型（含本站中转渠道）取值 4–15 的整数（秒），省略或填 -1 表示由模型自动选择（2.0 系列默认 5 秒、2.5 系列默认 10 秒），超出 4–15 返回 invalid_seconds；其它模型族以各自模型规格为准。')}</li>
-                <li>{t('resolution：可选，缺省或为空时按 720p 处理；常见取值 480p/720p/1080p/4k（个别渠道只接受 720p/1080p/2k/4k，传不支持的值会返回 invalid_resolution）。')}</li>
+                <li>{t('必填参数：model。prompt 亦可省略，此时以 content 内的 type=text 元素作为提示词。其余字段均为可选，省略时采用上游默认值。')}</li>
+                <li>{t('duration：可选。Seedance 系模型（含本站中转渠道）须为 4–15 的整数（秒）；省略或指定 -1 时由模型自动选择（2.0 系列默认 5 秒，2.5 系列默认 10 秒），超出 4–15 返回 invalid_seconds。其它模型族以各自模型规格为准。')}</li>
+                <li>{t('resolution：可选；省略或为空时按 720p 处理。常用取值 480p/720p/1080p/4k；个别渠道仅接受 720p/1080p/2k/4k，传入不受支持的值将返回 invalid_resolution。')}</li>
                 <li>{t('各字段的取值范围、默认值与参考输入上限以实际使用的模型规格为准，不同模型可能不同。')}</li>
               </ul>
             </div>
@@ -430,7 +430,7 @@ data: [DONE]`}</Code>
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['model', 'string', '是', '—', '视频模型 ID'],
-                  ['prompt', 'string', '是（见说明）', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；与 content 内的 type=text 元素合并成一条提示词，可省其一'],
+                  ['prompt', 'string', '是（见说明）', '—', '画面描述（中文 ≤ 500 字、英文 ≤ 1000 词）；与 content 内的 type=text 元素合并为一条提示词，二者可只保留其一'],
                   ['content', 'array', '否', '—', '多模态参考（参考图/视频/音频）的顶层写法，即火山方舟官方格式：见 6.4；与 metadata.content 等价'],
                   ['duration', 'integer', '否', '模型默认', '时长（秒）：4–15 的整数；省略或 -1 由模型自动选择'],
                   ['resolution / ratio / generate_audio / watermark / seed / frames / camera_fixed', 'string / number / boolean', '否', '—', '火山方舟官方写法：与 model 同级直接传；与 metadata 里的同名字段等价，两处都写时以 metadata 为准'],
@@ -524,7 +524,7 @@ data: [DONE]`}</Code>
 }`}</Code>
             </Sub>
             <Sub id='sec-6-3' title={t('6.3 视频生视频 / Remix')}>
-              <p className='text-[13px]'>{t('方式一：metadata 传 video_url（或 content 里一条带 role=reference_video 的 video_url）。方式二：POST /v1/videos/{video_id}/remix（仅部分渠道支持，见下）。')}</p>
+              <p className='text-[13px]'>{t('方式一：在 metadata 中传入 video_url，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：POST /v1/videos/{video_id}/remix（仅部分渠道支持，详见下文）。')}</p>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
@@ -562,7 +562,7 @@ data: [DONE]`}</Code>
   "created_at": 1788598144
 }`}</Code>
               <p className='text-[13px]'>
-                {t('Remix 会产生一个新任务，返回新的 task_id；原视频不会被修改。注意：Remix 目前只有透传类渠道（Sora / OpenAI 类型）支持，请求不要带 model（会用原任务的模型与渠道）；其它渠道调用不会报错，但会退化成普通文生视频、用不到原视频，请改用 metadata.video_url 传参考视频。')}
+                {t('Remix 会创建新任务并返回新的 task_id，原视频不受影响。注意：Remix 目前仅透传类渠道（Sora / OpenAI 类型）支持，请求中请勿携带 model（系统沿用原任务的模型与渠道）；其它渠道调用不会报错，但会退化为普通文生视频且不使用原视频，此类场景请改用 metadata.video_url 传入参考视频。')}
               </p>
             </Sub>
             <Sub id='sec-6-4' title={t('6.4 多模态参考')}>
@@ -570,8 +570,8 @@ data: [DONE]`}</Code>
                 <p className='font-medium'>{t('多模态参考约定')}</p>
                 <ul className='mt-2 list-disc pl-5 space-y-1'>
                   <li>{t('单图/单视频也可用扁平写法：metadata.image_url（图生视频）、metadata.video_url（视频生视频），见 6.2 / 6.3。多图、多视频、多模态混搭请用 content 数组。')}</li>
-                  <li>{t('content 数组里的 type=text 元素可省：省略时用顶层 prompt 作为提示词，两者都给会合并成一条。')}</li>
-                  <li>{t('参考音频（type=audio_url）不可单独输入，至少配 1 张参考图或 1 个参考视频；部分渠道不支持参考音频，是否支持以渠道/模型为准。')}</li>
+                  <li>{t('content 数组内的 type=text 元素可省略：省略时以顶层 prompt 作为提示词；两者均提供时会合并为一条。')}</li>
+                  <li>{t('参考音频（type=audio_url）不可单独输入，须至少配合 1 张参考图或 1 个参考视频；部分渠道不支持参考音频，支持情况以渠道与模型为准。')}</li>
                   <li>{t('参考项数量上限由模型规格决定（如 Seedance 2.0 为 9 图 + 3 视频 + 3 音频，Seedance 2.5 为 30 图 + 10 视频 + 10 音频），以实际模型为准。')}</li>
                 </ul>
               </div>
@@ -586,7 +586,7 @@ data: [DONE]`}</Code>
                   ['metadata.ratio', 'string', '否', '模型默认', '16:9/9:16/4:3/3:4/21:9/1:1'],
                   ['content', 'array', '是（二选一）', '—', '多模态参考数组，火山方舟官方写法（与 model/prompt 同级）；元素结构见下表'],
                   ['metadata.content', 'array', '是（二选一）', '—', '多模态参考数组，本站兼容写法（写在 metadata 内）；与顶层 content 完全等价'],
-                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3）：会转成 content 里对应的一条（参考视频/音频自动带 role，图片不带 role 即首帧），转换后不再重复下发；与 content 同时存在时同一个 URL 只保留一次'],
+                  ['metadata.image_url / metadata.video_url / metadata.audio_url', 'string', '否', '—', '单素材扁平写法（见 6.2 / 6.3）：将转换为 content 内对应的元素（参考视频/音频自动附带 role，图片不带 role 时按首帧处理）；转换后不再重复下发，与 content 同时存在时同一 URL 仅保留一次'],
                 ]}
               />
               <ET title={t('metadata.content 数组元素')} />
@@ -603,25 +603,25 @@ data: [DONE]`}</Code>
               />
               <ET title={t('参考素材的用途（role）')} />
               <p className='text-[13px]'>
-                {t('role 表示素材用途。不写时按下面的「写法与参考意图」推断，写了就按你写的来；各素材类型可用的取值见下表。需要严格的首帧语义请走火山原生直连渠道 —— 中转渠道会把不带 role 的图片补成 reference_image。')}
+                {t('role 用于声明参考素材的用途。省略时按下列「写法与参考意图」对应关系推断；显式声明时以其为准。各素材类型可声明的取值见下表。严格的首帧语义仅在火山原生直连渠道可保证：中转渠道会将未声明 role 的图片改写为 reference_image。')}
               </p>
               <T
-                headers={['素材类型', 'role 取值', '是否必须写', '说明']}
+                headers={['素材类型', 'role 取值', '是否必须声明', '说明']}
                 rows={[
-                  ['image_url', 'reference_image', '单图可不写；多图必须写', '不写即「首帧图片」（最多 1 张）；多图时本站自动补齐'],
-                  ['video_url', 'reference_video', '必须', '参考视频'],
-                  ['audio_url', 'reference_audio', '必须', '不可单独输入，需配 1 张参考图或 1 个参考视频；部分渠道不支持参考音频'],
+                  ['image_url', 'reference_image', '单张可省略；多张必须声明', '未声明时按「首帧图片」处理（最多 1 张）；多张时由本站自动补齐'],
+                  ['video_url', 'reference_video', '必须声明', '参考视频'],
+                  ['audio_url', 'reference_audio', '必须声明', '不可单独输入，须至少配合 1 张参考图或 1 个参考视频；部分渠道不支持'],
                 ]}
               />
               <ET title={t('写法与参考意图的对应关系（没写 role 时按此推断）')} />
               <T
                 headers={['写法', '推断出的意图', '说明']}
                 rows={[
-                  ['content 元素带 role', '原样使用', '显式优先：本站绝不覆盖你写的 role'],
-                  ['content 里没带 role 的图片', '一张=首帧；两张及以上=参考图', '首帧最多 1 张，多图必须带 role，本站自动补齐。注意中转渠道（CyAI）会把不带 role 的图片自行补成 reference_image，需要严格首帧语义请走火山原生直连渠道'],
-                  ['input_reference / image', '首帧图片', 'Sora 与该字段本身的语义'],
-                  ['images 数组', '一张=首帧；多张=参考图', '同一个 URL 只保留一次'],
-                  ['metadata.image_url', '首帧图片', '等价于 content 里一条不带 role 的 image_url（见 6.2）'],
+                  ['content 元素带 role', '原样使用', '显式声明优先，本站不会覆盖'],
+                  ['content 里未声明 role 的图片', '一张=首帧；两张及以上=参考图', '首帧最多 1 张，多张参考图须声明 role，本站会自动补齐。中转渠道（CyAI）会将未声明 role 的图片改写为 reference_image；严格的首帧语义请使用火山原生直连渠道'],
+                  ['input_reference / image', '首帧图片', 'OpenAI 风格的单图输入字段'],
+                  ['images 数组', '一张=首帧；多张=参考图', '同一 URL 仅保留一次'],
+                  ['metadata.image_url', '首帧图片', '等价于 content 内一条不带 role 的 image_url（见 6.2）'],
                   ['metadata.video_url', '参考视频', '自动带 role=reference_video（见 6.3）'],
                   ['metadata.audio_url', '参考音频', '自动带 role=reference_audio'],
                 ]}
@@ -645,7 +645,7 @@ data: [DONE]`}</Code>
     }
   }'`}</Code>
               <p className='text-[13px]'>
-                {t('上面是火山方舟官方写法：多模态参考数组放在顶层 content。写在 metadata.content 里效果完全一样；两处都写时会合并成一份素材清单，同一个 URL 只保留一次。')}
+                {t('上文为火山方舟官方写法：多模态参考数组置于顶层 content。该数组亦可置于 metadata.content，效果一致；两处均提供时会合并为同一份素材清单，同一 URL 仅保留一次。')}
               </p>
               <ET title={t('响应示例')} />
               <Code>{`HTTP/1.1 200 OK
@@ -906,7 +906,7 @@ data: [DONE]`}</Code>
                 ]}
               />
               <p className='text-[13px]'>
-                {t('/v1/responses/compact 是压缩接口：只校验 model，input 可省略，也不支持 max_output_tokens 与流式返回。')}
+                {t('/v1/responses/compact 为压缩接口：仅校验 model，input 可省略，且不支持 max_output_tokens 与流式返回。')}
               </p>
               <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/responses \\
