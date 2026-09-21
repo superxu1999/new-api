@@ -266,3 +266,77 @@ POST /v1/audio/speech          语音合成（TTS）
 | `task_not_exist` | 任务不存在 |
 
 > 注意：**不认识的请求字段会被忽略而不是报错**。参考素材请按第 5.1 节写在顶层 `content` 或 `metadata.content` 里；写在其它位置（如自造的字段名）不会生效。任务失败的具体原因看 `metadata.fail_reason`（见 5.3）。
+
+## 11. 云端素材库
+
+素材文件、转码、审核与真人活体认证均由上游渠道托管，平台只登记归属与状态。素材入库完成后（状态为 `ACTIVE`）才可用于视频生成，引用写法为 `asset://<素材 ID>`。
+
+该能力**默认按账号关闭**，需要管理员开通后才能调用；未开通时相关接口返回 403 `asset_library_disabled`。
+
+### 11.1 接口一览
+
+| 能力 | 接口 |
+| --- | --- |
+| 素材组列表 / 新建 / 删除 | `GET /v1/assets/groups`、`POST /v1/assets/groups`、`DELETE /v1/assets/groups/{id}` |
+| 素材列表 / 新建 | `GET /v1/assets`、`POST /v1/assets` |
+| 素材详情 / 重命名 / 删除 | `GET /v1/assets/{id}`、`PUT /v1/assets/{id}`、`DELETE /v1/assets/{id}` |
+| 真人认证 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}` |
+
+### 11.2 新建素材
+
+```bash
+curl -X POST "https://baseadd.vip/v1/assets" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{
+    "name": "角色定妆图",
+    "url": "https://cdn.example.com/portrait.png",
+    "asset_type": "Image"
+  }'
+```
+
+- `url` 必须是**公网 HTTP(S) 地址**，不支持文件直传；
+- `asset_type` 取 `Image` / `Video` / `Audio`；
+- `group_id` 可省略，省略时自动使用（必要时自动创建）默认素材组；
+- 入库是异步的：先返回 `PROCESSING`，状态变为 `ACTIVE` 后才可引用；查询详情接口会同步一次上游状态。
+
+### 11.3 在视频生成中引用素材
+
+在 `content` 数组元素的 `image_url` / `video_url` / `audio_url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<素材 ID>`：
+
+```bash
+curl -X POST "https://baseadd.vip/v1/videos" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{
+    "model": "<model-id>",
+    "prompt": "让画面轻轻动起来",
+    "content": [
+      { "type": "image_url", "image_url": { "url": "asset://12" }, "role": "reference_image" }
+    ],
+    "metadata": { "resolution": "480p", "ratio": "16:9" }
+  }'
+```
+
+平台在提交上游前会校验素材归属与状态，并替换为上游素材 ID。**素材绑定渠道**：引用了素材的任务会固定走素材所属渠道，同一次请求引用的素材必须来自同一渠道（否则返回 `asset_channel_mismatch`）。
+
+### 11.4 真人素材
+
+真人素材必须先完成真人活体认证（上游流程，不可绕过）：
+
+1. 调用 `POST /v1/assets/real-person/sessions` 拿到 `h5_link`（有效期较短，过期重新生成即可）；
+2. 由**素材中的真人本人**用手机打开链接完成活体认证；
+3. 轮询 `GET /v1/assets/real-person/sessions/{id}`，认证通过后返回绑定的真人素材组 `group_id`；
+4. 把真人图片或视频入库到该组，即可在生成请求中引用。
+
+### 11.5 素材相关错误码
+
+| code | HTTP | 说明 |
+| --- | --- | --- |
+| `asset_library_disabled` | 403 | 该账号未开通云端素材库，请联系管理员 |
+| `asset_not_supported` | 400 | 模型所在渠道不支持素材库 |
+| `asset_not_found` | 400 | 素材不存在或不属于当前账号 |
+| `asset_not_active` | 400 | 素材尚未入库完成（状态不是 `ACTIVE`） |
+| `asset_channel_mismatch` | 400 | 同一次请求引用了不同渠道的素材 |
+| `asset_channel_disable` | 400 | 素材所属渠道已禁用 |
+| `asset_upstream_error` | 502 | 上游素材接口报错，错误信息含上游原文 |
