@@ -18,40 +18,42 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { SectionPageLayout } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { AssetsPanel } from './components/assets-panel'
 import { RealPersonPanel } from './components/real-person-panel'
 
-/** 云端素材库页面：素材管理 + 真人认证两个页签。 */
+/** 素材库页面：素材管理 + 真人认证两个页签。 */
 export function Assets() {
   const { t } = useTranslation()
 
   return (
-    <div className='mx-auto max-w-5xl space-y-6 px-4 py-8'>
-      <div className='space-y-1'>
-        <h1 className='text-2xl font-semibold'>{t('Asset Library')}</h1>
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'Manage cloud materials used by video generation: ingest images, videos or audio from a public URL, then reference them as asset://<id>.'
-          )}
-        </p>
-      </div>
-
-      <Tabs defaultValue='assets'>
-        <TabsList>
-          <TabsTrigger value='assets'>{t('Materials')}</TabsTrigger>
-          <TabsTrigger value='real-person'>
-            {t('Real-person verification')}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value='assets' className='pt-4'>
-          <AssetsPanel />
-        </TabsContent>
-        <TabsContent value='real-person' className='pt-4'>
-          <RealPersonPanel />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Asset Library')}</SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <div className='space-y-4'>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Manage the materials used by video generation: ingest images, videos or audio from a public URL.'
+            )}
+          </p>
+          <Tabs defaultValue='assets' className='gap-3'>
+            <TabsList>
+              <TabsTrigger value='assets'>{t('Materials')}</TabsTrigger>
+              <TabsTrigger value='real-person'>
+                {t('Real-person verification')}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value='assets'>
+              <AssetsPanel />
+            </TabsContent>
+            <TabsContent value='real-person'>
+              <RealPersonPanel />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

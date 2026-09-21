@@ -456,7 +456,7 @@ export function UsersMutateDrawer({
                       render={({ field }) => (
                         <FormItem className='flex items-center justify-between gap-4'>
                           <div className='space-y-1'>
-                            <FormLabel>{t('Cloud asset library')}</FormLabel>
+                            <FormLabel>{t('Asset library')}</FormLabel>
                             <FormDescription>
                               {t(
                                 'Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.'
