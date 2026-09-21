@@ -265,7 +265,7 @@ curl -X POST https://your-server.com/v1/videos/task_xxxxxxxxxxxx/cancel \
 - 以下情况返回错误，且**不改动**本地状态与额度：任务已结束（`task_already_finished`）、渠道未实现取消能力（`cancel_not_supported`）、上游拒绝取消（`cancel_rejected_by_upstream`，错误信息内含上游原文，例如 401 无取消权限）。
 - 竞态保护：上游已受理取消、但轮询同时把任务推进到终态时，本地不重复退款。
 
-> 能否取消取决于上游是否开放该接口。本站已对 CyAI / Foxtoken 系中转与火山 ARK 原生接口实现；实测 CyAI 中转对**存在**的任务会转发给火山并被其拒绝（401，其上游 Key 无取消权限），这类情况需由中转方修复后才能生效，期间只能等任务自行结束。
+> 能否取消取决于上游。本站已对 CyAI / Foxtoken 系中转与火山 ARK 原生接口实现。实测（同一把 key、同一路径）：对**运行中**的任务，CyAI 中转会去火山执行取消并在这一步返回 401（其上游 Key 无取消权限），取消因此不生效，只能等任务自行结束，需由中转方修复；对**已结束**的任务，中转则直接删除自己的任务记录（返回 `{"deleted":true}`）——因此本站不允许对已结束任务发起取消（`task_already_finished`），避免误删记录。
 
 ### 下载视频
 

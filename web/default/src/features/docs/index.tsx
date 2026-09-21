@@ -750,7 +750,7 @@ data: [DONE]`}</Code>
               <Code>{`curl -X POST https://ghyc.top/v1/videos/<task_id>/cancel \\
   -H "Authorization: Bearer sk-..."`}</Code>
               <p className='text-[13px]'>
-                {t('取消仅对尚未结束的任务有效，等价写法为 DELETE /v1/videos/{task_id}（同样接受登录会话鉴权）。取消成功后退还预扣额度，任务置为 failed 且 metadata.fail_reason 为 canceled by user；任务已结束、渠道不支持取消、或上游拒绝取消时返回错误，本地状态与额度保持不变。能否取消取决于上游是否开放该接口：部分中转渠道会返回上游的拒绝信息（如 401 无取消权限），此时需等待任务自行结束。')}
+                {t('取消仅对尚未结束的任务有效，等价写法为 DELETE /v1/videos/{task_id}（同样接受登录会话鉴权）。取消成功后退还预扣额度，任务置为 failed 且 metadata.fail_reason 为 canceled by user；任务已结束（task_already_finished）、渠道未实现取消（cancel_not_supported）、上游拒绝取消时返回错误，本地状态与额度保持不变。能否取消取决于上游：实测部分中转渠道在「取消运行中任务」这一步会返回其内部调用的 401（其上游 Key 无取消权限），此时只能等待任务自行结束；对已结束的任务，中转为直接删除记录，因此本站不允许对已结束任务发起取消。')}
               </p>
             </Sub>
             <Sub id='sec-6-6' title={t('6.6 下载成片')}>
