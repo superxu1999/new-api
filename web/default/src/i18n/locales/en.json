@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Allow self-signed or hostname-mismatched SMTP certificates",
     "Allow service_tier passthrough": "Allow service_tier passthrough",
     "Allow speed passthrough": "Allow speed passthrough",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "Allow this user to ingest materials into the asset library. Disabled by default.",
     "Allow upstream callbacks": "Allow upstream callbacks",
     "Allow users to check in daily for random quota rewards": "Allow users to check in daily for random quota rewards",
     "Allow users to enter promo codes": "Allow users to enter promo codes",

@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "允许自签名或主机名不匹配的 SMTP 证书",
     "Allow service_tier passthrough": "允许透传 service_tier",
     "Allow speed passthrough": "允许 speed 透传",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "允许该用户向素材库上传素材。默认关闭，避免被当作免费网盘使用。",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "允许该用户向素材库上传素材。默认关闭。",
     "Allow upstream callbacks": "允许上游回调",
     "Allow users to check in daily for random quota rewards": "允许用户每日签到获取随机额度奖励",
     "Allow users to enter promo codes": "允许用户输入促销代码",

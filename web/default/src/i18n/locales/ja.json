@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "自己署名またはホスト名が一致しない SMTP 証明書を許可する",
     "Allow service_tier passthrough": "Service_tierパススルーを許可する",
     "Allow speed passthrough": "speed パススルーを許可",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "このユーザーにクラウド素材ライブラリへの素材取り込みを許可します。無料クラウドストレージとして使われないよう、既定では無効です。",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "このユーザーに素材ライブラリへの素材取り込みを許可します。既定では無効です。",
     "Allow upstream callbacks": "アップストリームコールバックを許可",
     "Allow users to check in daily for random quota rewards": "ユーザーが毎日チェックインしてランダムなクォータ報酬を受け取れるようにする",
     "Allow users to enter promo codes": "ユーザーがプロモーションコードを入力できるようにする",

@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Autoriser les certificats SMTP auto-signés ou dont le nom d'hôte ne correspond pas",
     "Allow service_tier passthrough": "Autoriser la transmission de service_tier",
     "Allow speed passthrough": "Autoriser la transmission de speed",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "Autoriser cet utilisateur à importer des médias dans la bibliothèque de médias cloud. Désactivé par défaut pour éviter tout usage comme stockage gratuit.",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "Autoriser cet utilisateur à importer des médias dans la bibliothèque de médias. Désactivé par défaut.",
     "Allow upstream callbacks": "Autoriser les callbacks en amont",
     "Allow users to check in daily for random quota rewards": "Permettre aux utilisateurs de se connecter quotidiennement pour des récompenses de quota aléatoires",
     "Allow users to enter promo codes": "Autoriser les utilisateurs à saisir des codes promotionnels",

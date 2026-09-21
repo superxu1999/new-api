@@ -459,7 +459,7 @@ export function UsersMutateDrawer({
                             <FormLabel>{t('Asset library')}</FormLabel>
                             <FormDescription>
                               {t(
-                                'Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.'
+                                'Allow this user to ingest materials into the asset library. Disabled by default.'
                               )}
                             </FormDescription>
                           </div>

@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Разрешить самоподписанные SMTP-сертификаты или сертификаты с несоответствующим именем узла",
     "Allow service_tier passthrough": "Разрешить сквозную передачу service_tier",
     "Allow speed passthrough": "Разрешить передачу speed",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "Разрешить этому пользователю загружать материалы в облачную библиотеку. По умолчанию отключено, чтобы её не использовали как бесплатное хранилище.",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "Разрешить этому пользователю загружать материалы в библиотеку материалов. По умолчанию отключено.",
     "Allow upstream callbacks": "Разрешить обратные вызовы upstream",
     "Allow users to check in daily for random quota rewards": "Разрешить пользователям регистрироваться ежедневно для получения случайных квотных наград",
     "Allow users to enter promo codes": "Разрешить пользователям вводить промокоды",

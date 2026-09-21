@@ -343,7 +343,7 @@
     "Allow self-signed or hostname-mismatched SMTP certificates": "Cho phép chứng chỉ SMTP tự ký hoặc không khớp tên máy chủ",
     "Allow service_tier passthrough": "Cho phép chuyển tiếp service_tier",
     "Allow speed passthrough": "Cho phép truyền speed",
-    "Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.": "Cho phép người dùng này đưa tài liệu vào thư viện tài liệu đám mây. Mặc định tắt để tránh bị dùng như lưu trữ miễn phí.",
+    "Allow this user to ingest materials into the asset library. Disabled by default.": "Cho phép người dùng này đưa tài liệu vào thư viện tài liệu. Mặc định tắt.",
     "Allow upstream callbacks": "Cho phép callback upstream",
     "Allow users to check in daily for random quota rewards": "Cho phép người dùng điểm danh hàng ngày để nhận phần thưởng hạn ngạch ngẫu nhiên",
     "Allow users to enter promo codes": "Cho phép người dùng nhập mã khuyến mãi",
