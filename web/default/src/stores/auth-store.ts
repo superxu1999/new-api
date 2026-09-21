@@ -51,6 +51,10 @@ export interface AuthUser {
   stripe_customer?: string
   sidebar_modules?: string
   permissions?: UserPermissions
+  /** 素材库使用权限（0 关闭 / 1 开启），由管理员配置 */
+  asset_library_enabled?: number
+  /** 素材库直接上传权限（0 关闭 / 1 开启），由管理员配置 */
+  asset_upload_enabled?: number
 }
 
 interface AuthState {

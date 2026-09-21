@@ -300,7 +300,23 @@ curl -X POST "https://baseadd.vip/v1/assets" \
 - `group_id` 可省略，省略时自动使用（必要时自动创建）默认素材组；
 - 入库是异步的：先返回 `PROCESSING`，状态变为 `ACTIVE` 后才可引用；查询详情接口会同步一次上游状态。
 
-### 11.3 在视频生成中引用素材
+### 11.3 直接上传文件（可选）
+
+若素材文件在本地，可直接上传（multipart/form-data，字段名 `file`，可附 `name`、`group_id`）：
+
+```bash
+curl -X POST "https://baseadd.vip/v1/assets/upload" \
+  -H "Authorization: Bearer sk-..." \
+  -F "file=@./portrait.png" \
+  -F "name=角色定妆图"
+```
+
+- 该能力**默认关闭**，需要管理员为账号开通直传权限（同时要求素材库已开通），未开通时返回 403 `asset_upload_disabled`；
+- 本站会把文件临时保存一份，再把它的公网地址交给上游入库，因此本站需部署在**公网可访问**的域名下；
+- 单文件上限 100MB，仅支持常见图片 / 视频 / 音频扩展名（其它返回 `asset_file_type_not_allowed`，超限返回 `asset_file_too_large`）；
+- 本地副本在删除素材时一并删除。
+
+### 11.4 在视频生成中引用素材
 
 在 `content` 数组元素的 `image_url` / `video_url` / `audio_url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<素材 ID>`：
 
@@ -320,7 +336,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 
 平台在提交上游前会校验素材归属与状态，并替换为上游素材 ID。**素材绑定渠道**：引用了素材的任务会固定走素材所属渠道，同一次请求引用的素材必须来自同一渠道（否则返回 `asset_channel_mismatch`）。
 
-### 11.4 真人素材
+### 11.5 真人素材
 
 真人素材必须先完成真人活体认证（上游流程，不可绕过）：
 
@@ -329,11 +345,14 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 3. 轮询 `GET /v1/assets/real-person/sessions/{id}`，认证通过后返回绑定的真人素材组 `group_id`；
 4. 把真人图片或视频入库到该组，即可在生成请求中引用。
 
-### 11.5 素材相关错误码
+### 11.6 素材相关错误码
 
 | code | HTTP | 说明 |
 | --- | --- | --- |
 | `asset_library_disabled` | 403 | 该账号未开通云端素材库，请联系管理员 |
+| `asset_upload_disabled` | 403 | 该账号未开通直接上传权限，请联系管理员 |
+| `asset_file_too_large` | 400 | 上传文件超过 100MB 上限 |
+| `asset_file_type_not_allowed` | 400 | 上传文件类型不在白名单内 |
 | `asset_not_supported` | 400 | 模型所在渠道不支持素材库 |
 | `asset_not_found` | 400 | 素材不存在或不属于当前账号 |
 | `asset_not_active` | 400 | 素材尚未入库完成（状态不是 `ACTIVE`） |

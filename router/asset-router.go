@@ -21,6 +21,9 @@ func SetAssetRouter(router *gin.Engine) {
 		assetRouter.GET("/groups/:id", controller.GetAssetGroup)
 		assetRouter.DELETE("/groups/:id", controller.DeleteAssetGroup)
 
+		// 本地文件直传：先落盘暂存，再把公网地址交给上游入库（默认关闭，需管理员开通）。
+		assetRouter.POST("/upload", controller.UploadAsset)
+
 		assetRouter.GET("", controller.ListAssets)
 		assetRouter.POST("", controller.CreateAsset)
 		assetRouter.GET("/:id", controller.GetAsset)
@@ -29,5 +32,13 @@ func SetAssetRouter(router *gin.Engine) {
 
 		assetRouter.POST("/real-person/sessions", controller.CreateRealPersonSession)
 		assetRouter.GET("/real-person/sessions/:id", controller.GetRealPersonSession)
+	}
+
+	// 暂存文件的下载入口：上游服务端要能匿名抓取，因此单独一条不鉴权路由，
+	// 且路径不能落在 /assets（该前缀被 web-router 留给静态资源）。
+	mediaRouter := router.Group("/asset-media")
+	mediaRouter.Use(middleware.RouteTag("relay"))
+	{
+		mediaRouter.GET("/:key", controller.ServeAssetMedia)
 	}
 }

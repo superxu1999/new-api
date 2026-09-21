@@ -71,7 +71,10 @@ type Asset struct {
 	Name            string         `json:"name" gorm:"type:varchar(191)"`
 	AssetType       string         `json:"asset_type" gorm:"type:varchar(16)"`
 	SourceUrl       string         `json:"source_url" gorm:"type:text"`
-	Status          string         `json:"status" gorm:"type:varchar(32);index"`
+	// LocalKey 仅在「用户直接上传文件」时有值：本站暂存文件的随机文件名，
+	// 通过 /asset-media/<LocalKey> 对外提供下载（上游也用它来抓取素材）。
+	LocalKey   string         `json:"local_key" gorm:"type:varchar(191);index"`
+	Status     string         `json:"status" gorm:"type:varchar(32);index"`
 	FailReason      string         `json:"fail_reason" gorm:"type:varchar(255)"`
 	CreatedAt       int64          `json:"created_at" gorm:"index"`
 	UpdatedAt       int64          `json:"updated_at"`

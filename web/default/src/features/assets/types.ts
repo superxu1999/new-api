@@ -43,6 +43,8 @@ export interface Asset {
   name: string
   asset_type: AssetType
   source_url: string
+  /** 直传素材在本站的暂存文件名（公网 URL 方式入库时为空） */
+  local_key: string
   status: AssetStatus
   fail_reason: string
   created_at: number
@@ -63,6 +65,13 @@ export interface CreateAssetPayload {
   name: string
   url: string
   asset_type: AssetType
+}
+
+/** 直传：文件走 multipart，其余参数与公网 URL 方式一致。 */
+export interface UploadAssetPayload {
+  file: File
+  name: string
+  groupId: number
 }
 
 export interface CreateAssetGroupPayload {

@@ -475,6 +475,33 @@ export function UsersMutateDrawer({
                       )}
                     />
                   )}
+
+                  {canEditAdminPermissions && (
+                    <FormField
+                      control={form.control}
+                      name='asset_upload_enabled'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between gap-4'>
+                          <div className='space-y-1'>
+                            <FormLabel>{t('Direct upload')}</FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Allow this user to upload local files, which are kept on this site as a temporary copy. Requires the asset library to be enabled too. Disabled by default.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value === 1}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked ? 1 : 0)
+                              }
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </SideDrawerSection>
               )}
 

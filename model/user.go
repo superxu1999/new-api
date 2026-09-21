@@ -55,8 +55,11 @@ type User struct {
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	// AssetLibraryEnabled 控制该用户能否使用云端素材库（0 关闭 / 1 开启）。
 	// 默认关闭，只能由管理员在用户配置里修改，避免被当作免费网盘使用。
-	AssetLibraryEnabled int                        `json:"asset_library_enabled" gorm:"type:int;default:0;column:asset_library_enabled"`
-	AdminPermissions    map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	AssetLibraryEnabled int `json:"asset_library_enabled" gorm:"type:int;default:0;column:asset_library_enabled"`
+	// AssetUploadEnabled 控制该用户能否把本地文件直接上传到素材库（0 关闭 / 1 开启）。
+	// 同样默认关闭且只能由管理员开启：上传会占用本站存储与带宽。
+	AssetUploadEnabled int                        `json:"asset_upload_enabled" gorm:"type:int;default:0;column:asset_upload_enabled"`
+	AdminPermissions   map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -727,6 +730,7 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 		"remark":       newUser.Remark,
 		// 云端素材库开关由管理员在这里改写（UpdateUser 走 AdminAuth 路由）。
 		"asset_library_enabled": newUser.AssetLibraryEnabled,
+		"asset_upload_enabled":  newUser.AssetUploadEnabled,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

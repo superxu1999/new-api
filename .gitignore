@@ -45,3 +45,6 @@ skills-lock.json
 .local-tests/
 service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
+
+# 素材库直传的临时文件目录（内容随素材删除，不入库）
+asset-uploads/

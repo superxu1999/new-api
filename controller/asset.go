@@ -693,6 +693,8 @@ func DeleteAsset(c *gin.Context) {
 		assetError(c, http.StatusInternalServerError, "delete_asset_failed", err.Error())
 		return
 	}
+	// 直传素材在本站有暂存文件，随素材一起清理。
+	removeAssetLocalFile(asset.LocalKey)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
@@ -709,11 +711,7 @@ type createRealPersonSessionRequest struct {
 // defaultRealPersonCallback 兜底回调地址：认证完成后浏览器落到本站素材库页，
 // 由页面轮询认证结果。调用方可用 callback_url 覆盖。
 func defaultRealPersonCallback(c *gin.Context) string {
-	scheme := "https"
-	if strings.HasPrefix(c.Request.Host, "localhost") || strings.HasPrefix(c.Request.Host, "127.0.0.1") {
-		scheme = "http"
-	}
-	return fmt.Sprintf("%s://%s/assets", scheme, c.Request.Host)
+	return requestOrigin(c) + "/asset-library"
 }
 
 // CreateRealPersonSession 创建真人活体认证会话，返回 H5 链接。

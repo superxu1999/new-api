@@ -64,6 +64,7 @@ export const userSchema = z.object({
     .optional(),
   // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
   asset_library_enabled: z.number().optional(),
+  asset_upload_enabled: z.number().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -116,6 +117,8 @@ export interface UserFormData {
   admin_permissions?: AdminPermissionMatrix
   // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
   asset_library_enabled?: number
+  // 素材库直接上传权限（0 关闭 / 1 开启），仅超级管理员可改
+  asset_upload_enabled?: number
 }
 
 export type ManageUserAction =

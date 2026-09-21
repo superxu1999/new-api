@@ -46,6 +46,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatTimestampToDate } from '@/lib/format'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   createAsset,
@@ -55,10 +56,15 @@ import {
   extractAssetError,
   listAssetGroups,
   listAssets,
+  uploadAsset,
 } from '../api'
 import type { Asset, AssetType } from '../types'
 
 const ASSET_TYPES: AssetType[] = ['Image', 'Video', 'Audio']
+
+// 直传允许的扩展名（与后端白名单一致）。
+const UPLOAD_ACCEPT =
+  '.jpg,.jpeg,.png,.webp,.gif,.bmp,.mp4,.mov,.webm,.mkv,.mp3,.wav,.m4a,.aac,.ogg,.flac'
 
 /** 状态徽章配色：可用绿、处理中黄、失败红。 */
 function statusVariant(status: Asset['status']) {
@@ -77,6 +83,22 @@ export function AssetsPanel() {
   const [assetUrl, setAssetUrl] = useState('')
   const [assetType, setAssetType] = useState<AssetType>('Image')
   const [assetGroupId, setAssetGroupId] = useState<number>(0)
+  const [sourceMode, setSourceMode] = useState<'url' | 'file'>('url')
+  const [assetFile, setAssetFile] = useState<File | null>(null)
+
+  const currentUser = useAuthStore((state) => state.auth.user)
+  // 直传需要管理员开通；管理员本身始终可用。
+  const canUpload =
+    (currentUser?.role ?? 0) >= 10 || currentUser?.asset_upload_enabled === 1
+
+  /** 关闭「新建素材」对话框并清空输入。 */
+  const closeAssetDialog = () => {
+    setAssetDialogOpen(false)
+    setAssetName('')
+    setAssetUrl('')
+    setAssetFile(null)
+    setSourceMode('url')
+  }
 
   const groupsQuery = useQuery({
     queryKey: ['asset-groups'],
@@ -115,9 +137,17 @@ export function AssetsPanel() {
     mutationFn: createAsset,
     onSuccess: () => {
       toast.success(t('Material submitted for ingestion'))
-      setAssetDialogOpen(false)
-      setAssetName('')
-      setAssetUrl('')
+      closeAssetDialog()
+      void queryClient.invalidateQueries({ queryKey: ['assets'] })
+    },
+    onError: (error) => toast.error(extractAssetError(error).message),
+  })
+
+  const uploadAssetMutation = useMutation({
+    mutationFn: uploadAsset,
+    onSuccess: () => {
+      toast.success(t('File uploaded and submitted for ingestion'))
+      closeAssetDialog()
       void queryClient.invalidateQueries({ queryKey: ['assets'] })
     },
     onError: (error) => toast.error(extractAssetError(error).message),
@@ -371,15 +401,57 @@ export function AssetsPanel() {
                 onChange={(event) => setAssetName(event.target.value)}
               />
             </div>
-            <div className='space-y-1.5'>
-              <Label htmlFor='asset-url'>{t('Public URL')}</Label>
-              <Input
-                id='asset-url'
-                value={assetUrl}
-                onChange={(event) => setAssetUrl(event.target.value)}
-                placeholder='https://cdn.example.com/portrait.png'
-              />
-            </div>
+            {canUpload && (
+              <div className='space-y-1.5'>
+                <Label>{t('Source')}</Label>
+                <div className='flex gap-2'>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={sourceMode === 'url' ? 'default' : 'outline'}
+                    onClick={() => setSourceMode('url')}
+                  >
+                    {t('Public URL')}
+                  </Button>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={sourceMode === 'file' ? 'default' : 'outline'}
+                    onClick={() => setSourceMode('file')}
+                  >
+                    {t('Upload file')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {sourceMode === 'url' ? (
+              <div className='space-y-1.5'>
+                <Label htmlFor='asset-url'>{t('Public URL')}</Label>
+                <Input
+                  id='asset-url'
+                  value={assetUrl}
+                  onChange={(event) => setAssetUrl(event.target.value)}
+                  placeholder='https://cdn.example.com/portrait.png'
+                />
+              </div>
+            ) : (
+              <div className='space-y-1.5'>
+                <Label htmlFor='asset-file'>{t('File')}</Label>
+                <Input
+                  id='asset-file'
+                  type='file'
+                  accept={UPLOAD_ACCEPT}
+                  onChange={(event) =>
+                    setAssetFile(event.target.files?.[0] ?? null)
+                  }
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'The file is stored on this site only as a temporary copy so the upstream channel can fetch it, and is removed together with the material.'
+                  )}
+                </p>
+              </div>
+            )}
             <div className='space-y-1.5'>
               <Label htmlFor='asset-type'>{t('Type')}</Label>
               <NativeSelect
@@ -398,26 +470,46 @@ export function AssetsPanel() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setAssetDialogOpen(false)}>
+            <Button variant='outline' onClick={closeAssetDialog}>
               {t('Cancel')}
             </Button>
-            <Button
-              disabled={
-                assetName.trim() === '' ||
-                assetUrl.trim() === '' ||
-                createAssetMutation.isPending
-              }
-              onClick={() =>
-                createAssetMutation.mutate({
-                  group_id: assetGroupId,
-                  name: assetName,
-                  url: assetUrl,
-                  asset_type: assetType,
-                })
-              }
-            >
-              {t('Confirm')}
-            </Button>
+            {sourceMode === 'url' ? (
+              <Button
+                disabled={
+                  assetName.trim() === '' ||
+                  assetUrl.trim() === '' ||
+                  createAssetMutation.isPending
+                }
+                onClick={() =>
+                  createAssetMutation.mutate({
+                    group_id: assetGroupId,
+                    name: assetName,
+                    url: assetUrl,
+                    asset_type: assetType,
+                  })
+                }
+              >
+                {t('Confirm')}
+              </Button>
+            ) : (
+              <Button
+                disabled={assetFile === null || uploadAssetMutation.isPending}
+                onClick={() => {
+                  if (assetFile === null) return
+                  const uploadName =
+                    assetName.trim() === ''
+                      ? (assetFile.name ?? '')
+                      : assetName.trim()
+                  uploadAssetMutation.mutate({
+                    file: assetFile,
+                    name: uploadName,
+                    groupId: assetGroupId,
+                  })
+                }}
+              >
+                {t('Confirm')}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

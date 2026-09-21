@@ -46,6 +46,8 @@ export const userFormSchema = z.object({
     .optional(),
   // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
   asset_library_enabled: z.number().optional(),
+  // 素材库直接上传权限（0 关闭 / 1 开启），仅超级管理员可改
+  asset_upload_enabled: z.number().optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -65,6 +67,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
   asset_library_enabled: 0,
+  asset_upload_enabled: 0,
 }
 
 // ============================================================================
@@ -105,6 +108,7 @@ export function transformFormDataToPayload(
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.asset_library_enabled = data.asset_library_enabled ? 1 : 0
+    payload.asset_upload_enabled = data.asset_upload_enabled ? 1 : 0
     payload.id = userId
   }
 
@@ -127,5 +131,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
     asset_library_enabled: user.asset_library_enabled ?? 0,
+    asset_upload_enabled: user.asset_upload_enabled ?? 0,
   }
 }

@@ -858,6 +858,17 @@ data: [DONE]`}</Code>
     "url": "https://cdn.example.com/portrait.png",
     "asset_type": "Image"
   }'`}</Code>
+            <ET title={t('直接上传文件（可选）')} />
+            <P>
+              {t('若素材文件还在本机，可直接上传（multipart/form-data，字段名 file）：本站先临时保存一份，再把该文件的公网地址交给上游入库。该能力默认关闭，需管理员为账号开通直传权限；单文件上限 100MB，支持图片、视频、音频常见格式，删除素材时本地副本一并删除。')}
+            </P>
+            <Code>{`curl -X POST https://ghyc.top/v1/assets/upload \\
+  -H "Authorization: Bearer sk-..." \\
+  -F "file=@./portrait.png" \\
+  -F "name=角色定妆图"`}</Code>
+            <P>
+              {t('注意：上游服务端需要能访问本站地址来抓取文件，因此本站必须部署在公网可达的域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 覆盖对外地址）。')}
+            </P>
             <ET title={t('在视频生成中引用素材')} />
             <P>
               {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道。')}
@@ -882,6 +893,9 @@ data: [DONE]`}</Code>
               headers={['code', '说明']}
               rows={[
                 ['asset_library_disabled', '该账号未开通云端素材库，请联系管理员开通'],
+                ['asset_upload_disabled', '该账号未开通直接上传权限，请联系管理员开通'],
+                ['asset_file_too_large', '上传文件超过大小上限（100MB）'],
+                ['asset_file_type_not_allowed', '上传文件类型不在白名单内'],
                 ['asset_not_supported', '模型所在渠道不支持素材库'],
                 ['asset_not_found', '素材不存在或不属于当前账号'],
                 ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
