@@ -103,7 +103,7 @@ Content-Type: application/json
 }
 ```
 
-`type` 取值：`text` / `image_url` / `video_url` / `audio_url`；参考素材的 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。`role` 表达的是素材用途（意图），取值 `reference_image` / `reference_video` / `reference_audio`：视频与音频必须显式写，图片只有多图参考必须写（单图不写即按首帧图片）。
+`type` 取值：`text` / `image_url` / `video_url` / `audio_url`；参考素材的 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。`role` 表达的是素材用途（意图），取值 `reference_image` / `first_frame` / `last_frame` / `reference_video` / `reference_audio`：视频与音频必须显式写，图片只有多图参考必须写（单图不写即按首帧图片）。
 
 没写 `role` 时按写法推断意图（**显式写的 `role` 永远不会被覆盖**）：
 
@@ -117,7 +117,7 @@ Content-Type: application/json
 | `metadata.video_url` | `reference_video` |
 | `metadata.audio_url` | `reference_audio` |
 
-> 中转渠道（如 CyAI）会把不带 `role` 的图片自行补成 `reference_image`；需要严格的首帧语义请走火山原生直连渠道。
+> 说明：`cyai` 适配器（`relay/channel/task/cyai`）会为未声明 `role` 的图片补 `reference_image`（其上游对无 `role` 的参考项会报错），而 `doubao` / `seedance` 适配器原样透传。需要严格的首帧语义时，请在请求里显式声明 `role: "first_frame"`。
 
 #### 响应格式
 

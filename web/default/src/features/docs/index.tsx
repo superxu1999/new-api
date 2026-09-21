@@ -35,7 +35,8 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-6-3', label: '6.3 视频生视频 / Remix' },
       { id: 'sec-6-4', label: '6.4 多模态参考' },
       { id: 'sec-6-5', label: '6.5 查询任务状态' },
-      { id: 'sec-6-6', label: '6.6 下载成片' },
+      { id: 'sec-6-6', label: '6.6 取消任务' },
+      { id: 'sec-6-7', label: '6.7 下载成片' },
     ],
   },
   { id: 'sec-7', label: '7. 图像生成' },
@@ -418,7 +419,7 @@ data: [DONE]`}</Code>
               <p className='font-medium'>{t('通用约定')}</p>
               <ul className='mt-2 list-disc pl-5 space-y-1'>
                 <li>{t('必填参数：model。prompt 亦可省略，此时以 content 内的 type=text 元素作为提示词。其余字段均为可选，省略时采用上游默认值。')}</li>
-                <li>{t('duration：可选。Seedance 系模型（含本站中转渠道）须为 4–15 的整数（秒）；省略或指定 -1 时由模型自动选择（2.0 系列默认 5 秒，2.5 系列默认 10 秒），超出 4–15 返回 invalid_seconds。其它模型族以各自模型规格为准。')}</li>
+                <li>{t('duration：可选。Seedance 系模型须为 4–15 的整数（秒）；省略或指定 -1 时由模型自动选择（2.0 系列默认 5 秒，2.5 系列默认 10 秒），超出 4–15 返回 invalid_seconds。其它模型族以各自模型规格为准。')}</li>
                 <li>{t('resolution：可选；省略或为空时按 720p 处理。常用取值 480p/720p/1080p/4k；个别渠道仅接受 720p/1080p/2k/4k，传入不受支持的值将返回 invalid_resolution。')}</li>
                 <li>{t('各字段的取值范围、默认值与参考输入上限以实际使用的模型规格为准，不同模型可能不同。')}</li>
               </ul>
@@ -491,6 +492,9 @@ data: [DONE]`}</Code>
             </Sub>
             <Sub id='sec-6-2' title={t('6.2 图生视频')}>
               <p className='text-[13px]'>{t('在 metadata 传 image_url，基于图片生成视频。')}</p>
+              <p className='text-[13px]'>
+                {t('metadata.image_url 是简化写法，本站按「首帧图片」的意图下发；如需严格的首帧或首尾帧语义，请改用 6.4 的 content 写法并显式声明 role（first_frame / last_frame）。')}
+              </p>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
@@ -603,12 +607,12 @@ data: [DONE]`}</Code>
               />
               <ET title={t('参考素材的用途（role）')} />
               <p className='text-[13px]'>
-                {t('role 用于声明参考素材的用途。省略时按下列「写法与参考意图」对应关系推断；显式声明时以其为准。各素材类型可声明的取值见下表。严格的首帧语义仅在火山原生直连渠道可保证：中转渠道会将未声明 role 的图片改写为 reference_image。')}
+                {t('role 用于声明参考素材的用途。显式声明的 role 本站原样透传、不做改写；省略时按下列「写法与参考意图」对应关系推断，其中两张及以上的图片会由本站补齐为 reference_image。首帧与尾帧属于上游规范定义的角色，需要严格的首帧（或首尾帧）语义时请显式声明 role（first_frame / last_frame），不要依赖省略 role 时的推断。')}
               </p>
               <T
                 headers={['素材类型', 'role 取值', '是否必须声明', '说明']}
                 rows={[
-                  ['image_url', 'reference_image', '单张可省略；多张必须声明', '未声明时按「首帧图片」处理（最多 1 张）；多张时由本站自动补齐'],
+                  ['image_url', 'reference_image（参考图）/ first_frame（首帧）/ last_frame（尾帧）', '单张可省略；多张必须声明', '未声明时按「首帧图片」处理（最多 1 张）；两张及以上由本站补齐为 reference_image'],
                   ['video_url', 'reference_video', '必须声明', '参考视频；含真人影像可能被上游输入审核拦截（InputVideoSensitiveContentDetected）'],
                   ['audio_url', 'reference_audio', '必须声明', '不可单独输入，须至少配合 1 张参考图或 1 个参考视频；部分渠道不支持'],
                 ]}
@@ -618,7 +622,7 @@ data: [DONE]`}</Code>
                 headers={['写法', '推断出的意图', '说明']}
                 rows={[
                   ['content 元素带 role', '原样使用', '显式声明优先，本站不会覆盖'],
-                  ['content 里未声明 role 的图片', '一张=首帧；两张及以上=参考图', '首帧最多 1 张，多张参考图须声明 role，本站会自动补齐。中转渠道（CyAI）会将未声明 role 的图片改写为 reference_image；严格的首帧语义请使用火山原生直连渠道'],
+                  ['content 里未声明 role 的图片', '一张=首帧；两张及以上=参考图', '首帧最多 1 张，多张参考图须声明 role；两张及以上由本站补齐为 reference_image。需要固定语义时请显式声明 role'],
                   ['input_reference / image', '首帧图片', 'OpenAI 风格的单图输入字段'],
                   ['images 数组', '一张=首帧；多张=参考图', '同一 URL 仅保留一次'],
                   ['metadata.image_url', '首帧图片', '等价于 content 内一条不带 role 的 image_url（见 6.2）'],
@@ -728,7 +732,7 @@ data: [DONE]`}</Code>
                   ['progress', 'number', '进度（0-100），completed 时为 100'],
                   ['created_at', 'integer', '任务创建时间戳（秒）'],
                   ['completed_at', 'integer', '任务完成时间戳（秒）；未完成时不返回该字段'],
-                  ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.6，把 task_id 代入即可'],
+                  ['metadata.url', 'string', '成片地址（completed 后有效），可直接下载，无需再带鉴权头；如需走本站内容代理，用 6.7，把 task_id 代入即可'],
                   ['metadata.last_frame_url', 'string', '成片尾帧图片地址；仅创建任务时带 metadata.return_last_frame=true 才有，可用于续拍（作为下一段的首帧参考）'],
                   ['metadata.fail_reason', 'string', '失败原因（仅 failed 且上游给了原因时返回），例如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation'],
                   ['usage', 'object', '实际用量；仅在任务完成、结算完成后返回，未结算时该字段不出现'],
@@ -746,14 +750,18 @@ data: [DONE]`}</Code>
                   ['failed', '失败；上游返回的失败原因见 metadata.fail_reason（如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation），此类失败会自动全额退款'],
                 ]}
               />
-              <ET title={t('取消任务（可选）')} />
+            </Sub>
+            <Sub id='sec-6-6' title={t('6.6 取消任务')}>
+              <Endpoint method='POST' path='/v1/videos/{task_id}/cancel' />
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos/<task_id>/cancel \\
   -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('说明')} />
               <p className='text-[13px]'>
-                {t('取消仅对尚未结束的任务有效，等价写法为 DELETE /v1/videos/{task_id}（同样接受登录会话鉴权）。取消成功后退还预扣额度，任务置为 failed 且 metadata.fail_reason 为 canceled by user；任务已结束（task_already_finished）、渠道未实现取消（cancel_not_supported）、上游拒绝取消时返回错误，本地状态与额度保持不变。能否取消取决于上游：实测部分中转渠道在「取消运行中任务」这一步会返回其内部调用的 401（其上游 Key 无取消权限），此时只能等待任务自行结束；对已结束的任务，中转为直接删除记录，因此本站不允许对已结束任务发起取消。')}
+                {t('取消尚未结束的任务，等价写法为 DELETE /v1/videos/{task_id}（同样接受登录会话鉴权）。取消成功后任务置为 failed、metadata.fail_reason 为 canceled by user，并全额退还预扣额度。任务已结束（task_already_finished）、渠道未实现取消（cancel_not_supported）、上游拒绝取消（cancel_rejected_by_upstream）时返回错误，此时任务继续执行，本地状态与额度保持不变。能否取消取决于上游服务对该任务的支持情况；无法取消时只能等任务自行结束。')}
               </p>
             </Sub>
-            <Sub id='sec-6-6' title={t('6.6 下载成片')}>
+            <Sub id='sec-6-7' title={t('6.7 下载成片')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}/content' />
               <ET title={t('请求示例')} />
               <Code>{`curl -L https://ghyc.top/v1/videos/<task_id>/content \\

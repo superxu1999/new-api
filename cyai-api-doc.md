@@ -127,7 +127,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 ```
 
 - `type`：`text` / `image_url` / `video_url` / `audio_url`；素材 URL 放在与 `type` 同名的对象里（如 `image_url.url`）。
-- `role`：表达素材用途（意图），取值 `reference_image` / `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片只有**多图**参考必须带（单张不写即按首帧图片）。
+- `role`：表达素材用途（意图），取值 `reference_image` / `first_frame`（首帧）/ `last_frame`（尾帧）/ `reference_video` / `reference_audio`。视频与音频**必须**带 `role`；图片只有**多图**参考必须带（单张不写即按首帧图片）。
 - 数组里的 `type=text` 可省：省略时用顶层 `prompt` 作为提示词（两者都写会合并成一条，不会丢其中一处）。
 - 参考音频不能单独输入，至少要配 1 张参考图或 1 个参考视频（上游约束，本站不做校验）。
 - `duration` 省略或填 `-1` 时，本站不向上游传时长、由上游按默认时长处理（本渠道默认 5 秒）；`metadata.resolution` 省略或为空时按 `720p` 处理。
@@ -145,7 +145,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 | `metadata.video_url` | 参考视频 |
 | `metadata.audio_url` | 参考音频 |
 
-> 注意：中转渠道会把不带 `role` 的图片自行补成 `reference_image`，因此**严格的首帧语义请走火山原生直连渠道**。
+> 注意：本渠道会为不带 `role` 的图片补 `reference_image`（其上游对无 `role` 的参考项会报错）。因此**需要严格的首帧语义时，请显式声明 `role: "first_frame"`**——显式声明的 `role` 一律原样下发，不会被改写。
 
 视频分辨率/比例/水印/种子等参数既可以写在顶层（`resolution`、`ratio`、`watermark`、`seed`、`camera_fixed`、`generate_audio`），也可以写进 `metadata`；两处都写时以 `metadata` 为准。
 

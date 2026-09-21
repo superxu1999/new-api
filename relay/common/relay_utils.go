@@ -175,9 +175,10 @@ func fillMissingImageRoles(items []interface{}) {
 //
 // 顶层 content 与 metadata.content 两处都写时合并（同一 URL 只留一次），不再二选一丢一处。
 //
-// 注意：推断只是「本站发出的意图」。中转渠道（CyAI）会把没带 role 的图片自己补成
-// reference_image，实测上游 egress 报文如此 —— 首帧意图在中转链路上会被改写成参考图，
-// 需要严格首帧语义请走火山原生直连渠道。
+// 注意：推断只是「本站发出的意图」。cyai 适配器（normalizeContentRole）会把没带 role 的
+// 图片补成 reference_image（其上游对无 role 的参考项报错），首帧意图因此在 CyAI 渠道上
+// 无法靠「不写 role」表达；需要严格首帧语义请在请求里显式声明 role=first_frame，
+// 显式声明一律原样透传（实测 first_frame 可被上游接受并正常出片）。
 func normalizeTaskReferences(req *TaskSubmitReq) {
 	if req == nil {
 		return
