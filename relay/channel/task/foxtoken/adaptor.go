@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -172,6 +173,36 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 	uri := fmt.Sprintf("%s/v1/video/generations/%s", baseUrl, taskID)
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
+}
+
+// CancelTask 取消（删除）上游任务，供上层 /v1/videos/{task_id}/cancel 调用。
+//
+// 中转上游（CyAI / Foxtoken，均为 new-api 系）的创建/查询走 /v1/video/generations，
+// 但「取消/删除任务」只暴露在火山 ARK 原生路径上：
+//
+//	DELETE {base}/api/v3/contents/generations/tasks/{task_id}
+//
+// 任务不存在时返回业务错误（400 task_not_exist / 404 Task not found）而不是路由级
+// Invalid URL —— 实测据此确认路由存在。
+func (a *TaskAdaptor) CancelTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	taskID, ok := body["task_id"].(string)
+	if !ok || strings.TrimSpace(taskID) == "" {
+		return nil, fmt.Errorf("invalid task_id")
+	}
+	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s",
+		strings.TrimRight(baseUrl, "/"), url.PathEscape(taskID))
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {
 		return nil, err
 	}

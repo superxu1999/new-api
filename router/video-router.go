@@ -14,6 +14,12 @@ func SetVideoRouter(router *gin.Engine) {
 	videoProxyRouter.Use(middleware.TokenOrUserAuth())
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
+		// 取消任务：POST /v1/videos/{task_id}/cancel 与 DELETE /v1/videos/{task_id} 等价。
+		// 与下载接口一样接受会话或令牌鉴权，控制台与 API 客户端可共用。
+		// 参数名必须与同方法下已有的 /v1/videos/:video_id/remix 保持一致（gin 的树不允许
+		// 同一层级出现两个不同的通配名）。
+		videoProxyRouter.POST("/videos/:video_id/cancel", controller.TaskCancel)
+		videoProxyRouter.DELETE("/videos/:video_id", controller.TaskCancel)
 	}
 
 	videoV1Router := router.Group("/v1")

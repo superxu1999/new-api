@@ -81,3 +81,12 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+// TaskCanceller 是任务取消能力的可选接口：只有实现了它的适配器才允许取消任务
+// （未实现时上层返回 cancel_not_supported，而不是假装成功）。
+//
+// 参数与 TaskAdaptor.FetchTask 对齐（baseUrl / key / body / proxy 由调用方按任务
+// 所属渠道解析），返回上游响应，成功与否由调用方按状态码判定。
+type TaskCanceller interface {
+	CancelTask(baseUrl string, key string, body map[string]any, proxy string) (*http.Response, error)
+}

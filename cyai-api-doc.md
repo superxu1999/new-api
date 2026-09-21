@@ -182,6 +182,18 @@ curl -L "https://baseadd.vip/v1/videos/task_xxx/content" -H "Authorization: Bear
 
 `status` 取值：`queued`（排队中）→ `in_progress`（生成中）→ `completed`（可取成片，`metadata.url` 即成片地址）/ `failed`（失败，看 `metadata.fail_reason`）。未完成时不会返回 `completed_at`。
 
+### 5.4 取消任务
+
+尚未结束的任务可以取消（等价写法 `DELETE /v1/videos/{task_id}`）：
+
+```bash
+curl -X POST "https://baseadd.vip/v1/videos/task_xxx/cancel" -H "Authorization: Bearer sk-..."
+```
+
+- 取消成功：任务变为 `failed`、`metadata.fail_reason` 为 `canceled by user`，并**全额退还**预扣额度。
+- 任务已结束、上游不支持取消、或上游拒绝取消时返回错误（错误信息内含上游原文），此时本地状态与额度**不变**。
+- 当前限制：本平台的取消请求会转发到上游，而 CyAI 渠道对**已存在**的任务返回上游 401（其上游 Key 暂无取消权限），因此取消目前不会生效，需等任务自行结束；我们正在推动上游开放该权限。
+
 ## 6. 图像生成
 
 ```

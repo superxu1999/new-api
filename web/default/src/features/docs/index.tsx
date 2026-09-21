@@ -746,6 +746,12 @@ data: [DONE]`}</Code>
                   ['failed', '失败；上游返回的失败原因见 metadata.fail_reason（如上游内容审核 OutputVideoSensitiveContentDetected.PolicyViolation），此类失败会自动全额退款'],
                 ]}
               />
+              <ET title={t('取消任务（可选）')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/videos/<task_id>/cancel \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <p className='text-[13px]'>
+                {t('取消仅对尚未结束的任务有效，等价写法为 DELETE /v1/videos/{task_id}（同样接受登录会话鉴权）。取消成功后退还预扣额度，任务置为 failed 且 metadata.fail_reason 为 canceled by user；任务已结束、渠道不支持取消、或上游拒绝取消时返回错误，本地状态与额度保持不变。能否取消取决于上游是否开放该接口：部分中转渠道会返回上游的拒绝信息（如 401 无取消权限），此时需等待任务自行结束。')}
+              </p>
             </Sub>
             <Sub id='sec-6-6' title={t('6.6 下载成片')}>
               <Endpoint method='GET' path='/v1/videos/{task_id}/content' />

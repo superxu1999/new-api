@@ -247,6 +247,26 @@ GET /v1/videos/:task_id
 
 原生格式把任务包在 `{"code":"success","message":"","data":{...}}` 里，字段为 `data.task_id` / `data.status` / `data.fail_reason` / `data.result_url` / `data.last_frame_url` / `data.usage`；其中 `data.data` 是上游的原始响应（排障用）。
 
+### 取消任务
+
+尚未结束的任务可以取消（两种写法等价）：
+
+```bash
+POST /v1/videos/:task_id/cancel
+DELETE /v1/videos/:task_id
+```
+
+```bash
+curl -X POST https://your-server.com/v1/videos/task_xxxxxxxxxxxx/cancel \
+  -H "Authorization: Bearer sk-xxxx"
+```
+
+- 取消成功：任务置为 `failed`、`metadata.fail_reason` 为 `canceled by user`，并**全额退还**预扣额度。
+- 以下情况返回错误，且**不改动**本地状态与额度：任务已结束（`task_already_finished`）、渠道未实现取消能力（`cancel_not_supported`）、上游拒绝取消（`cancel_rejected_by_upstream`，错误信息内含上游原文，例如 401 无取消权限）。
+- 竞态保护：上游已受理取消、但轮询同时把任务推进到终态时，本地不重复退款。
+
+> 能否取消取决于上游是否开放该接口。本站已对 CyAI / Foxtoken 系中转与火山 ARK 原生接口实现；实测 CyAI 中转对**存在**的任务会转发给火山并被其拒绝（401，其上游 Key 无取消权限），这类情况需由中转方修复后才能生效，期间只能等任务自行结束。
+
 ### 下载视频
 
 ```bash
@@ -415,6 +435,9 @@ Content-Type: multipart/form-data
 | 401 |  | 认证失败或 Token 无效 |
 | 403 |  | 无权限或模型被分组限制 |
 | 400 | `task_not_exist` | 查询的任务不存在（核对 task_id） |
+| 400 | `task_already_finished` | 任务已结束，无法取消 |
+| 400 | `cancel_not_supported` | 该渠道未实现取消能力 |
+| 400 | `cancel_rejected_by_upstream` | 上游拒绝取消（消息内含上游原文，如 401 无取消权限） |
 | 404 | `invalid_request_error` | 仅下载接口 `/v1/videos/:task_id/content`：任务不存在 |
 | 502 |  | 上游服务返回错误 |
 | 503 |  | 无可用渠道（模型未启用或渠道不可用） |

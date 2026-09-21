@@ -266,6 +266,45 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	return client.Do(req)
 }
 
+// CancelTask 取消（删除）上游任务：URL 规则与 FetchTask 保持一致
+// （直连云厂商网关用 {base}/contents/generations/tasks/{id}，本地 seedance-proxy
+// 用 {base}/api/v3/contents/generations/tasks/{id}?model=<上游模型名>）。
+//
+// 注意：实测只有 CyAI / Foxtoken（foxtoken 适配器）与 ARK 原生接口确认支持取消；
+// 天翼云 / 百拓 / 移动云等网关是否开放该路由尚未确认，上游不支持时会返回其自身的
+// 错误（上层会把上游错误原文透出，不会假装取消成功）。
+func (a *TaskAdaptor) CancelTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	taskID, ok := body["task_id"].(string)
+	if !ok || strings.TrimSpace(taskID) == "" {
+		return nil, fmt.Errorf("invalid task_id")
+	}
+	base := strings.TrimRight(baseUrl, "/")
+
+	var uri string
+	if isDirectGateway(base) {
+		uri = fmt.Sprintf("%s/contents/generations/tasks/%s", base, url.PathEscape(taskID))
+	} else {
+		uri = fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", base, url.PathEscape(taskID))
+		if modelName, _ := body["model"].(string); modelName != "" {
+			uri += "?model=" + url.QueryEscape(modelName)
+		}
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
+}
+
 func (a *TaskAdaptor) GetModelList() []string {
 	return ModelList
 }
