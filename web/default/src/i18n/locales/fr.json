@@ -5052,6 +5052,7 @@
     "Video": "Vidéo",
     "Video (token formula)": "Vidéo (formule tokens)",
     "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.": "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.",
+    "Video generation canceled": "Génération vidéo annulée",
     "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.": "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.",
     "Video length in seconds": "Durée de la vidéo en secondes",
     "Video Preview": "Aperçu vidéo",

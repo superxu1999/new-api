@@ -82,6 +82,10 @@ export function useVideoChatHandler() {
   const { t } = useTranslation()
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef(false)
+  // 仍在生成中的任务 id：停止按钮据此调用取消接口（页面重载后恢复轮询的任务也在内）。
+  const activeTaskIdsRef = useRef(new Set<string>())
+  // 停止按钮的调用点没有消息更新函数，这里记住最近一次传入的更新器用于回写「已取消」。
+  const messageUpdaterRef = useRef<MessageUpdater | null>(null)
 
   // Poll a video task until it reaches a terminal status, updating the target
   // assistant message along the way. `prompt` is only available for tasks
@@ -140,6 +144,7 @@ export function useVideoChatHandler() {
             )
 
             if (status === 'SUCCESS') {
+              activeTaskIdsRef.current.delete(taskId)
               const videoUrl = `/v1/videos/${taskId}/content`
               const videoModel =
                 (
@@ -166,6 +171,7 @@ export function useVideoChatHandler() {
               )
               resolve()
             } else if (status === 'FAILURE') {
+              activeTaskIdsRef.current.delete(taskId)
               const failReason = data.fail_reason || 'Video generation failed'
               const isModerationBlock = isContentModerationFailure(
                 data,
@@ -213,6 +219,7 @@ export function useVideoChatHandler() {
   const sendVideoGeneration = useCallback(
     (options: VideoGenerationOptions, onMessageUpdate: MessageUpdater) => {
       abortRef.current = false
+      messageUpdaterRef.current = onMessageUpdate
 
       // 前端先按上游能力拦截非法时长,后端(适配器层)有同样校验兜底
       if (
@@ -271,6 +278,7 @@ export function useVideoChatHandler() {
           if (!taskId) {
             throw new Error('No task_id in response')
           }
+          activeTaskIdsRef.current.add(taskId)
 
           // Persist the task ID on the message so polling can resume after reload
           let messageKey: string | undefined
@@ -336,6 +344,10 @@ export function useVideoChatHandler() {
       )
 
       if (pending.length === 0) return
+      messageUpdaterRef.current = onMessageUpdate
+      pending.forEach((message) =>
+        activeTaskIdsRef.current.add(message.videoTaskId as string)
+      )
       setIsGenerating(true)
 
       void Promise.all(
@@ -356,9 +368,54 @@ export function useVideoChatHandler() {
     [pollVideoTask]
   )
 
-  const stopGeneration = useCallback(() => {
-    // no-op
-  }, [])
+  // 停止/取消视频生成：调用后端取消接口真正终止上游任务并退款，而不是只停本地轮询。
+  // 取消失败（任务已结束 / 渠道不支持 / 上游拒绝，例如中转方 Key 无取消权限）时保持轮询，
+  // 让任务自然结束；接口层会弹出后端返回的原因。
+  const stopGeneration = useCallback(async () => {
+    const taskIds = [...activeTaskIdsRef.current]
+    if (taskIds.length === 0) {
+      abortRef.current = true
+      return
+    }
+
+    const canceled: string[] = []
+    for (const taskId of taskIds) {
+      try {
+        await api.post(`/pg/video/generations/${taskId}/cancel`)
+        canceled.push(taskId)
+      } catch {
+        // 保持轮询，等任务自然结束
+      }
+    }
+
+    if (canceled.length === 0) {
+      return
+    }
+
+    canceled.forEach((taskId) => activeTaskIdsRef.current.delete(taskId))
+    abortRef.current = true
+    setIsGenerating(false)
+
+    const updater = messageUpdaterRef.current
+    updater?.((prev) =>
+      prev.map((message) =>
+        message.videoTaskId && canceled.includes(message.videoTaskId)
+          ? completeAssistantTiming({
+              ...message,
+              status: MESSAGE_STATUS.ERROR,
+              errorCode: null,
+              videoTaskId: undefined,
+              versions: [
+                {
+                  ...message.versions[0],
+                  content: t('Video generation canceled'),
+                },
+              ],
+            })
+          : message
+      )
+    )
+  }, [t])
 
   return {
     sendVideoGeneration,

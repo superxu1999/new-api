@@ -5052,6 +5052,7 @@
     "Video": "動画",
     "Video (token formula)": "動画（トークン計算式）",
     "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.": "Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.",
+    "Video generation canceled": "動画生成をキャンセルしました",
     "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.": "Video generation was blocked by content moderation. Adjust the prompt to avoid copyrighted or sensitive content and try again.",
     "Video length in seconds": "動画の長さ（秒）",
     "Video Preview": "動画プレビュー",

@@ -67,6 +67,8 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 		playgroundRouter.POST("/video/generations", controller.RelayTask)
 		playgroundRouter.GET("/video/generations/:task_id", controller.RelayTaskFetch)
+		// 游乐场「停止」按钮：取消正在生成的任务（与 /v1/videos/{id}/cancel 同一实现）
+		playgroundRouter.POST("/video/generations/:task_id/cancel", controller.TaskCancel)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
