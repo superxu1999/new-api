@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
@@ -39,12 +40,12 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-6-7', label: '6.7 下载成片' },
     ],
   },
-  { id: 'sec-7', label: '7. 图像生成' },
-  { id: 'sec-8', label: '8. 向量（Embeddings）' },
-  { id: 'sec-9', label: '9. 音频' },
-  { id: 'sec-10', label: '10. 其它兼容接口' },
-  { id: 'sec-11', label: '11. 错误码' },
-  { id: 'sec-12', label: '12. 素材库（云端素材）' },
+  { id: 'sec-7', label: '7. 素材库（云端素材）' },
+  { id: 'sec-8', label: '8. 图像生成' },
+  { id: 'sec-9', label: '9. 向量（Embeddings）' },
+  { id: 'sec-10', label: '10. 音频' },
+  { id: 'sec-11', label: '11. 其它兼容接口' },
+  { id: 'sec-12', label: '12. 错误码' },
 ]
 
 function Section(props: { id: string; title: string; children: ReactNode }) {
@@ -168,6 +169,10 @@ function T(props: { headers: string[]; rows: string[][] }) {
 export function Docs() {
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string>('')
+  // 目录折叠状态：默认全部展开（key 为章节 id）
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, boolean>
+  >({})
 
   useEffect(() => {
     const ids = TOC.flatMap((item) => [
@@ -206,19 +211,54 @@ export function Docs() {
               const active =
                 activeId === item.id ||
                 item.sub?.some((s) => s.id === activeId)
+              const collapsed = collapsedSections[item.id] === true
               return (
                 <li key={item.id}>
-                  <button
-                    type='button'
-                    onClick={() => scrollTo(item.id)}
-                    className={cn(
-                      'hover:text-primary hover:bg-muted/60 w-full rounded-md px-3 py-1.5 text-left transition-colors',
-                      active ? 'text-primary bg-muted/60 font-medium' : 'text-muted-foreground'
+                  <div className='flex items-center gap-0.5'>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        scrollTo(item.id)
+                        // 收起时点了章节名，顺手展开，避免看不到小节。
+                        if (collapsed) {
+                          setCollapsedSections((prev) => ({
+                            ...prev,
+                            [item.id]: false,
+                          }))
+                        }
+                      }}
+                      className={cn(
+                        'hover:text-primary hover:bg-muted/60 flex-1 rounded-md px-3 py-1.5 text-left transition-colors',
+                        active ? 'text-primary bg-muted/60 font-medium' : 'text-muted-foreground'
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                    {item.sub && (
+                      <button
+                        type='button'
+                        aria-label={
+                          collapsed ? t('展开目录') : t('收起目录')
+                        }
+                        aria-expanded={!collapsed}
+                        onClick={() =>
+                          setCollapsedSections((prev) => ({
+                            ...prev,
+                            [item.id]: !collapsed,
+                          }))
+                        }
+                        className='text-muted-foreground hover:text-primary hover:bg-muted/60 rounded-md p-1 transition-colors'
+                      >
+                        <ChevronDown
+                          className={cn(
+                            'h-3.5 w-3.5 transition-transform',
+                            collapsed ? '-rotate-90' : 'rotate-0'
+                          )}
+                        />
+                      </button>
                     )}
-                  >
-                    {item.label}
-                  </button>
-                  {item.sub && (
+                  </div>
+                  {item.sub && !collapsed && (
                     <ul className='border-border/60 ml-4 border-l pl-2'>
                       {item.sub.map((s) => (
                         <li key={s.id}>
@@ -786,247 +826,7 @@ data: [DONE]`}</Code>
             </Sub>
           </Section>
 
-          <Section id='sec-7' title={t('7. 图像生成')}>
-            <Endpoint method='POST' path='/v1/images/generations' />
-            <Endpoint method='POST' path='/v1/images/edits' />
-            <ET title={t('请求参数')} />
-            <T
-              headers={['字段', '类型', '必填', '默认值', '说明']}
-              rows={[
-                ['model', 'string', '是', '—', '图像模型 ID'],
-                ['prompt', 'string', '是', '—', '画面描述'],
-                ['size', 'string', '否', '模型默认', '尺寸，如 1024x1024、512x512，以模型支持为准'],
-                ['n', 'integer', '否', '1', '生成张数'],
-                ['quality', 'string', '否', '模型默认', '画质：standard 或 hd，是否支持以模型为准'],
-                ['style', 'string', '否', '模型默认', '风格，是否支持以模型为准'],
-                ['response_format', 'string', '否', 'url', 'url 或 b64_json'],
-              ]}
-            />
-            <ET title={t('请求示例')} />
-            <Code>{`curl -X POST https://ghyc.top/v1/images/generations \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-..." \\
-  -d '{"model":"<model-id>","prompt":"a red sunset over the sea","size":"1024x1024","n":1}'`}</Code>
-            <ET title={t('响应示例')} />
-            <Code>{`HTTP/1.1 200 OK
-{
-  "created": 1788490000,
-  "data": [
-    { "url": "https://<上游返回的图片地址>",
-      "revised_prompt": "a red sunset over the sea" }
-  ]
-}`}</Code>
-            <ET title={t('响应字段')} />
-            <T
-              headers={['字段', '类型', '说明']}
-              rows={[
-                ['created', 'integer', '创建时间戳（秒）'],
-                ['data[].url', 'string', '生成图片的地址（response_format=url 时）；地址由上游返回，本站不提供静态图片服务'],
-                ['data[].b64_json', 'string', '生成图片的 base64（response_format=b64_json 时）'],
-                ['data[].revised_prompt', 'string', '模型改写后的提示词'],
-              ]}
-            />
-          </Section>
-
-          <Section id='sec-8' title={t('8. 向量（Embeddings）')}>
-            <P>
-              {t('将文本转换为向量，用于语义搜索、知识库检索（RAG）、推荐与聚类等场景。')}
-            </P>
-            <Endpoint method='POST' path='/v1/embeddings' />
-            <ET title={t('请求参数')} />
-            <T
-              headers={['字段', '类型', '必填', '默认值', '说明']}
-              rows={[
-                ['model', 'string', '是', '—', '向量模型 ID'],
-                ['input', 'string/array', '是', '—', '待向量化文本，支持数组批量传入'],
-                ['encoding_format', 'string', '否', '上游默认（float）', '向量编码格式：float / base64'],
-                ['dimensions', 'integer', '否', '模型默认', '输出向量维度，是否支持以模型为准'],
-                ['user', 'string', '否', '—', '调用方标识，用于上游统计与风控'],
-              ]}
-            />
-            <ET title={t('请求示例')} />
-            <Code>{`curl -X POST https://ghyc.top/v1/embeddings \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-..." \\
-  -d '{"model":"<model-id>","input":"hello world"}'`}</Code>
-            <ET title={t('响应示例')} />
-            <Code>{`HTTP/1.1 200 OK
-{
-  "object": "list",
-  "data": [
-    { "index": 0, "embedding": [0.0123, -0.0456, 0.0789] }
-  ],
-  "model": "<model-id>",
-  "usage": { "prompt_tokens": 2, "total_tokens": 2 }
-}`}</Code>
-            <ET title={t('响应字段')} />
-            <T
-              headers={['字段', '类型', '说明']}
-              rows={[
-                ['data[].embedding', 'number[]', '向量数组，维度因模型而异'],
-                ['usage.prompt_tokens', 'integer', '输入 token 数（计费依据）'],
-              ]}
-            />
-          </Section>
-
-          <Section id='sec-9' title={t('9. 音频')}>
-            <T
-              headers={['能力', '接口', '说明']}
-              rows={[
-                ['语音转写', 'POST /v1/audio/transcriptions', '音频转文本（multipart/form-data）'],
-                ['语音翻译', 'POST /v1/audio/translations', '非英语音频转英文文本'],
-                ['语音合成（TTS）', 'POST /v1/audio/speech', '文本转语音'],
-              ]}
-            />
-            <ET title={t('请求参数（转写 / 翻译）')} />
-            <T
-              headers={['字段', '类型', '必填', '默认值', '说明']}
-              rows={[
-                ['file', 'file', '是', '—', '待转写或翻译的音频文件，以 multipart/form-data 上传'],
-                ['model', 'string', '是', '—', '音频模型 ID'],
-                ['language', 'string', '否', '自动识别', '音频语言，如 zh、en'],
-                ['response_format', 'string', '否', '上游默认（json）', '输出格式：json / text / srt / verbose_json，以模型支持为准'],
-                ['temperature', 'number', '否', '上游默认', '采样温度，透传给上游'],
-              ]}
-            />
-            <ET title={t('请求参数（TTS 语音合成）')} />
-            <T
-              headers={['字段', '类型', '必填', '默认值', '说明']}
-              rows={[
-                ['model', 'string', '是', '—', 'TTS 模型 ID'],
-                ['input', 'string', '是', '—', '待合成的文本'],
-                ['voice', 'string', '否', '模型默认', '发音人，如 alloy、echo，以模型支持为准'],
-                ['response_format', 'string', '否', '上游默认（mp3）', '输出格式：mp3 / wav / opus / flac / pcm，透传给上游'],
-                ['speed', 'number', '否', '1.0', '语速倍率'],
-              ]}
-            />
-            <ET title={t('请求示例（转写）')} />
-            <Code>{`curl -X POST https://ghyc.top/v1/audio/transcriptions \\
-  -H "Authorization: Bearer sk-..." \\
-  -F "model=<model-id>" \\
-  -F "file=@audio.mp3"`}</Code>
-            <ET title={t('响应说明')} />
-            <T
-              headers={['能力', '响应']}
-              rows={[
-                ['转写 / 翻译', 'response_format=json 时返回 { "text": "..." }；verbose_json 返回带分段与时间戳的 JSON。响应体由上游原样返回，字段以模型为准'],
-                ['TTS 语音合成', '返回音频二进制，格式由 response_format 决定'],
-              ]}
-            />
-          </Section>
-
-          <Section id='sec-10' title={t('10. 其它兼容接口')}>
-            <P>{t('以下为按需提供的兼容接口，对应模型上线后即可使用。')}</P>
-            <Sub title={t('10.1 Response API')}>
-              <Endpoint method='POST' path='/v1/responses' />
-              <Endpoint method='POST' path='/v1/responses/compact' />
-              <P>{t('返回结构化响应，支持 reasoning 与 JSON 输出 schema。')}</P>
-              <ET title={t('请求参数')} />
-              <T
-                headers={['字段', '类型', '必填', '默认值', '说明']}
-                rows={[
-                  ['model', 'string', '是', '—', '模型 ID'],
-                  ['input', 'string/array', '是（compact 接口可省略）', '—', '输入文本或消息数组'],
-                  ['instructions', 'string', '否', '—', '系统指令，compact 接口同样支持'],
-                  ['previous_response_id', 'string', '否', '—', '压缩时引用的上一条响应，仅 compact 接口使用'],
-                  ['max_output_tokens', 'integer', '否', '模型默认', '最大输出 token 数，仅 /v1/responses 支持'],
-                  ['stream', 'boolean', '否', 'false', '是否流式返回，compact 接口不支持'],
-                ]}
-              />
-              <P>
-                {t('/v1/responses/compact 为压缩接口：仅校验 model，input 可省略，且不支持 max_output_tokens 与流式返回。')}
-              </P>
-              <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://ghyc.top/v1/responses \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-..." \\
-  -d '{"model":"<model-id>","input":"who won the world cup in 2018?"}'`}</Code>
-            </Sub>
-            <Sub title={t('10.2 Claude 兼容（Anthropic）')}>
-              <Endpoint method='POST' path='/v1/messages' />
-              <ET title={t('请求参数')} />
-              <T
-                headers={['字段', '类型', '必填', '默认值', '说明']}
-                rows={[
-                  ['model', 'string', '是', '—', '模型 ID'],
-                  ['max_tokens', 'integer', '是', '—', '最大输出 token 数'],
-                  ['messages', 'array', '是', '—', '消息列表，role 取 user / assistant'],
-                  ['system', 'string', '否', '—', '系统提示'],
-                  ['stream', 'boolean', '否', 'false', '是否流式返回'],
-                ]}
-              />
-              <ET title={t('请求示例')} />
-              <Code>{`curl -X POST https://ghyc.top/v1/messages \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-..." \\
-  -d '{"model":"<model-id>","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'`}</Code>
-            </Sub>
-            <Sub title={t('10.3 Gemini 兼容')}>
-              <Endpoint method='POST' path='/v1beta/models/*path' />
-              <Endpoint method='GET' path='/v1beta/models' />
-            </Sub>
-            <Sub title={t('10.4 重排（Rerank）')}>
-              <Endpoint method='POST' path='/v1/rerank' />
-              <P>{t('按与查询的相关度对候选文档重排，常用于检索增强。')}</P>
-              <ET title={t('请求参数')} />
-              <T
-                headers={['字段', '类型', '必填', '默认值', '说明']}
-                rows={[
-                  ['model', 'string', '是', '—', '重排模型 ID'],
-                  ['query', 'string', '是', '—', '查询文本'],
-                  ['documents', 'string[]', '是', '—', '候选文档列表'],
-                  ['top_n', 'integer', '否', '返回全部', '返回前 N 个结果'],
-                ]}
-              />
-            </Sub>
-            <Sub title={t('10.5 内容审核（Moderations）')}>
-              <Endpoint method='POST' path='/v1/moderations' />
-              <ET title={t('请求参数')} />
-              <T
-                headers={['字段', '类型', '必填', '默认值', '说明']}
-                rows={[
-                  ['model', 'string', '否', 'text-moderation-latest', '审核模型 ID，省略时使用默认审核模型'],
-                  ['input', 'string/array', '是', '—', '待审核文本，支持数组批量传入'],
-                ]}
-              />
-            </Sub>
-            <Sub title={t('10.6 扩展工具（按需开通）')}>
-              <T
-                headers={['能力', '接口']}
-                rows={[
-                  ['Midjourney 绘图', '/mj/submit/*，/mj/task/*，/mj/image/*'],
-                  ['Suno 音乐', '/suno/submit/:action，/suno/fetch'],
-                  ['实时语音', '/v1/realtime（WebSocket）'],
-                ]}
-              />
-              <P>{t('以上为专用工具接口，需平台开通对应能力后方可使用；具体请求格式请另行咨询。')}</P>
-            </Sub>
-          </Section>
-
-          <Section id='sec-11' title={t('11. 错误码')}>
-            <T
-              headers={['code', 'HTTP', '说明', '处理建议']}
-              rows={[
-                ['model_not_found', '503', '模型不存在或无可用渠道', '查询 /v1/models 确认模型名'],
-                ['insufficient_user_quota', '403', '余额不足', '充值或检查额度'],
-                ['model_price_error', '400', '模型或参数不受支持', '核对参数与模型能力'],
-                ['invalid_seconds', '400', '时长非法（Seedance 系须为 4–15 的整数或 -1）', '按模型规格调整时长'],
-                ['invalid_resolution', '400', '分辨率档位不受支持', '改用 720p、1080p 等受支持档位'],
-                ['invalid_request', '400', '缺少必填参数（如 prompt、model）', '按参数表补全必填项'],
-                ['invalid_api_platform', '400', '调用了不受支持的接口或模型类型', '改用对应能力接口'],
-                ['task_not_exist', '400', '任务不存在', '核对 task_id'],
-                ['task_already_finished', '400', '任务已结束，不可取消', '等待任务自行结束，或重新创建任务'],
-                ['cancel_not_supported', '400', '该模型未实现取消', '等待任务自行结束'],
-                ['cancel_rejected_by_upstream', '400', '上游拒绝取消', '等待任务自行结束；持续出现请反馈给平台'],
-                ['invalid_response', '500', '上游返回体异常，如无法解析 task_id', '重试；持续出现请把 task_id 反馈给平台'],
-              ]}
-            />
-            <P>
-              {t('错误响应结构：对话等接口为 {"error": {"message": "...", "code": "...", "type": "new_api_error"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {"code": "...", "message": "...", "data": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。')}
-            </P>
-          </Section>
-
-          <Section id='sec-12' title={t('12. 素材库（云端素材）')}>
+          <Section id='sec-7' title={t('7. 素材库（云端素材）')}>
             <P>
               {t('云端素材由上游渠道托管，本站只登记归属与状态。素材入库完成（状态为 ACTIVE）后才可用于视频生成，引用写法为 asset://<素材 ID>。')}
             </P>
@@ -1090,6 +890,246 @@ data: [DONE]`}</Code>
                 ['asset_upstream_error', '上游素材接口报错，错误信息含上游原文'],
               ]}
             />
+          </Section>
+
+          <Section id='sec-8' title={t('8. 图像生成')}>
+            <Endpoint method='POST' path='/v1/images/generations' />
+            <Endpoint method='POST' path='/v1/images/edits' />
+            <ET title={t('请求参数')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['model', 'string', '是', '—', '图像模型 ID'],
+                ['prompt', 'string', '是', '—', '画面描述'],
+                ['size', 'string', '否', '模型默认', '尺寸，如 1024x1024、512x512，以模型支持为准'],
+                ['n', 'integer', '否', '1', '生成张数'],
+                ['quality', 'string', '否', '模型默认', '画质：standard 或 hd，是否支持以模型为准'],
+                ['style', 'string', '否', '模型默认', '风格，是否支持以模型为准'],
+                ['response_format', 'string', '否', 'url', 'url 或 b64_json'],
+              ]}
+            />
+            <ET title={t('请求示例')} />
+            <Code>{`curl -X POST https://ghyc.top/v1/images/generations \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","prompt":"a red sunset over the sea","size":"1024x1024","n":1}'`}</Code>
+            <ET title={t('响应示例')} />
+            <Code>{`HTTP/1.1 200 OK
+{
+  "created": 1788490000,
+  "data": [
+    { "url": "https://<上游返回的图片地址>",
+      "revised_prompt": "a red sunset over the sea" }
+  ]
+}`}</Code>
+            <ET title={t('响应字段')} />
+            <T
+              headers={['字段', '类型', '说明']}
+              rows={[
+                ['created', 'integer', '创建时间戳（秒）'],
+                ['data[].url', 'string', '生成图片的地址（response_format=url 时）；地址由上游返回，本站不提供静态图片服务'],
+                ['data[].b64_json', 'string', '生成图片的 base64（response_format=b64_json 时）'],
+                ['data[].revised_prompt', 'string', '模型改写后的提示词'],
+              ]}
+            />
+          </Section>
+
+          <Section id='sec-9' title={t('9. 向量（Embeddings）')}>
+            <P>
+              {t('将文本转换为向量，用于语义搜索、知识库检索（RAG）、推荐与聚类等场景。')}
+            </P>
+            <Endpoint method='POST' path='/v1/embeddings' />
+            <ET title={t('请求参数')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['model', 'string', '是', '—', '向量模型 ID'],
+                ['input', 'string/array', '是', '—', '待向量化文本，支持数组批量传入'],
+                ['encoding_format', 'string', '否', '上游默认（float）', '向量编码格式：float / base64'],
+                ['dimensions', 'integer', '否', '模型默认', '输出向量维度，是否支持以模型为准'],
+                ['user', 'string', '否', '—', '调用方标识，用于上游统计与风控'],
+              ]}
+            />
+            <ET title={t('请求示例')} />
+            <Code>{`curl -X POST https://ghyc.top/v1/embeddings \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","input":"hello world"}'`}</Code>
+            <ET title={t('响应示例')} />
+            <Code>{`HTTP/1.1 200 OK
+{
+  "object": "list",
+  "data": [
+    { "index": 0, "embedding": [0.0123, -0.0456, 0.0789] }
+  ],
+  "model": "<model-id>",
+  "usage": { "prompt_tokens": 2, "total_tokens": 2 }
+}`}</Code>
+            <ET title={t('响应字段')} />
+            <T
+              headers={['字段', '类型', '说明']}
+              rows={[
+                ['data[].embedding', 'number[]', '向量数组，维度因模型而异'],
+                ['usage.prompt_tokens', 'integer', '输入 token 数（计费依据）'],
+              ]}
+            />
+          </Section>
+
+          <Section id='sec-10' title={t('10. 音频')}>
+            <T
+              headers={['能力', '接口', '说明']}
+              rows={[
+                ['语音转写', 'POST /v1/audio/transcriptions', '音频转文本（multipart/form-data）'],
+                ['语音翻译', 'POST /v1/audio/translations', '非英语音频转英文文本'],
+                ['语音合成（TTS）', 'POST /v1/audio/speech', '文本转语音'],
+              ]}
+            />
+            <ET title={t('请求参数（转写 / 翻译）')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['file', 'file', '是', '—', '待转写或翻译的音频文件，以 multipart/form-data 上传'],
+                ['model', 'string', '是', '—', '音频模型 ID'],
+                ['language', 'string', '否', '自动识别', '音频语言，如 zh、en'],
+                ['response_format', 'string', '否', '上游默认（json）', '输出格式：json / text / srt / verbose_json，以模型支持为准'],
+                ['temperature', 'number', '否', '上游默认', '采样温度，透传给上游'],
+              ]}
+            />
+            <ET title={t('请求参数（TTS 语音合成）')} />
+            <T
+              headers={['字段', '类型', '必填', '默认值', '说明']}
+              rows={[
+                ['model', 'string', '是', '—', 'TTS 模型 ID'],
+                ['input', 'string', '是', '—', '待合成的文本'],
+                ['voice', 'string', '否', '模型默认', '发音人，如 alloy、echo，以模型支持为准'],
+                ['response_format', 'string', '否', '上游默认（mp3）', '输出格式：mp3 / wav / opus / flac / pcm，透传给上游'],
+                ['speed', 'number', '否', '1.0', '语速倍率'],
+              ]}
+            />
+            <ET title={t('请求示例（转写）')} />
+            <Code>{`curl -X POST https://ghyc.top/v1/audio/transcriptions \\
+  -H "Authorization: Bearer sk-..." \\
+  -F "model=<model-id>" \\
+  -F "file=@audio.mp3"`}</Code>
+            <ET title={t('响应说明')} />
+            <T
+              headers={['能力', '响应']}
+              rows={[
+                ['转写 / 翻译', 'response_format=json 时返回 { "text": "..." }；verbose_json 返回带分段与时间戳的 JSON。响应体由上游原样返回，字段以模型为准'],
+                ['TTS 语音合成', '返回音频二进制，格式由 response_format 决定'],
+              ]}
+            />
+          </Section>
+
+          <Section id='sec-11' title={t('11. 其它兼容接口')}>
+            <P>{t('以下为按需提供的兼容接口，对应模型上线后即可使用。')}</P>
+            <Sub title={t('11.1 Response API')}>
+              <Endpoint method='POST' path='/v1/responses' />
+              <Endpoint method='POST' path='/v1/responses/compact' />
+              <P>{t('返回结构化响应，支持 reasoning 与 JSON 输出 schema。')}</P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '模型 ID'],
+                  ['input', 'string/array', '是（compact 接口可省略）', '—', '输入文本或消息数组'],
+                  ['instructions', 'string', '否', '—', '系统指令，compact 接口同样支持'],
+                  ['previous_response_id', 'string', '否', '—', '压缩时引用的上一条响应，仅 compact 接口使用'],
+                  ['max_output_tokens', 'integer', '否', '模型默认', '最大输出 token 数，仅 /v1/responses 支持'],
+                  ['stream', 'boolean', '否', 'false', '是否流式返回，compact 接口不支持'],
+                ]}
+              />
+              <P>
+                {t('/v1/responses/compact 为压缩接口：仅校验 model，input 可省略，且不支持 max_output_tokens 与流式返回。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/responses \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","input":"who won the world cup in 2018?"}'`}</Code>
+            </Sub>
+            <Sub title={t('11.2 Claude 兼容（Anthropic）')}>
+              <Endpoint method='POST' path='/v1/messages' />
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '模型 ID'],
+                  ['max_tokens', 'integer', '是', '—', '最大输出 token 数'],
+                  ['messages', 'array', '是', '—', '消息列表，role 取 user / assistant'],
+                  ['system', 'string', '否', '—', '系统提示'],
+                  ['stream', 'boolean', '否', 'false', '是否流式返回'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/messages \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{"model":"<model-id>","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'`}</Code>
+            </Sub>
+            <Sub title={t('11.3 Gemini 兼容')}>
+              <Endpoint method='POST' path='/v1beta/models/*path' />
+              <Endpoint method='GET' path='/v1beta/models' />
+            </Sub>
+            <Sub title={t('11.4 重排（Rerank）')}>
+              <Endpoint method='POST' path='/v1/rerank' />
+              <P>{t('按与查询的相关度对候选文档重排，常用于检索增强。')}</P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '是', '—', '重排模型 ID'],
+                  ['query', 'string', '是', '—', '查询文本'],
+                  ['documents', 'string[]', '是', '—', '候选文档列表'],
+                  ['top_n', 'integer', '否', '返回全部', '返回前 N 个结果'],
+                ]}
+              />
+            </Sub>
+            <Sub title={t('11.5 内容审核（Moderations）')}>
+              <Endpoint method='POST' path='/v1/moderations' />
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['model', 'string', '否', 'text-moderation-latest', '审核模型 ID，省略时使用默认审核模型'],
+                  ['input', 'string/array', '是', '—', '待审核文本，支持数组批量传入'],
+                ]}
+              />
+            </Sub>
+            <Sub title={t('11.6 扩展工具（按需开通）')}>
+              <T
+                headers={['能力', '接口']}
+                rows={[
+                  ['Midjourney 绘图', '/mj/submit/*，/mj/task/*，/mj/image/*'],
+                  ['Suno 音乐', '/suno/submit/:action，/suno/fetch'],
+                  ['实时语音', '/v1/realtime（WebSocket）'],
+                ]}
+              />
+              <P>{t('以上为专用工具接口，需平台开通对应能力后方可使用；具体请求格式请另行咨询。')}</P>
+            </Sub>
+          </Section>
+
+          <Section id='sec-12' title={t('12. 错误码')}>
+            <T
+              headers={['code', 'HTTP', '说明', '处理建议']}
+              rows={[
+                ['model_not_found', '503', '模型不存在或无可用渠道', '查询 /v1/models 确认模型名'],
+                ['insufficient_user_quota', '403', '余额不足', '充值或检查额度'],
+                ['model_price_error', '400', '模型或参数不受支持', '核对参数与模型能力'],
+                ['invalid_seconds', '400', '时长非法（Seedance 系须为 4–15 的整数或 -1）', '按模型规格调整时长'],
+                ['invalid_resolution', '400', '分辨率档位不受支持', '改用 720p、1080p 等受支持档位'],
+                ['invalid_request', '400', '缺少必填参数（如 prompt、model）', '按参数表补全必填项'],
+                ['invalid_api_platform', '400', '调用了不受支持的接口或模型类型', '改用对应能力接口'],
+                ['task_not_exist', '400', '任务不存在', '核对 task_id'],
+                ['task_already_finished', '400', '任务已结束，不可取消', '等待任务自行结束，或重新创建任务'],
+                ['cancel_not_supported', '400', '该模型未实现取消', '等待任务自行结束'],
+                ['cancel_rejected_by_upstream', '400', '上游拒绝取消', '等待任务自行结束；持续出现请反馈给平台'],
+                ['invalid_response', '500', '上游返回体异常，如无法解析 task_id', '重试；持续出现请把 task_id 反馈给平台'],
+              ]}
+            />
+            <P>
+              {t('错误响应结构：对话等接口为 {"error": {"message": "...", "code": "...", "type": "new_api_error"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {"code": "...", "message": "...", "data": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。')}
+            </P>
           </Section>
         </div>
       </div>

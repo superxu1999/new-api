@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
+// 素材接口的错误由调用方统一 toast（带后端 code/message），这里关掉全局错误提示，
+// 否则同一次失败会弹两个 toast。
+const NO_GLOBAL_TOAST = { skipErrorHandler: true }
+
 import type {
   Asset,
   AssetGroup,
@@ -46,50 +50,50 @@ export function extractAssetError(error: unknown): {
 }
 
 export async function listAssetGroups(): Promise<AssetGroup[]> {
-  const res = await api.get('/v1/assets/groups')
+  const res = await api.get('/v1/assets/groups', NO_GLOBAL_TOAST)
   return (res.data?.data ?? []) as AssetGroup[]
 }
 
 export async function createAssetGroup(
   payload: CreateAssetGroupPayload
 ): Promise<AssetGroup> {
-  const res = await api.post('/v1/assets/groups', payload)
+  const res = await api.post('/v1/assets/groups', payload, NO_GLOBAL_TOAST)
   return res.data?.data as AssetGroup
 }
 
 export async function deleteAssetGroup(id: number): Promise<void> {
-  await api.delete(`/v1/assets/groups/${id}`)
+  await api.delete(`/v1/assets/groups/${id}`, NO_GLOBAL_TOAST)
 }
 
 export async function listAssets(): Promise<Asset[]> {
-  const res = await api.get('/v1/assets')
+  const res = await api.get('/v1/assets', NO_GLOBAL_TOAST)
   return (res.data?.data ?? []) as Asset[]
 }
 
 export async function createAsset(
   payload: CreateAssetPayload
 ): Promise<Asset> {
-  const res = await api.post('/v1/assets', payload)
+  const res = await api.post('/v1/assets', payload, NO_GLOBAL_TOAST)
   return res.data?.data as Asset
 }
 
 export async function getAsset(id: number): Promise<Asset> {
-  const res = await api.get(`/v1/assets/${id}`)
+  const res = await api.get(`/v1/assets/${id}`, NO_GLOBAL_TOAST)
   return res.data?.data as Asset
 }
 
 export async function deleteAsset(id: number): Promise<void> {
-  await api.delete(`/v1/assets/${id}`)
+  await api.delete(`/v1/assets/${id}`, NO_GLOBAL_TOAST)
 }
 
 export async function createRealPersonSession(): Promise<RealPersonSession> {
-  const res = await api.post('/v1/assets/real-person/sessions', {})
+  const res = await api.post('/v1/assets/real-person/sessions', {}, NO_GLOBAL_TOAST)
   return res.data?.data as RealPersonSession
 }
 
 export async function getRealPersonSession(
   id: number
 ): Promise<RealPersonSession> {
-  const res = await api.get(`/v1/assets/real-person/sessions/${id}`)
+  const res = await api.get(`/v1/assets/real-person/sessions/${id}`, NO_GLOBAL_TOAST)
   return res.data?.data as RealPersonSession
 }

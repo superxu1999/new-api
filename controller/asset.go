@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -81,11 +82,12 @@ func requireAssetPermission(c *gin.Context) bool {
 	return true
 }
 
-// resolveAssetChannel 解析素材操作要落到哪条渠道。
+// assetChannelCandidates 返回素材操作可用的候选渠道，顺序确定（优先级降序、渠道 id 升序）。
 //
-// 顺序：显式 channelId → 按 model 在该用户分组下的候选渠道里挑第一条支持素材库的渠道。
-// 候选顺序确定性（优先级降序、渠道 id 升序），保证同一模型每次解析结果一致。
-func resolveAssetChannel(c *gin.Context, channelId int, modelName string) (*assetChannel, error) {
+// 只保留「渠道启用且适配器实现了 AssetLibrary」的渠道。之所以返回列表而不是单条：有些中转
+// （例如 Foxtoken 这类 new-api 中转）复用了同一适配器，但上游并没有开放素材动作接口，
+// 只有实际调用时才会返回「没有这个路由」，因此需要按顺序换下一条（见 assetActionWithFallback）。
+func assetChannelCandidates(c *gin.Context, channelId int, modelName string) ([]*assetChannel, error) {
 	group := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 	if group == "" {
 		userGroup, err := model.GetUserGroup(c.GetInt("id"), false)
@@ -95,22 +97,23 @@ func resolveAssetChannel(c *gin.Context, channelId int, modelName string) (*asse
 		group = userGroup
 	}
 
-	var candidates []int
+	var ids []int
 	if channelId > 0 {
-		candidates = []int{channelId}
+		ids = []int{channelId}
 	} else {
-		ids, err := model.ListAssetCandidateChannelIds(group, modelName)
+		candidates, err := model.ListAssetCandidateChannelIds(group, modelName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list candidate channels: %w", err)
 		}
-		candidates = ids
+		ids = candidates
 	}
-	if len(candidates) == 0 {
+	if len(ids) == 0 {
 		return nil, fmt.Errorf("no channel available for asset library")
 	}
 
 	var lastErr error
-	for _, id := range candidates {
+	result := make([]*assetChannel, 0, len(ids))
+	for _, id := range ids {
 		ch, err := model.CacheGetChannel(id)
 		if err != nil || ch == nil {
 			lastErr = fmt.Errorf("channel %d not found", id)
@@ -136,19 +139,42 @@ func resolveAssetChannel(c *gin.Context, channelId int, modelName string) (*asse
 				key = k
 			}
 		}
-		return &assetChannel{
+		result = append(result, &assetChannel{
 			channel:   ch,
 			adaptor:   lib,
 			baseUrl:   ch.GetBaseURL(),
 			key:       key,
 			proxy:     ch.GetSetting().Proxy,
 			channelId: id,
-		}, nil
+		})
 	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("no channel supports asset library")
+	if len(result) == 0 {
+		if lastErr == nil {
+			lastErr = fmt.Errorf("no channel supports asset library")
+		}
+		return nil, lastErr
 	}
-	return nil, lastErr
+	return result, nil
+}
+
+// resolveAssetChannel 取第一条候选渠道，用于已经绑定具体渠道的操作（素材组、素材）。
+func resolveAssetChannel(c *gin.Context, channelId int, modelName string) (*assetChannel, error) {
+	candidates, err := assetChannelCandidates(c, channelId, modelName)
+	if err != nil {
+		return nil, err
+	}
+	return candidates[0], nil
+}
+
+// assetUpstreamError 保留上游状态码与原文，便于判定「上游没有这个路由」。
+type assetUpstreamError struct {
+	action string
+	status int
+	body   string
+}
+
+func (e *assetUpstreamError) Error() string {
+	return fmt.Sprintf("upstream %s failed: HTTP %d %s", e.action, e.status, e.body)
 }
 
 // assetAction 调用上游动作并解析响应。
@@ -163,7 +189,7 @@ func assetAction(ac *assetChannel, action string, payload map[string]any) (map[s
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("upstream %s failed: HTTP %d %s", action, resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, &assetUpstreamError{action: action, status: resp.StatusCode, body: strings.TrimSpace(string(body))}
 	}
 	var parsed map[string]any
 	if err := common.Unmarshal(body, &parsed); err != nil {
@@ -183,6 +209,66 @@ func assetAction(ac *assetChannel, action string, payload map[string]any) (map[s
 	return parsed, nil
 }
 
+// assetRouteMissing 判断错误是否属于「上游根本没有这个路由」。
+//
+// 现象：new-api 系中转对 /api 返回 {"error":{"message":"Invalid URL (POST /api)"}}，
+// 网关则返回裸 404/405。这类错误说明该渠道没开放素材动作接口，换下一条候选渠道即可；
+// 其它错误（参数错误、鉴权失败、业务报错）一律原样上抛，不掩盖真实问题。
+func assetRouteMissing(err error) bool {
+	var upstreamErr *assetUpstreamError
+	if !errors.As(err, &upstreamErr) {
+		return false
+	}
+	if upstreamErr.status != http.StatusNotFound && upstreamErr.status != http.StatusMethodNotAllowed {
+		return false
+	}
+	body := upstreamErr.body
+	return strings.Contains(body, "Invalid URL") ||
+		strings.Contains(body, "Not Found") ||
+		strings.Contains(body, "resource_not_found")
+}
+
+// assetActionWithFallback 依次在候选渠道上执行动作，自动跳过没有素材接口的上游。
+//
+// 仅在「未指定渠道」时允许换渠道：一旦素材落在某条渠道上，后续素材组/素材操作都必须
+// 固定在同一条渠道（上游素材按渠道凭证隔离）。返回实际执行成功的渠道，便于落库。
+func assetActionWithFallback(c *gin.Context, channelId int, modelName string, action string, payload map[string]any) (map[string]any, *assetChannel, error) {
+	candidates, err := assetChannelCandidates(c, channelId, modelName)
+	if err != nil {
+		return nil, nil, err
+	}
+	var lastErr error
+	tried := make([]string, 0, len(candidates))
+	for _, ac := range candidates {
+		result, err := assetAction(ac, action, payload)
+		if err == nil {
+			return result, ac, nil
+		}
+		if channelId == 0 && assetRouteMissing(err) {
+			tried = append(tried, strconv.Itoa(ac.channelId))
+			lastErr = err
+			continue
+		}
+		return nil, nil, err
+	}
+	if len(tried) > 0 {
+		return nil, nil, fmt.Errorf("no channel exposes the asset library interface (tried channels %s), last error: %w",
+			strings.Join(tried, ", "), lastErr)
+	}
+	return nil, nil, lastErr
+}
+
+// assetFailure 按错误类型选择错误码：上游报错 → 502 asset_upstream_error；
+// 其余（没有可用渠道、渠道不支持素材接口）→ 400 asset_not_supported。
+func assetFailure(c *gin.Context, err error) {
+	var upstreamErr *assetUpstreamError
+	if errors.As(err, &upstreamErr) {
+		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
+		return
+	}
+	assetError(c, http.StatusBadRequest, "asset_not_supported", err.Error())
+}
+
 // stringField 读字符串字段，兼容非字符串标量。
 func stringField(m map[string]any, key string) string {
 	if m == nil {
@@ -199,44 +285,61 @@ func stringField(m map[string]any, key string) string {
 	return ""
 }
 
-// ensureAssetGroup 找到（必要时创建）用户在该渠道上的默认 AIGC 素材组。
-func ensureAssetGroup(c *gin.Context, ac *assetChannel, groupId int64) (*model.AssetGroup, error) {
+// ensureAssetGroup 找到（必要时创建）默认 AIGC 素材组，并返回该组所在的渠道。
+//
+// 传了 groupId 时按既有组走（渠道由组决定，不再换渠道）；否则优先复用用户已有的 AIGC 组，
+// 都没有时才在候选渠道上新建一个默认组 —— 新建时会自动跳过没有素材接口的上游。
+func ensureAssetGroup(c *gin.Context, channelId int, modelName string, groupId int64) (*model.AssetGroup, *assetChannel, error) {
 	userId := c.GetInt("id")
 	if groupId > 0 {
-		return model.GetAssetGroupById(userId, groupId)
+		group, err := model.GetAssetGroupById(userId, groupId)
+		if err != nil {
+			return nil, nil, err
+		}
+		ac, err := resolveAssetChannel(c, group.ChannelId, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		return group, ac, nil
 	}
-	groups, err := model.ListAssetGroups(userId, ac.channelId, model.AssetGroupTypeAIGC)
+
+	groups, err := model.ListAssetGroups(userId, channelId, model.AssetGroupTypeAIGC)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(groups) > 0 {
-		return groups[0], nil
+		ac, err := resolveAssetChannel(c, groups[0].ChannelId, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		return groups[0], ac, nil
 	}
+
 	name := "默认素材组"
-	result, err := assetAction(ac, "CreateAssetGroup", map[string]any{
+	result, used, err := assetActionWithFallback(c, channelId, modelName, "CreateAssetGroup", map[string]any{
 		"Name":        name,
 		"Description": "",
 		"GroupType":   model.AssetGroupTypeAIGC,
 		"ProjectName": "default",
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	upstreamId := stringField(result, "Id")
 	if upstreamId == "" {
-		return nil, fmt.Errorf("upstream did not return group id")
+		return nil, nil, fmt.Errorf("upstream did not return group id")
 	}
 	group := &model.AssetGroup{
 		UserId:          userId,
-		ChannelId:       ac.channelId,
+		ChannelId:       used.channelId,
 		UpstreamGroupId: upstreamId,
 		GroupType:       model.AssetGroupTypeAIGC,
 		Name:            name,
 	}
 	if err := model.CreateAssetGroup(group); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return group, nil
+	return group, used, nil
 }
 
 // ============================
@@ -290,19 +393,14 @@ func CreateAssetGroup(c *gin.Context) {
 		return
 	}
 
-	ac, err := resolveAssetChannel(c, req.ChannelId, req.Model)
-	if err != nil {
-		assetError(c, http.StatusBadRequest, "asset_not_supported", err.Error())
-		return
-	}
-	result, err := assetAction(ac, "CreateAssetGroup", map[string]any{
+	result, used, err := assetActionWithFallback(c, req.ChannelId, req.Model, "CreateAssetGroup", map[string]any{
 		"Name":        req.Name,
 		"Description": req.Description,
 		"GroupType":   groupType,
 		"ProjectName": "default",
 	})
 	if err != nil {
-		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
+		assetFailure(c, err)
 		return
 	}
 	upstreamId := stringField(result, "Id")
@@ -313,7 +411,7 @@ func CreateAssetGroup(c *gin.Context) {
 
 	group := &model.AssetGroup{
 		UserId:          c.GetInt("id"),
-		ChannelId:       ac.channelId,
+		ChannelId:       used.channelId,
 		UpstreamGroupId: upstreamId,
 		GroupType:       groupType,
 		Name:            req.Name,
@@ -444,14 +542,9 @@ func CreateAsset(c *gin.Context) {
 		}
 		channelId = group.ChannelId
 	}
-	ac, err := resolveAssetChannel(c, channelId, req.Model)
+	group, ac, err := ensureAssetGroup(c, channelId, req.Model, req.GroupId)
 	if err != nil {
-		assetError(c, http.StatusBadRequest, "asset_not_supported", err.Error())
-		return
-	}
-	group, err := ensureAssetGroup(c, ac, req.GroupId)
-	if err != nil {
-		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
+		assetFailure(c, err)
 		return
 	}
 
@@ -632,21 +725,16 @@ func CreateRealPersonSession(c *gin.Context) {
 	}
 	var req createRealPersonSessionRequest
 	_ = common.DecodeJson(c.Request.Body, &req)
-	ac, err := resolveAssetChannel(c, req.ChannelId, req.Model)
-	if err != nil {
-		assetError(c, http.StatusBadRequest, "asset_not_supported", err.Error())
-		return
-	}
 	callbackUrl := strings.TrimSpace(req.CallbackUrl)
 	if callbackUrl == "" {
 		callbackUrl = defaultRealPersonCallback(c)
 	}
-	result, err := assetAction(ac, "CreateVisualValidateSession", map[string]any{
+	result, used, err := assetActionWithFallback(c, req.ChannelId, req.Model, "CreateVisualValidateSession", map[string]any{
 		"CallbackURL": callbackUrl,
 		"ProjectName": "default",
 	})
 	if err != nil {
-		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
+		assetFailure(c, err)
 		return
 	}
 	bytedToken := stringField(result, "BytedToken")
@@ -661,7 +749,7 @@ func CreateRealPersonSession(c *gin.Context) {
 	}
 	session := &model.RealPersonSession{
 		UserId:     c.GetInt("id"),
-		ChannelId:  ac.channelId,
+		ChannelId:  used.channelId,
 		BytedToken: bytedToken,
 		H5Link:     h5Link,
 		Status:     model.RealPersonStatusPending,
