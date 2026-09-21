@@ -253,7 +253,7 @@ GET /v1/videos/:task_id
   - 上游服务端要能访问本站地址来抓取文件，因此本站需部署在公网可达域名下；可用环境变量 `ASSET_UPLOAD_PUBLIC_BASE` 指定对外地址（默认取系统设置里的服务器地址，其次取请求的 scheme://host）。
 - 视频请求里引用素材：在 `content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<素材 ID>`。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。
 - **素材绑定渠道**：上游素材组按渠道凭证隔离，因此引用了素材的任务会被锁定到素材所属渠道；同一次请求引用的素材必须来自同一渠道，否则返回 `asset_channel_mismatch`。
-- **真人素材**必须先完成真人活体认证（上游流程，不可绕过）：创建会话拿到 `h5_link` → 本人在手机上完成认证 → 用查询接口换取真人素材组 → 把真人图片/视频入库到该组。认证链接有效期较短，过期重新生成即可。
+- **真人素材**必须先完成真人活体认证（上游流程，不可绕过）：创建会话拿到 `h5_link` → 本人在手机上完成认证 → 用查询接口换取真人素材组 → 把真人图片/视频入库到该组。认证链接有效期较短，过期重新生成即可。创建会话的响应里还带 `short_link`（本站短链 `/rp/<短码>`，302 跳转到原始链接）——上游原始链接近千字符，二维码建议编码短链，否则码点过密、低端手机扫不出来。
 - 云端素材库默认对普通用户关闭（`user.asset_library_enabled`，仅管理员可开），未开通时相关接口返回 403 `asset_library_disabled`。
 
 素材相关错误码：`asset_library_disabled`、`asset_upload_disabled`、`asset_file_too_large`、`asset_file_type_not_allowed`、`asset_not_supported`、`asset_not_found`、`asset_not_active`、`asset_channel_mismatch`、`asset_channel_disable`、`asset_upstream_error`。

@@ -50,6 +50,8 @@ const (
 	assetMediaPrefix = "/asset-media/"
 	// assetUploadDirName 暂存目录（相对进程工作目录）。
 	assetUploadDirName = "asset-uploads"
+	// realPersonShortPath 真人认证短链前缀：二维码里编码这个短链而不是上游那条长链接。
+	realPersonShortPath = "/rp/"
 )
 
 // assetUploadTypes 扩展名 → 上游素材类型（Image / Video / Audio）。
@@ -288,4 +290,18 @@ func removeAssetLocalFile(localKey string) {
 		return
 	}
 	_ = os.Remove(filepath.Join(assetUploadDirName, localKey))
+}
+
+// RedirectRealPersonSession 真人认证短链：手机扫码后 302 到上游的认证页。
+//
+// 上游给的认证链接很长（带一长串 token），直接编码成二维码会非常密集，低端手机扫不出来，
+// 所以这里换成一个短地址再跳转。
+func RedirectRealPersonSession(c *gin.Context) {
+	code := strings.TrimSpace(c.Param("code"))
+	session, err := model.GetRealPersonSessionByShortCode(code)
+	if err != nil || session == nil || session.H5Link == "" {
+		c.String(http.StatusNotFound, "real-person verification link not found or expired")
+		return
+	}
+	c.Redirect(http.StatusFound, session.H5Link)
 }

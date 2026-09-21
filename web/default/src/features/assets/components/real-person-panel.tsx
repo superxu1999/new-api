@@ -22,6 +22,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { CopyButton } from '@/components/copy-button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,12 +46,15 @@ export function RealPersonPanel() {
   const { t } = useTranslation()
   const [sessionId, setSessionId] = useState<number>(0)
   const [h5Link, setH5Link] = useState('')
+  const [shortLink, setShortLink] = useState('')
 
   const createMutation = useMutation({
     mutationFn: createRealPersonSession,
     onSuccess: (data) => {
       setSessionId(data.session_id)
       setH5Link(data.h5_link)
+      // 二维码编码短链：上游链接很长，直接编码会让二维码过密、低端手机扫不出来。
+      setShortLink(data.short_link || data.h5_link)
       toast.success(t('Verification link generated'))
     },
     onError: (error) => toast.error(extractAssetError(error).message),
@@ -94,22 +98,28 @@ export function RealPersonPanel() {
 
           {h5Link !== '' && (
             <div className='space-y-3'>
-              <div className='flex justify-center rounded-lg border p-3'>
-                <QRCodeSVG value={h5Link} size={168} />
+              <div className='flex justify-center rounded-lg border bg-white p-4'>
+                <QRCodeSVG
+                  value={shortLink}
+                  size={260}
+                  level='L'
+                  marginSize={2}
+                />
               </div>
-              <p className='text-muted-foreground text-center text-xs break-all'>
+              <p className='text-muted-foreground text-center text-xs'>
                 {t('Scan the QR code with a phone, or open this link:')}
               </p>
-              <p className='text-center text-xs break-all'>
+              <div className='flex items-center justify-center gap-2'>
                 <a
-                  className='text-primary underline'
-                  href={h5Link}
+                  className='text-primary max-w-[420px] truncate text-xs underline'
+                  href={shortLink}
                   target='_blank'
                   rel='noreferrer'
                 >
-                  {h5Link}
+                  {shortLink}
                 </a>
-              </p>
+                <CopyButton value={shortLink} size='sm' variant='outline' />
+              </div>
               <p className='text-muted-foreground text-center text-xs'>
                 {t(
                   'If the link has expired, generate a new one. Verification cannot be skipped.'

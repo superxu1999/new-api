@@ -54,6 +54,8 @@ export interface Asset {
 export interface RealPersonSession {
   session_id: number
   h5_link: string
+  /** 本站短链（二维码编码用），未返回时退回 h5_link */
+  short_link?: string
   expires_at: number
   status: string
   group_id: number

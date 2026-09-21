@@ -750,6 +750,7 @@ func CreateRealPersonSession(c *gin.Context) {
 		ChannelId:  used.channelId,
 		BytedToken: bytedToken,
 		H5Link:     h5Link,
+		ShortCode:  strings.ToLower(common.GetRandomString(10)),
 		Status:     model.RealPersonStatusPending,
 		ExpiresAt:  time.Now().Unix() + int64(expiresIn),
 	}
@@ -762,6 +763,8 @@ func CreateRealPersonSession(c *gin.Context) {
 		"data": gin.H{
 			"session_id": session.Id,
 			"h5_link":    session.H5Link,
+			// 短链给前端生成二维码用：上游链接很长，直接编码会让二维码过密。
+			"short_link": requestOrigin(c) + realPersonShortPath + session.ShortCode,
 			"expires_at": session.ExpiresAt,
 			"status":     session.Status,
 		},

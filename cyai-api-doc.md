@@ -340,7 +340,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 
 真人素材必须先完成真人活体认证（上游流程，不可绕过）：
 
-1. 调用 `POST /v1/assets/real-person/sessions` 拿到 `h5_link`（有效期较短，过期重新生成即可）；
+1. 调用 `POST /v1/assets/real-person/sessions` 拿到 `h5_link` 与 `short_link`（本站短链，形如 `/rp/<短码>`，302 跳转到 `h5_link`；上游链接近千字符，二维码建议编码短链，否则码点过密、低端手机扫不出来）；有效期较短，过期重新生成即可；
 2. 由**素材中的真人本人**用手机打开链接完成活体认证；
 3. 轮询 `GET /v1/assets/real-person/sessions/{id}`，认证通过后返回绑定的真人素材组 `group_id`；
 4. 把真人图片或视频入库到该组，即可在生成请求中引用。

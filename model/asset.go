@@ -20,6 +20,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -89,7 +90,10 @@ type RealPersonSession struct {
 	ChannelId  int            `json:"channel_id" gorm:"index"`
 	BytedToken string         `json:"-" gorm:"type:varchar(191);index"`
 	H5Link     string         `json:"h5_link" gorm:"type:text"`
-	GroupId    int64          `json:"group_id"`
+	// ShortCode 是短链码：把很长的上游认证链接换成 {本站}/rp/{短码}，
+	// 二维码内容短得多、码点更粗，低端手机才扫得动。
+	ShortCode string         `json:"short_code" gorm:"type:varchar(16);index"`
+	GroupId   int64          `json:"group_id"`
 	GroupType  string         `json:"group_type" gorm:"type:varchar(32)"`
 	Status     string         `json:"status" gorm:"type:varchar(32);index"`
 	ExpiresAt  int64          `json:"expires_at"`
@@ -283,6 +287,20 @@ func CreateRealPersonSession(session *RealPersonSession) error {
 func GetRealPersonSession(userId int, id int64) (*RealPersonSession, error) {
 	session := &RealPersonSession{}
 	err := DB.Where("id = ? AND user_id = ?", id, userId).First(session).Error
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// GetRealPersonSessionByShortCode 按短码取会话：手机扫码后走匿名跳转，因此不校验用户归属，
+// 安全性依赖短码随机且不可枚举。
+func GetRealPersonSessionByShortCode(code string) (*RealPersonSession, error) {
+	session := &RealPersonSession{}
+	if strings.TrimSpace(code) == "" {
+		return nil, errors.New("short code is empty")
+	}
+	err := DB.Where("short_code = ?", code).First(session).Error
 	if err != nil {
 		return nil, err
 	}

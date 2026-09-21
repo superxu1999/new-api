@@ -41,4 +41,11 @@ func SetAssetRouter(router *gin.Engine) {
 	{
 		mediaRouter.GET("/:key", controller.ServeAssetMedia)
 	}
+
+	// 真人认证短链：手机扫码后跳转到上游的认证页（上游链接过长，二维码扫不出来）。
+	realPersonRouter := router.Group("/rp")
+	realPersonRouter.Use(middleware.RouteTag("relay"))
+	{
+		realPersonRouter.GET("/:code", controller.RedirectRealPersonSession)
+	}
 }
