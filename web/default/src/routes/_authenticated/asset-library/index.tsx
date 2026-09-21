@@ -20,6 +20,8 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { Assets } from '@/features/assets'
 
-export const Route = createFileRoute('/_authenticated/assets/')({
+// 路由用 /asset-library 而不是 /assets：后端 web-router 把 /assets 前缀留给静态资源，
+// 命中该前缀的请求会走 RelayNotFound 而不会回落到 SPA 首页。
+export const Route = createFileRoute('/_authenticated/asset-library/')({
   component: Assets,
 })

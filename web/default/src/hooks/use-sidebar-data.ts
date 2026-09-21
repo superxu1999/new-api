@@ -100,7 +100,7 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Asset Library'),
-            url: '/assets',
+            url: '/asset-library',
             icon: Images,
           },
         ],
