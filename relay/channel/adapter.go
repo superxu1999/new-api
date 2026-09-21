@@ -90,3 +90,12 @@ type OpenAIVideoConverter interface {
 type TaskCanceller interface {
 	CancelTask(baseUrl string, key string, body map[string]any, proxy string) (*http.Response, error)
 }
+
+// AssetLibrary 是云端素材库能力的可选接口：素材组、素材与真人活体认证都由上游托管，
+// 本站只做代理。未实现该接口的渠道，上层返回 asset_not_supported，不假装支持。
+//
+// 采用「动作式」签名（action + payload）而不是逐个方法，是因为上游（火山方舟素材资产）
+// 本身就是 /api/?Action=Xxx&Version=... 的动作式接口；换后端只需改动作映射。
+type AssetLibrary interface {
+	AssetAction(baseUrl string, key string, proxy string, action string, payload map[string]any) (*http.Response, error)
+}

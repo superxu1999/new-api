@@ -62,6 +62,8 @@ export const userSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
+  asset_library_enabled: z.number().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -112,6 +114,8 @@ export interface UserFormData {
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
   admin_permissions?: AdminPermissionMatrix
+  // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
+  asset_library_enabled?: number
 }
 
 export type ManageUserAction =

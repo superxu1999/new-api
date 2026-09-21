@@ -795,6 +795,13 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
+	// 云端素材库使用权限只允许超级管理员（root）改动，普通管理员提交的值一律忽略。
+	if myRole < common.RoleRootUser {
+		updatedUser.AssetLibraryEnabled = originUser.AssetLibraryEnabled
+	}
+	if updatedUser.AssetLibraryEnabled != 0 {
+		updatedUser.AssetLibraryEnabled = 1
+	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
 	}

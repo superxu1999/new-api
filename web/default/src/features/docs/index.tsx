@@ -44,6 +44,7 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
   { id: 'sec-9', label: '9. 音频' },
   { id: 'sec-10', label: '10. 其它兼容接口' },
   { id: 'sec-11', label: '11. 错误码' },
+  { id: 'sec-12', label: '12. 素材库（云端素材）' },
 ]
 
 function Section(props: { id: string; title: string; children: ReactNode }) {
@@ -1023,6 +1024,72 @@ data: [DONE]`}</Code>
             <P>
               {t('错误响应结构：对话等接口为 {"error": {"message": "...", "code": "...", "type": "new_api_error"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {"code": "...", "message": "...", "data": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。')}
             </P>
+          </Section>
+
+          <Section id='sec-12' title={t('12. 素材库（云端素材）')}>
+            <P>
+              {t('云端素材由上游渠道托管，本站只登记归属与状态。素材入库完成（状态为 ACTIVE）后才可用于视频生成，引用写法为 asset://<素材 ID>。')}
+            </P>
+            <ET title={t('接口一览')} />
+            <T
+              headers={['能力', '接口']}
+              rows={[
+                ['列出素材组', 'GET /v1/assets/groups'],
+                ['新建素材组', 'POST /v1/assets/groups'],
+                ['删除素材组', 'DELETE /v1/assets/groups/{id}'],
+                ['列出素材', 'GET /v1/assets'],
+                ['新建素材', 'POST /v1/assets'],
+                ['素材详情（同时同步上游状态）', 'GET /v1/assets/{id}'],
+                ['重命名素材', 'PUT /v1/assets/{id}'],
+                ['删除素材', 'DELETE /v1/assets/{id}'],
+                ['创建真人认证会话', 'POST /v1/assets/real-person/sessions'],
+                ['查询真人认证结果', 'GET /v1/assets/real-person/sessions/{id}'],
+              ]}
+            />
+            <ET title={t('新建素材')} />
+            <P>
+              {t('请求体为 group_id（可选，省略时自动使用默认素材组）、name、url（公网 HTTP(S) 地址，不支持文件直传）、asset_type（Image / Video / Audio）。入库为异步操作：先返回 PROCESSING，变为 ACTIVE 后才可引用。')}
+            </P>
+            <Code>{`curl -X POST https://ghyc.top/v1/assets \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{
+    "name": "角色定妆图",
+    "url": "https://cdn.example.com/portrait.png",
+    "asset_type": "Image"
+  }'`}</Code>
+            <ET title={t('在视频生成中引用素材')} />
+            <P>
+              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道。')}
+            </P>
+            <Code>{`curl -X POST https://ghyc.top/v1/videos \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{
+    "model": "<model-id>",
+    "prompt": "让画面轻轻动起来",
+    "content": [
+      { "type": "image_url", "image_url": { "url": "asset://12" }, "role": "reference_image" }
+    ],
+    "metadata": { "resolution": "480p", "ratio": "16:9" }
+  }'`}</Code>
+            <ET title={t('真人素材')} />
+            <P>
+              {t('真人素材必须先完成真人活体认证：调用创建会话接口拿到 h5_link，由本人用手机完成认证，再用查询接口换取真人素材组；随后把真人图片或视频入库到该组即可用于生成。认证不可绕过，链接有效期较短，过期后重新生成即可。')}
+            </P>
+            <ET title={t('错误码')} />
+            <T
+              headers={['code', '说明']}
+              rows={[
+                ['asset_library_disabled', '该账号未开通云端素材库，请联系管理员开通'],
+                ['asset_not_supported', '模型所在渠道不支持素材库'],
+                ['asset_not_found', '素材不存在或不属于当前账号'],
+                ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
+                ['asset_channel_mismatch', '同一次请求引用了不同渠道的素材，请统一到同一渠道'],
+                ['asset_channel_disable', '素材所属渠道已禁用'],
+                ['asset_upstream_error', '上游素材接口报错，错误信息含上游原文'],
+              ]}
+            />
           </Section>
         </div>
       </div>

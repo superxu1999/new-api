@@ -44,6 +44,8 @@ export const userFormSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  // 云端素材库使用权限（0 关闭 / 1 开启），仅超级管理员可改
+  asset_library_enabled: z.number().optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -62,6 +64,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
+  asset_library_enabled: 0,
 }
 
 // ============================================================================
@@ -101,6 +104,7 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.asset_library_enabled = data.asset_library_enabled ? 1 : 0
     payload.id = userId
   }
 
@@ -122,5 +126,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
+    asset_library_enabled: user.asset_library_enabled ?? 0,
   }
 }

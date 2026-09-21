@@ -501,6 +501,13 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	// 站内素材引用（asset://<本地素材ID>）要在选渠道之前解析：素材绑在上游某条渠道上，
+	// 引用了素材的任务必须锁到那条渠道，否则上游解析不到该素材。
+	if taskErr := resolveTaskAssets(c, relayInfo); taskErr != nil {
+		respondTaskError(c, taskErr)
+		return
+	}
+
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
 	defer func() {

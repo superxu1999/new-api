@@ -238,7 +238,27 @@ GET /v1/videos/:task_id
 
 `metadata.fail_reason` 是上游返回的真实失败原因（如上游内容审核）。任务失败会**自动全额退款**预扣额度。
 
-#### 状态取值
+## 素材库（云端素材）
+
+素材实体（文件、转码、审核、真人活体认证）由上游渠道托管，本站只登记「素材组 / 素材 / 真人认证会话」与用户、渠道的绑定关系，并提供 `/v1/assets` 系列接口代理：
+
+| 能力 | 接口 |
+|------|------|
+| 素材组 | `GET/POST /v1/assets/groups`、`GET/DELETE /v1/assets/groups/{id}` |
+| 素材 | `GET/POST /v1/assets`、`GET/PUT/DELETE /v1/assets/{id}` |
+| 真人认证 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}` |
+
+- 新建素材只接受**公网 HTTP(S) URL**（不支持文件直传），入库是异步的：先返回 `PROCESSING`，状态变为 `ACTIVE` 后才可引用；`GET /v1/assets/{id}` 会顺带同步一次上游状态。
+- 视频请求里引用素材：在 `content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<素材 ID>`。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。
+- **素材绑定渠道**：上游素材组按渠道凭证隔离，因此引用了素材的任务会被锁定到素材所属渠道；同一次请求引用的素材必须来自同一渠道，否则返回 `asset_channel_mismatch`。
+- **真人素材**必须先完成真人活体认证（上游流程，不可绕过）：创建会话拿到 `h5_link` → 本人在手机上完成认证 → 用查询接口换取真人素材组 → 把真人图片/视频入库到该组。认证链接有效期较短，过期重新生成即可。
+- 云端素材库默认对普通用户关闭（`user.asset_library_enabled`，仅管理员可开），未开通时相关接口返回 403 `asset_library_disabled`。
+
+素材相关错误码：`asset_library_disabled`、`asset_not_supported`、`asset_not_found`、`asset_not_active`、`asset_channel_mismatch`、`asset_channel_disable`、`asset_upstream_error`。
+
+## 状态取值
+
+
 
 | 查询接口 | `status` 取值 |
 |---------|--------------|

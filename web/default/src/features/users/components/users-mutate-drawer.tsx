@@ -61,6 +61,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -447,6 +448,33 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+
+                  {canEditAdminPermissions && (
+                    <FormField
+                      control={form.control}
+                      name='asset_library_enabled'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between gap-4'>
+                          <div className='space-y-1'>
+                            <FormLabel>{t('Cloud asset library')}</FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Allow this user to ingest materials into the cloud asset library. Disabled by default so it cannot be used as free cloud storage.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value === 1}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked ? 1 : 0)
+                              }
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </SideDrawerSection>
               )}
 

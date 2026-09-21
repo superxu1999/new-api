@@ -118,6 +118,12 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      assets: {
+        title: t('Asset library'),
+        description: t(
+          'Cloud material library: asset groups, uploaded materials and real-person verification.'
+        ),
+      },
     },
     personal: {
       topup: {

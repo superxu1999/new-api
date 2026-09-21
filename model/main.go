@@ -300,6 +300,9 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&AssetGroup{},
+		&Asset{},
+		&RealPersonSession{},
 	)
 	if err != nil {
 		return err
@@ -337,6 +340,9 @@ func migrateDBFast() error {
 		{&TopUpRefund{}, "TopUpRefund"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
+		{&AssetGroup{}, "AssetGroup"},
+		{&Asset{}, "Asset"},
+		{&RealPersonSession{}, "RealPersonSession"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},

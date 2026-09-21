@@ -224,6 +224,63 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
 }
 
+// AssetAction 代理上游的素材资产动作接口，供 /v1/assets 系列使用。
+//
+// 上游（CyAI / Foxtoken 这类 new-api 中转）把火山方舟的素材资产与真人认证统一暴露为
+// 动作式接口：
+//
+//	POST {origin}/api/?Action=CreateAssetGroup&Version=2024-01-01
+//
+// 注意路径挂在 host 根上，而渠道 base 可能带路径前缀（如 https://host/api/v3），
+// 所以这里必须从 baseUrl 取 scheme+host 再拼，不能直接用 baseUrl 拼接。
+func (a *TaskAdaptor) AssetAction(baseUrl string, key string, proxy string, action string, payload map[string]any) (*http.Response, error) {
+	action = strings.TrimSpace(action)
+	if action == "" {
+		return nil, fmt.Errorf("invalid asset action")
+	}
+	origin, err := originOf(baseUrl)
+	if err != nil {
+		return nil, err
+	}
+	body, err := common.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	uri := fmt.Sprintf("%s/api/?Action=%s&Version=%s", origin, url.QueryEscape(action), assetActionVersion)
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
+}
+
+// assetActionVersion 是火山方舟素材资产动作接口的版本号。
+const assetActionVersion = "2024-01-01"
+
+// originOf 从渠道 base 取出 scheme://host，去掉可能存在的路径前缀。
+func originOf(baseUrl string) (string, error) {
+	trimmed := strings.TrimSpace(baseUrl)
+	if trimmed == "" {
+		return "", fmt.Errorf("channel base url is empty")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid channel base url %q: %w", trimmed, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("invalid channel base url %q", trimmed)
+	}
+	return parsed.Scheme + "://" + parsed.Host, nil
+}
+
 // ParseTaskResult 解析 new-api TaskResponse 格式。
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	var res taskResponse
