@@ -162,7 +162,7 @@ export function AssetsPanel() {
         <AlertTitle>{t('Materials are stored by the upstream channel')}</AlertTitle>
         <AlertDescription>
           {t(
-            'Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE. Reference them in video requests as asset://<id>.'
+            'Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.'
           )}
         </AlertDescription>
       </Alert>

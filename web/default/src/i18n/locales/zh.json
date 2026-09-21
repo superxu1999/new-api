@@ -2627,7 +2627,7 @@
     "Material deleted": "素材已删除",
     "Material submitted for ingestion": "素材已提交入库",
     "Materials": "素材",
-    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE. Reference them in video requests as asset://<id>.": "素材通过公网 HTTP(S) URL 入库，状态变为 ACTIVE 后才可使用；在视频请求中以 asset://<id> 引用。",
+    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.": "素材通过公网 HTTP(S) URL 入库，状态变为 ACTIVE 后才可使用。",
     "Materials are stored by the upstream channel": "素材由上游渠道托管",
     "Max concurrent requests (per user)": "单用户最大并发请求数",
     "Max Disk Cache Size (MB)": "磁盘缓存最大总量 (MB)",

@@ -2627,7 +2627,7 @@
     "Material deleted": "Материал удалён",
     "Material submitted for ingestion": "Материал отправлен на загрузку",
     "Materials": "Материалы",
-    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE. Reference them in video requests as asset://<id>.": "Материалы загружаются по публичному HTTP(S) URL и становятся доступны только после статуса ACTIVE. Ссылайтесь на них в видеозапросах как asset://<id>.",
+    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.": "Материалы загружаются по публичному HTTP(S) URL и становятся доступны только после статуса ACTIVE.",
     "Materials are stored by the upstream channel": "Материалы хранятся на стороне вышестоящего канала",
     "Max concurrent requests (per user)": "Макс. параллельных запросов (на пользователя)",
     "Max Disk Cache Size (MB)": "Макс. размер дискового кэша (МБ)",

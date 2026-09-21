@@ -2627,7 +2627,7 @@
     "Material deleted": "Média supprimé",
     "Material submitted for ingestion": "Média soumis à l'import",
     "Materials": "Médias",
-    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE. Reference them in video requests as asset://<id>.": "Les médias sont importés depuis une URL HTTP(S) publique et ne sont utilisables qu'une fois le statut ACTIVE. Référencez-les dans les requêtes vidéo via asset://<id>.",
+    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.": "Les médias sont importés depuis une URL HTTP(S) publique et ne sont utilisables qu'une fois le statut ACTIVE.",
     "Materials are stored by the upstream channel": "Les médias sont hébergés par le canal amont",
     "Max concurrent requests (per user)": "Requêtes simultanées max (par utilisateur)",
     "Max Disk Cache Size (MB)": "Taille max du cache disque (Mo)",

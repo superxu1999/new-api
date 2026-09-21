@@ -2627,7 +2627,7 @@
     "Material deleted": "Đã xóa tài liệu",
     "Material submitted for ingestion": "Đã gửi tài liệu để nhập",
     "Materials": "Tài liệu",
-    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE. Reference them in video requests as asset://<id>.": "Tài liệu được nhập từ URL HTTP(S) công khai và chỉ dùng được khi trạng thái là ACTIVE. Tham chiếu trong yêu cầu video bằng asset://<id>.",
+    "Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.": "Tài liệu được nhập từ URL HTTP(S) công khai và chỉ dùng được khi trạng thái là ACTIVE.",
     "Materials are stored by the upstream channel": "Tài liệu do kênh thượng nguồn lưu trữ",
     "Max concurrent requests (per user)": "Số yêu cầu đồng thời tối đa (mỗi người dùng)",
     "Max Disk Cache Size (MB)": "Dung lượng tối đa bộ nhớ đệm đĩa (MB)",
