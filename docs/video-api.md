@@ -368,9 +368,10 @@ curl -X POST "https://baseadd.vip/v1/assets/upload" \
 |------|------|
 | `POST /v1/assets/real-person/sessions` | 创建认证会话，返回 `session_id`、`h5_link`、`short_link`、`expires_at`、`status`；可选 `callback_url`、`channel_id` / `model` |
 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果：通过后返回真人素材组 `group_id`；未完成时 `status` 为 `pending` |
+| `POST /v1/assets/real-person/sessions/{id}/cancel` | 取消未完成的会话：本站标记为 `cancelled`、停止查询结果、不再登记真人素材组；非 `pending` 状态返回 400 |
 | `GET /v1/assets/real-person/sessions` | 认证历史，最近的在前，分页参数同上 |
 
-认证由真人本人在手机上完成，不可绕过；`short_link` 为本站短链（`/rp/<短码>`，302 跳转到约 900 字符的上游链接），二维码应编码短链。认证通过后把真人图片或视频入库至该组（`POST /v1/assets` 携带 `group_id`），即可按上一节引用。
+认证由真人本人在手机上完成，不可绕过；`short_link` 为本站短链（`/rp/<短码>`，302 跳转到约 900 字符的上游链接），手机可达该短链地址时二维码编码短链，否则控制台改用上游链接生成二维码。`expires_at` 为 0 表示上游未提供有效期，本站不做本地过期拦截。认证通过后把真人图片或视频入库至该组（`POST /v1/assets` 携带 `group_id`），即可按上一节引用。取消只影响本站记录：上游不提供销毁认证会话的接口，认证链接在其有效期内仍可用。
 
 ### 能力查询
 

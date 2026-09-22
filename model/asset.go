@@ -43,8 +43,9 @@ const (
 	AssetTypeVideo = "Video"
 	AssetTypeAudio = "Audio"
 
-	RealPersonStatusPending  = "pending"
-	RealPersonStatusVerified = "verified"
+	RealPersonStatusPending   = "pending"
+	RealPersonStatusVerified  = "verified"
+	RealPersonStatusCancelled = "cancelled"
 )
 
 // AssetGroup 是上游素材组在本地的一行映射。
@@ -383,4 +384,17 @@ func MarkRealPersonSessionVerified(id int64, groupId int64, groupType string) er
 		"group_type": groupType,
 		"updated_at": nowUnix(),
 	}).Error
+}
+
+// CancelRealPersonSession 把待完成会话标记为已取消。
+//
+// 上游不支持销毁认证会话，取消只是本站停止展示该链接、停止轮询其结果，
+// 认证链接在上游有效期内仍然有效，但本站不再把它对应的真人素材组登记入库。
+func CancelRealPersonSession(userId int, id int64) error {
+	return DB.Model(&RealPersonSession{}).
+		Where("id = ? AND user_id = ? AND status = ?", id, userId, RealPersonStatusPending).
+		Updates(map[string]any{
+			"status":     RealPersonStatusCancelled,
+			"updated_at": nowUnix(),
+		}).Error
 }

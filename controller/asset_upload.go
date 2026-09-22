@@ -429,7 +429,15 @@ func RedirectRealPersonSession(c *gin.Context) {
 	code := strings.TrimSpace(c.Param("code"))
 	session, err := model.GetRealPersonSessionByShortCode(code)
 	if err != nil || session == nil || session.H5Link == "" {
-		c.String(http.StatusNotFound, "real-person verification link not found or expired")
+		c.String(http.StatusNotFound, "real-person verification link not found")
+		return
+	}
+	if session.Status == model.RealPersonStatusCancelled {
+		c.String(http.StatusGone, "this real-person verification session was cancelled")
+		return
+	}
+	if session.ExpiresAt > 0 && time.Now().Unix() > session.ExpiresAt {
+		c.String(http.StatusGone, "this real-person verification link has expired")
 		return
 	}
 	c.Redirect(http.StatusFound, session.H5Link)

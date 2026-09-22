@@ -36,6 +36,8 @@ func SetAssetRouter(router *gin.Engine) {
 		assetRouter.GET("/real-person/sessions", controller.ListRealPersonSessions)
 		assetRouter.POST("/real-person/sessions", controller.CreateRealPersonSession)
 		assetRouter.GET("/real-person/sessions/:id", controller.GetRealPersonSession)
+		// 取消认证只标记本地会话：上游不提供销毁认证会话的接口。
+		assetRouter.POST("/real-person/sessions/:id/cancel", controller.CancelRealPersonSession)
 	}
 
 	// 暂存文件的下载入口：上游服务端要能匿名抓取，因此单独一条不鉴权路由，

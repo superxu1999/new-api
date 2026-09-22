@@ -297,6 +297,7 @@ POST /v1/audio/speech          语音合成（TTS）
 | 素材 | `DELETE /v1/assets/{id}` | 删除素材 |
 | 真人认证 | `POST /v1/assets/real-person/sessions` | 创建认证会话，取认证链接 |
 | 真人认证 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果，换取真人素材组 |
+| 真人认证 | `POST /v1/assets/real-person/sessions/{id}/cancel` | 取消尚未完成的认证会话 |
 | 真人认证 | `GET /v1/assets/real-person/sessions` | 列出认证会话 |
 | 账号能力 | `GET /v1/assets/capabilities` | 查询开关状态与可用模型 |
 
@@ -621,7 +622,7 @@ curl -X POST "https://baseadd.vip/v1/assets/real-person/sessions" \
     "session_id": 7,
     "h5_link": "https://ark.volcengine.com/region:cn-beijing/mobile/livenees-face-manage/authorization?pl=...",
     "short_link": "https://ghyc.top/rp/masnwk4gvf",
-    "expires_at": 1790042969,
+    "expires_at": 0,
     "status": "pending"
   }
 }
@@ -630,12 +631,12 @@ curl -X POST "https://baseadd.vip/v1/assets/real-person/sessions" \
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `session_id` | integer | 会话 ID，用于查询认证结果 |
-| `h5_link` | string | 上游认证页地址，约 900 字符 |
-| `short_link` | string | 本站短链（`/rp/<短码>`，302 跳转到 `h5_link`）；二维码应编码该短链，避免码点过密 |
-| `expires_at` | integer | 会话过期时间戳（秒），过期后重新创建 |
-| `status` | string | 会话状态，创建时为 `pending` |
+| `h5_link` | string | 上游认证页地址，约 900 字符，手机可直接打开 |
+| `short_link` | string | 本站短链（`/rp/<短码>`，302 跳转到 `h5_link`）；短链所在地址手机可达时二维码编码该短链，码点更疏 |
+| `expires_at` | integer | 会话过期时间戳（秒）；上游未提供有效期时为 `0`，表示未知 |
+| `status` | string | 会话状态：`pending`（待完成）/ `verified`（已通过）/ `cancelled`（已取消） |
 
-**查询认证结果**：`GET /v1/assets/real-person/sessions/{id}`。认证通过后返回真人素材组 `group_id`；未完成或已过期时 `status` 仍为 `pending`，`message` 给出上游提示。
+**查询认证结果**：`GET /v1/assets/real-person/sessions/{id}`。认证通过后返回真人素材组 `group_id`；尚未完成时 `status` 仍为 `pending`，`message` 给出上游提示。
 
 ```bash
 curl https://baseadd.vip/v1/assets/real-person/sessions/7 \
@@ -652,6 +653,25 @@ curl https://baseadd.vip/v1/assets/real-person/sessions/7 \
   }
 }
 ```
+
+**取消认证**：`POST /v1/assets/real-person/sessions/{id}/cancel`。本站停止展示该链接、停止查询结果，也不再登记对应的真人素材组；已通过或已取消的会话返回 400 `real_person_session_not_pending`。
+
+```bash
+curl -X POST "https://baseadd.vip/v1/assets/real-person/sessions/7/cancel" \
+  -H "Authorization: Bearer sk-..."
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": 7,
+    "status": "cancelled"
+  }
+}
+```
+
+上游不提供销毁认证会话的接口，取消只影响本站记录；认证链接在上游有效期内仍然可用，但本站不再使用其认证结果。
 
 **认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数与「查询素材列表」一致。
 

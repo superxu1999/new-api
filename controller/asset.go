@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -937,10 +938,53 @@ type createRealPersonSessionRequest struct {
 	CallbackUrl string `json:"callback_url"`
 }
 
+// realPersonPublicBase 决定认证短链与回跳地址使用的对外前缀。
+//
+// 短链要能扫码打开，因此默认跟随用户实际访问的地址；只有显式配置了对外地址
+// （ASSET_UPLOAD_PUBLIC_BASE，与素材直传共用的同一项配置）时才替换为配置值。
+// 这里不使用系统设置里的服务器地址：短链必须落在保存会话记录的这台实例上，
+// 换一台实例会查不到会话。站点只在本机可达时短链手机打不开，前端会改用上游链接。
+func realPersonPublicBase(c *gin.Context) string {
+	if value := strings.TrimSpace(os.Getenv("ASSET_UPLOAD_PUBLIC_BASE")); value != "" {
+		return strings.TrimRight(value, "/")
+	}
+	return requestOrigin(c)
+}
+
 // defaultRealPersonCallback 兜底回调地址：认证完成后浏览器落到本站素材库页，
 // 由页面轮询认证结果。调用方可用 callback_url 覆盖。
 func defaultRealPersonCallback(c *gin.Context) string {
-	return requestOrigin(c) + "/asset-library"
+	return realPersonPublicBase(c) + "/asset-library"
+}
+
+// realPersonExpiresAt 解析上游可能给出的有效期。
+//
+// 火山方舟的 CreateVisualValidateSession 不返回有效期，此时记为 0（未知），
+// 由上游链接自身的有效期决定，本站不做本地过期拦截。
+func realPersonExpiresAt(result map[string]any) int64 {
+	for _, key := range []string{"ExpiresIn", "expiresIn", "expires_in", "ExpiresAt", "expiresAt", "expires_at"} {
+		switch value := result[key].(type) {
+		case float64:
+			if value <= 0 {
+				continue
+			}
+			// ExpiresAt 已是绝对时间戳，ExpiresIn 是剩余秒数，按量级区分。
+			if value > 1e9 {
+				return int64(value)
+			}
+			return time.Now().Unix() + int64(value)
+		case string:
+			seconds, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil || seconds <= 0 {
+				continue
+			}
+			if seconds > 1e9 {
+				return seconds
+			}
+			return time.Now().Unix() + seconds
+		}
+	}
+	return 0
 }
 
 // CreateRealPersonSession 创建真人活体认证会话，返回 H5 链接。
@@ -969,13 +1013,6 @@ func CreateRealPersonSession(c *gin.Context) {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", "upstream did not return real-person session")
 		return
 	}
-	expiresIn := 0
-	for _, key := range []string{"ExpiresIn", "expiresIn", "expires_in"} {
-		if v, ok := result[key].(float64); ok {
-			expiresIn = int(v)
-			break
-		}
-	}
 	session := &model.RealPersonSession{
 		UserId:     c.GetInt("id"),
 		ChannelId:  used.channelId,
@@ -983,7 +1020,7 @@ func CreateRealPersonSession(c *gin.Context) {
 		H5Link:     h5Link,
 		ShortCode:  strings.ToLower(common.GetRandomString(10)),
 		Status:     model.RealPersonStatusPending,
-		ExpiresAt:  time.Now().Unix() + int64(expiresIn),
+		ExpiresAt:  realPersonExpiresAt(result),
 	}
 	if err := model.CreateRealPersonSession(session); err != nil {
 		assetError(c, http.StatusInternalServerError, "create_real_person_session_failed", err.Error())
@@ -995,7 +1032,7 @@ func CreateRealPersonSession(c *gin.Context) {
 			"session_id": session.Id,
 			"h5_link":    session.H5Link,
 			// 短链给前端生成二维码用：上游链接很长，直接编码会让二维码过密。
-			"short_link": requestOrigin(c) + realPersonShortPath + session.ShortCode,
+			"short_link": realPersonPublicBase(c) + realPersonShortPath + session.ShortCode,
 			"expires_at": session.ExpiresAt,
 			"status":     session.Status,
 		},
@@ -1010,6 +1047,18 @@ func GetRealPersonSession(c *gin.Context) {
 	session, err := model.GetRealPersonSession(userId, id)
 	if err != nil {
 		assetError(c, http.StatusNotFound, "real_person_session_not_found", "session not found")
+		return
+	}
+	if session.Status == model.RealPersonStatusCancelled {
+		// 会话已取消：不再向上游查询，也不再登记真人素材组。
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"session_id": session.Id,
+				"status":     session.Status,
+				"group_id":   session.GroupId,
+			},
+		})
 		return
 	}
 	ac, err := resolveAssetChannel(c, session.ChannelId, "")
@@ -1074,6 +1123,36 @@ func GetRealPersonSession(c *gin.Context) {
 			"session_id": session.Id,
 			"status":     model.RealPersonStatusVerified,
 			"group_id":   group.Id,
+		},
+	})
+}
+
+// CancelRealPersonSession 取消一次尚未完成的真人认证。
+//
+// 上游不提供销毁认证会话的接口，因此这里只把本地会话标记为已取消：页面不再展示该链接、
+// 不再轮询结果，之后也不会把该会话对应的真人素材组登记入库。
+func CancelRealPersonSession(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	session, err := model.GetRealPersonSession(userId, id)
+	if err != nil {
+		assetError(c, http.StatusNotFound, "real_person_session_not_found", "session not found")
+		return
+	}
+	if session.Status != model.RealPersonStatusPending {
+		assetError(c, http.StatusBadRequest, "real_person_session_not_pending",
+			"only a pending session can be cancelled, current status: "+session.Status)
+		return
+	}
+	if err := model.CancelRealPersonSession(userId, id); err != nil {
+		assetError(c, http.StatusInternalServerError, "cancel_real_person_session_failed", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"session_id": session.Id,
+			"status":     model.RealPersonStatusCancelled,
 		},
 	})
 }

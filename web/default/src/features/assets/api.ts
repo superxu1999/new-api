@@ -167,6 +167,21 @@ export async function getRealPersonSession(
 }
 
 /**
+ * 取消一次未完成的真人认证：本站标记为已取消并停止轮询。
+ * 上游不提供销毁认证会话的接口，认证链接在上游有效期内仍然有效。
+ */
+export async function cancelRealPersonSession(
+  id: number
+): Promise<RealPersonSession> {
+  const res = await api.post(
+    `/v1/assets/real-person/sessions/${id}/cancel`,
+    {},
+    NO_GLOBAL_TOAST
+  )
+  return res.data?.data as RealPersonSession
+}
+
+/**
  * 直接上传本地文件：先交给本站暂存，再由本站把该文件的公网地址交给上游入库。
  * 该能力默认关闭，需要管理员给账号开通（未开通时后端返回 403 asset_upload_disabled）。
  */

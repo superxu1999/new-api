@@ -39,11 +39,27 @@ import {
 import { formatTimestampToDate } from '@/lib/format'
 
 import {
+  cancelRealPersonSession,
   createRealPersonSession,
   extractAssetError,
   getRealPersonSession,
   listRealPersonSessions,
 } from '../api'
+import {
+  isLoopbackLink,
+  realPersonStatusVariant,
+} from '../lib/real-person-status'
+import type { RealPersonSessionRow } from '../types'
+
+/** 认证状态徽章：后端未覆盖的状态原样展示。 */
+function RealPersonStatusBadge(props: { status: string }) {
+  const { t } = useTranslation()
+  let label = props.status
+  if (props.status === 'pending') label = t('Waiting for completion')
+  if (props.status === 'verified') label = t('Verified')
+  if (props.status === 'cancelled') label = t('Cancelled')
+  return <Badge variant={realPersonStatusVariant(props.status)}>{label}</Badge>
+}
 
 /**
  * 真人认证面板。
@@ -75,24 +91,59 @@ export function RealPersonPanel() {
     queryFn: () => getRealPersonSession(sessionId),
     enabled: sessionId > 0,
     retry: false,
-    // 认证在手机上完成，页面轮询结果；已通过后停止轮询。
+    // 认证在手机上完成，页面轮询结果；已通过或已取消后停止轮询。
     refetchInterval: (query) => {
       const data = query.state.data
-      if (data && data.status === 'verified') return false
+      if (data && (data.status === 'verified' || data.status === 'cancelled')) {
+        return false
+      }
       return 5000
     },
   })
 
   const session = sessionQuery.data
-  const verified = session?.status === 'verified'
+  // 刚创建、结果还没返回时按待完成展示。
+  const status = session?.status ?? (sessionId > 0 ? 'pending' : '')
+  const verified = status === 'verified'
+  const cancelled = status === 'cancelled'
+
+  // 站点只在本机可达时短链手机打不开，改用上游认证链接生成二维码。
+  const qrValue =
+    shortLink === '' || isLoopbackLink(shortLink) ? h5Link : shortLink
+  const shortLinkUnreachable = shortLink !== '' && isLoopbackLink(shortLink)
 
   // 认证历史：完成后刷新一次，方便对账与继续查看已绑定的真人素材组。
   const historyQuery = useQuery({
-    queryKey: ['real-person-sessions', session?.status],
+    queryKey: ['real-person-sessions', status],
     queryFn: listRealPersonSessions,
     retry: false,
   })
   const history = historyQuery.data ?? []
+
+  const cancelMutation = useMutation({
+    mutationFn: cancelRealPersonSession,
+    onSuccess: (data) => {
+      toast.success(t('Verification cancelled'))
+      setSessionId(data.session_id)
+      sessionQuery.refetch()
+      historyQuery.refetch()
+    },
+    onError: (error) => toast.error(extractAssetError(error).message),
+  })
+
+  const cancelSession = (id: number) => {
+    setSessionId(id)
+    cancelMutation.mutate(id)
+  }
+
+  // 从历史里回看某次认证：短码拼出本站短链，站点地址不可达时二维码会自动改用 h5_link。
+  const openSession = (row: RealPersonSessionRow) => {
+    setSessionId(row.id)
+    setH5Link(row.h5_link)
+    setShortLink(
+      row.short_code === '' ? '' : `${window.location.origin}/rp/${row.short_code}`
+    )
+  }
 
   return (
     <div className='space-y-4'>
@@ -114,11 +165,20 @@ export function RealPersonPanel() {
             {t('Start verification')}
           </Button>
 
-          {h5Link !== '' && (
+          {h5Link !== '' && !verified && !cancelled && (
             <div className='space-y-3'>
+              {shortLinkUnreachable && (
+                <Alert variant='destructive'>
+                  <AlertDescription>
+                    {t(
+                      'The QR code uses the upstream verification link because this site is open on an address a phone cannot reach. To scan the site link instead, open this page from a LAN or public address.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className='flex justify-center rounded-lg border bg-white p-4'>
                 <QRCodeSVG
-                  value={shortLink}
+                  value={qrValue}
                   size={260}
                   level='L'
                   marginSize={2}
@@ -130,31 +190,37 @@ export function RealPersonPanel() {
               <div className='flex items-center justify-center gap-2'>
                 <a
                   className='text-primary max-w-[420px] truncate text-xs underline'
-                  href={shortLink}
+                  href={qrValue}
                   target='_blank'
                   rel='noreferrer'
                 >
-                  {shortLink}
+                  {qrValue}
                 </a>
-                <CopyButton value={shortLink} size='sm' variant='outline' />
+                <CopyButton value={qrValue} size='sm' variant='outline' />
               </div>
               <p className='text-muted-foreground text-center text-xs'>
                 {t(
                   'If the link has expired, generate a new one. Verification cannot be skipped.'
                 )}
               </p>
+              <div className='flex justify-center'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => cancelSession(sessionId)}
+                  disabled={cancelMutation.isPending}
+                >
+                  {t('Cancel verification')}
+                </Button>
+              </div>
             </div>
           )}
 
           {sessionId > 0 && (
             <div className='flex items-center justify-center gap-2 text-sm'>
-              {!verified && <Spinner />}
+              {!verified && !cancelled && <Spinner />}
               <span>{t('Verification status')}:</span>
-              {verified ? (
-                <Badge>{t('Verified')}</Badge>
-              ) : (
-                <Badge variant='secondary'>{t('Waiting for completion')}</Badge>
-              )}
+              <RealPersonStatusBadge status={status} />
             </div>
           )}
 
@@ -192,13 +258,7 @@ export function RealPersonPanel() {
                         #{item.id}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            item.status === 'verified' ? 'default' : 'secondary'
-                          }
-                        >
-                          {item.status}
-                        </Badge>
+                        <RealPersonStatusBadge status={item.status} />
                       </TableCell>
                       <TableCell>
                         {item.group_id > 0 ? `#${item.group_id}` : '—'}
@@ -207,17 +267,25 @@ export function RealPersonPanel() {
                         {formatTimestampToDate(item.created_at)}
                       </TableCell>
                       <TableCell className='text-right'>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          onClick={() => {
-                            setSessionId(item.id)
-                            setH5Link('')
-                            setShortLink('')
-                          }}
-                        >
-                          {t('Details')}
-                        </Button>
+                        <div className='flex justify-end gap-2'>
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={() => openSession(item)}
+                          >
+                            {t('Details')}
+                          </Button>
+                          {item.status === 'pending' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => cancelSession(item.id)}
+                              disabled={cancelMutation.isPending}
+                            >
+                              {t('Cancel verification')}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
