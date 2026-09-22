@@ -21,7 +21,6 @@ func SetAssetRouter(router *gin.Engine) {
 
 		assetRouter.GET("/groups", controller.ListAssetGroups)
 		assetRouter.POST("/groups", controller.CreateAssetGroup)
-		assetRouter.GET("/groups/:id", controller.GetAssetGroup)
 		assetRouter.PUT("/groups/:id", controller.UpdateAssetGroup)
 		assetRouter.DELETE("/groups/:id", controller.DeleteAssetGroup)
 

@@ -567,20 +567,6 @@ func CreateAssetGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": group})
 }
 
-// GetAssetGroup 返回单个素材组。
-func GetAssetGroup(c *gin.Context) {
-	if !requireAssetPermission(c) {
-		return
-	}
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	group, err := model.GetAssetGroupById(c.GetInt("id"), id)
-	if err != nil {
-		assetError(c, http.StatusNotFound, "asset_group_not_found", "asset group not found")
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": group})
-}
-
 // UpdateAssetGroup 更新素材组名称与描述。
 //
 // 上游只支持改名称与描述，且空值表示「不改」，因此请求里至少要给一项。
