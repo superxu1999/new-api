@@ -244,6 +244,7 @@ func UploadAsset(c *gin.Context) {
 		name = fileHeader.Filename
 	}
 	groupId, _ := strconv.ParseInt(strings.TrimSpace(c.PostForm("group_id")), 10, 64)
+	channelId, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("channel_id")))
 
 	dir, err := assetUploadDir()
 	if err != nil {
@@ -275,7 +276,7 @@ func UploadAsset(c *gin.Context) {
 	// 到这里之后任何失败都要把暂存文件删掉，避免留下孤儿文件。
 	discard := func() { _ = os.Remove(fullPath) }
 
-	group, ac, err := ensureAssetGroup(c, 0, strings.TrimSpace(c.PostForm("model")), groupId)
+	group, ac, err := ensureAssetGroup(c, channelId, strings.TrimSpace(c.PostForm("model")), groupId)
 	if err != nil {
 		discard()
 		assetFailure(c, err)
