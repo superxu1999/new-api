@@ -240,29 +240,69 @@ GET /v1/videos/:task_id
 
 ## 素材库（云端素材）
 
-素材实体（文件、转码、审核、真人活体认证）由上游渠道托管，本站只登记「素材组 / 素材 / 真人认证会话」与用户、渠道的绑定关系，并提供 `/v1/assets` 系列接口代理：
+素材文件、转码、审核与真人活体认证均由上游渠道托管；平台只登记素材归属、渠道绑定与状态。素材状态为 `ACTIVE` 后可用于视频生成，引用写法为 `asset://<素材 ID>`。
+
+### 权限
+
+| 项目 | 说明 |
+|------|------|
+| 模块显示 | 由系统设置的侧边栏配置决定，与账号开关无关 |
+| 素材功能 | 需开通账号开关「素材库」（`user.asset_library_enabled`）；未开通时素材接口返回 403 `asset_library_disabled` |
+| 上传本地文件 | 需开通账号开关「上传素材」（`user.asset_upload_enabled`），与素材库开关相互独立；未开通时返回 403 `asset_upload_disabled` |
+| 真人认证 | 不受上述开关限制，任何已登录账号均可使用 |
+| 开通方式 | 超级管理员在「用户 → 配置」中按账号开通，默认关闭；管理员及以上同样受开关约束 |
+| 能力查询 | `GET /v1/assets/capabilities` 返回开关状态、可用渠道与模型，不受开关限制 |
+
+### 接口一览
 
 | 能力 | 接口 |
 |------|------|
-| 能力探测 | `GET /v1/assets/capabilities` |
-| 素材组 | `GET/POST /v1/assets/groups`、`GET/PUT/DELETE /v1/assets/groups/{id}` |
-| 素材 | `GET/POST /v1/assets`、`GET/PUT/DELETE /v1/assets/{id}` |
-| 直接上传文件 | `POST /v1/assets/upload` |
-| 真人认证 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}`、`GET /v1/assets/real-person/sessions` |
+| 能力查询 | `GET /v1/assets/capabilities` |
+| 素材组：列表 / 新建 | `GET /v1/assets/groups`、`POST /v1/assets/groups` |
+| 素材组：重命名 / 删除 | `PUT /v1/assets/groups/{id}`、`DELETE /v1/assets/groups/{id}` |
+| 素材：列表 / 新建 | `GET /v1/assets`、`POST /v1/assets` |
+| 素材：详情 / 重命名 / 删除 | `GET /v1/assets/{id}`、`PUT /v1/assets/{id}`、`DELETE /v1/assets/{id}` |
+| 素材：上传本地文件 | `POST /v1/assets/upload` |
+| 真人认证：创建 / 查询 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}` |
+| 真人认证：历史 | `GET /v1/assets/real-person/sessions` |
 
-- 新建素材只接受**公网 HTTP(S) URL**（不支持文件直传），入库是异步的：先返回 `PROCESSING`，状态变为 `ACTIVE` 后才可引用；`GET /v1/assets/{id}` 会顺带同步一次上游状态。
-- **直接上传文件（可选）**：`POST /v1/assets/upload`（multipart/form-data，字段名 `file`，可选 `name` / `group_id`），本站先临时保存一份，再把该文件的公网地址交给上游入库。该能力**默认关闭**，需要管理员给账号开通上传权限（`user.asset_upload_enabled`）；它与素材库开关**互不依赖**，可以单独开通，此时控制台只显示上传入口。单文件上限 100MB，扩展名白名单为常见图片/视频/音频格式；本地副本随素材删除一并清理。
-  - 上游服务端要能访问本站地址来抓取文件，因此本站需部署在公网可达域名下；可用环境变量 `ASSET_UPLOAD_PUBLIC_BASE` 指定对外地址（默认取系统设置里的服务器地址，其次取请求的 scheme://host）。入库前本站会回抓该地址自检，地址不可达时返回 502 `asset_public_url_unreachable` 并附上实际地址。
-- 列表接口支持分页与筛选：`page`（从 1 开始）、`page_size`（默认 20、上限 100），素材另支持 `group_id` / `asset_type` / `status`（逗号分隔）/ `keyword`；响应除 `data` 外还返回 `total` / `page` / `page_size`。
-- 视频请求里引用素材：在 `content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<本站素材 ID>`。引用**只接受本站数字 ID**，上游原始素材 ID（形如 `asset-2026...`）会被拒绝并返回 `invalid_asset_ref`；本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。
-- **素材绑定渠道**：上游素材组按渠道凭证隔离，因此引用了素材的任务会被锁定到素材所属渠道；同一次请求引用的素材必须来自同一渠道，否则返回 `asset_channel_mismatch`。同一个上游素材**不能跨渠道复用**：同一份源文件在两条渠道各入库一次会得到两个上游素材，各自绑定各自的渠道。
-- 素材能力取决于模型/分组所配渠道是否支持素材接口：当前只有火山方舟系渠道（经 CyAI 等中转入口）支持，**移动云 Seedance 渠道不支持素材**，因此在移动云模型上生成时无法引用素材。
-- **真人素材**必须先完成真人活体认证（上游流程，不可绕过）：创建会话拿到 `h5_link` → 本人在手机上完成认证 → 用查询接口换取真人素材组 → 把真人图片/视频入库到该组。认证链接有效期较短，过期重新生成即可。创建会话的响应里还带 `short_link`（本站短链 `/rp/<短码>`，302 跳转到原始链接）——上游原始链接近千字符，二维码建议编码短链，否则码点过密、低端手机扫不出来。真人认证**不受两个账号开关限制**。
-- 权限：侧边栏里的素材库模块是否显示由系统设置的侧边栏配置决定；账号级开关只控制模块内的功能——`user.asset_library_enabled` 控制素材功能（素材组、素材入库，未开通时返回 403 `asset_library_disabled`），`user.asset_upload_enabled` 控制本地文件上传（未开通时返回 403 `asset_upload_disabled`）。管理员及以上同样按开关判定，开关默认关闭。
-- 能力探测接口 `GET /v1/assets/capabilities` 返回两个开关状态、可用渠道与模型（`channels` 里 `channel_name` 仅管理员可见）、`real_person_available`；不受素材库开关限制，用来判断「这个账号能不能用素材、哪些模型支持素材」。探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，所以列出的渠道与模型都是已验证可用的。
-- 素材入库、上传与真人认证**当前不单独计费**，生成仍按视频计费规则结算。
+### 请求约束
 
-素材相关错误码：`asset_library_disabled`、`asset_upload_disabled`、`asset_file_too_large`、`asset_file_type_not_allowed`、`asset_public_url_unreachable`、`asset_not_supported`、`asset_not_found`、`invalid_asset_ref`、`asset_not_active`、`asset_channel_mismatch`、`asset_channel_disable`、`asset_upstream_error`。
+| 项目 | 说明 |
+|------|------|
+| 新建素材 | 请求体为 `name`、`url`、`asset_type`；`group_id` 可选，省略时使用默认素材组（不存在则自动创建）。`url` 必须为公网 HTTP(S) 地址；`asset_type` 取 `Image`、`Video`、`Audio` |
+| 入库状态 | 异步：新建后为 `PROCESSING`，需轮询 `GET /v1/assets/{id}` 至 `ACTIVE`（该接口同时同步上游状态）；`ACTIVE` 后方可引用 |
+| 列表分页 | `page` 从 1 开始，`page_size` 默认 20、上限 100；响应除 `data` 外含 `total`、`page`、`page_size` |
+| 列表筛选 | 素材支持 `group_id`、`asset_type`、`status`（逗号分隔）、`keyword` |
+| 素材组重命名 | 只支持 `name` 与 `description`；空值表示不修改 |
+| 上传本地文件 | `multipart/form-data`，字段 `file`，可选 `name`、`group_id`；单文件上限 100MB，仅支持常见图片、视频、音频扩展名。平台先暂存文件，再将其公网地址交由上游抓取（本地副本随素材删除一并清理），故本站须部署在公网可达域名下；可用环境变量 `ASSET_UPLOAD_PUBLIC_BASE` 指定对外地址（默认取系统设置的服务器地址，其次取请求的 scheme://host）。入库前平台会回抓该地址自检，不可达时返回 502 `asset_public_url_unreachable` |
+| 引用素材 | 在 `content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<本站素材 ID>`。引用只接受本站数字 ID，上游原始素材 ID（形如 `asset-2026...`）返回 400 `invalid_asset_ref`；平台提交上游前校验归属与状态，并替换为上游素材 ID |
+| 渠道绑定 | 上游素材组按渠道凭证隔离：引用素材的任务被锁定到素材所属渠道，单次请求引用的素材须属于同一渠道，否则返回 `asset_channel_mismatch`；同一上游素材不可跨渠道复用（同一份源文件在两条渠道各入库一次会得到两个上游素材） |
+| 渠道支持 | 素材能力取决于渠道是否支持素材接口：当前仅火山方舟系渠道（经 CyAI 等中转入口）支持，移动云 Seedance 渠道不支持，其模型无法引用素材 |
+| 计费 | 素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费 |
+
+能力查询接口返回 `asset_library_enabled`、`asset_upload_enabled`、`channels`（可用渠道，`channel_name` 仅管理员可见）、`models`（当前分组下支持素材的模型）、`real_person_available`。探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，因此列出的渠道与模型均为已验证可用。
+
+### 真人素材
+
+真人素材须先完成真人活体认证，认证由真人本人在手机上完成，不可绕过。步骤：创建会话拿到 `h5_link` 与 `short_link` → 本人打开链接完成认证 → 轮询查询接口换取真人素材组 `group_id` → 将真人图片或视频入库至该组。认证链接有效期较短，过期重新生成即可；`short_link` 为本站短链（`/rp/<短码>`，302 跳转到上游链接），二维码应编码短链（上游原始链接近千字符，直接编码会导致码点过密）。
+
+### 素材相关错误码
+
+| code | HTTP | 说明 |
+|------|------|------|
+| `asset_library_disabled` | 403 | 该账号未开通云端素材库 |
+| `asset_upload_disabled` | 403 | 该账号未开通上传权限 |
+| `asset_file_too_large` | 400 | 上传文件超过 100MB 上限 |
+| `asset_file_type_not_allowed` | 400 | 上传文件类型不在白名单内 |
+| `asset_public_url_unreachable` | 502 | 暂存文件的地址无法被上游抓取，错误信息含实际地址 |
+| `asset_not_supported` | 400 | 模型所在渠道不支持素材库 |
+| `asset_not_found` | 400 | 素材不存在或不属于当前账号 |
+| `invalid_asset_ref` | 400 | 素材引用写法非法（只接受 `asset://<本站素材 ID>`） |
+| `asset_not_active` | 400 | 素材尚未入库完成（状态不是 `ACTIVE`） |
+| `asset_channel_mismatch` | 400 | 单次请求引用了不同渠道的素材 |
+| `asset_channel_disable` | 400 | 素材所属渠道已禁用 |
+| `asset_upstream_error` | 502 | 上游素材接口报错，错误信息含上游原文 |
 
 ## 状态取值
 

@@ -40,7 +40,18 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-6-7', label: '6.7 下载成片' },
     ],
   },
-  { id: 'sec-7', label: '7. 素材库（云端素材）' },
+  {
+    id: 'sec-7',
+    label: '7. 素材库（云端素材）',
+    sub: [
+      { id: 'sec-7-1', label: '7.1 权限' },
+      { id: 'sec-7-2', label: '7.2 接口一览' },
+      { id: 'sec-7-3', label: '7.3 请求约束' },
+      { id: 'sec-7-4', label: '7.4 调用示例' },
+      { id: 'sec-7-5', label: '7.5 真人素材' },
+      { id: 'sec-7-6', label: '7.6 错误码' },
+    ],
+  },
   { id: 'sec-8', label: '8. 图像生成' },
   { id: 'sec-9', label: '9. 向量（Embeddings）' },
   { id: 'sec-10', label: '10. 音频' },
@@ -827,40 +838,83 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-7' title={t('7. 素材库（云端素材）')}>
-            <P>
-              {t('云端素材由上游渠道托管，本站只登记归属与状态。素材入库完成（状态为 ACTIVE）后才可用于视频生成，引用写法为 asset://<素材 ID>。')}
-            </P>
-            <P>
-              {t('侧边栏里的素材库模块由系统设置的侧边栏配置控制；账号开关只控制模块内的功能，两个开关互不依赖：「素材库」决定该账号能否浏览与管理素材（素材组、素材入库），「上传素材」决定能否上传本地文件（可单独开通，未开通素材库时页面只显示上传入口）；真人认证不受这两个开关限制。超级管理员在用户配置里按账号开通。')}
-            </P>
-            <ET title={t('接口一览')} />
-            <T
-              headers={['能力', '接口']}
-              rows={[
-                ['能力探测（能否用素材、哪些模型支持）', 'GET /v1/assets/capabilities'],
-                ['列出素材组', 'GET /v1/assets/groups'],
-                ['新建素材组', 'POST /v1/assets/groups'],
-                ['重命名素材组', 'PUT /v1/assets/groups/{id}'],
-                ['删除素材组', 'DELETE /v1/assets/groups/{id}'],
-                ['列出素材（支持 group_id / asset_type / status / keyword / page / page_size）', 'GET /v1/assets'],
-                ['新建素材', 'POST /v1/assets'],
-                ['素材详情（同时同步上游状态）', 'GET /v1/assets/{id}'],
-                ['重命名素材', 'PUT /v1/assets/{id}'],
-                ['删除素材', 'DELETE /v1/assets/{id}'],
-                ['直接上传文件（默认关闭）', 'POST /v1/assets/upload'],
-                ['创建真人认证会话', 'POST /v1/assets/real-person/sessions'],
-                ['查询真人认证结果', 'GET /v1/assets/real-person/sessions/{id}'],
-                ['真人认证历史', 'GET /v1/assets/real-person/sessions'],
-              ]}
-            />
-            <P>
-              {t('列表接口支持 page（从 1 开始）与 page_size（默认 20，上限 100），响应除 data 外还返回 total、page、page_size。能力探测接口返回两个开关状态、可用渠道与模型（channels 里的 channel_name 仅管理员可见），不受素材库开关限制；探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，因此列出的渠道与模型都是已验证可用的。')}
-            </P>
-            <ET title={t('新建素材')} />
-            <P>
-              {t('请求体为 group_id（可选，省略时自动使用默认素材组）、name、url（公网 HTTP(S) 地址，不支持文件直传）、asset_type（Image / Video / Audio）。入库为异步操作：先返回 PROCESSING，变为 ACTIVE 后才可引用。')}
-            </P>
-            <Code>{`curl -X POST https://ghyc.top/v1/assets \\
+            <Sub id='sec-7-1' title={t('7.1 权限')}>
+              <P>
+                {t('素材实体由上游渠道托管，平台只登记归属、渠道绑定与状态。')}
+              </P>
+              <T
+                headers={['项目', '说明']}
+                rows={[
+                  ['模块显示', '由系统设置的侧边栏配置决定，与账号开关无关'],
+                  ['素材功能', '需开通账号开关「素材库」；未开通时素材接口返回 403 asset_library_disabled'],
+                  ['上传本地文件', '需开通账号开关「上传素材」，与素材库开关相互独立；未开通时返回 403 asset_upload_disabled'],
+                  ['真人认证', '不受上述开关限制，任何已登录账号均可使用'],
+                  ['开通方式', '超级管理员在「用户 → 配置」中按账号开通，默认关闭；管理员及以上同样受开关约束'],
+                  ['能力查询', 'GET /v1/assets/capabilities 返回开关状态、可用渠道与模型，不受开关限制'],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-2' title={t('7.2 接口一览')}>
+              <T
+                headers={['能力', '接口']}
+                rows={[
+                  ['能力查询', 'GET /v1/assets/capabilities'],
+                  ['素材组：列表 / 新建', 'GET /v1/assets/groups；POST /v1/assets/groups'],
+                  ['素材组：重命名 / 删除', 'PUT /v1/assets/groups/{id}；DELETE /v1/assets/groups/{id}'],
+                  ['素材：列表 / 新建', 'GET /v1/assets；POST /v1/assets'],
+                  ['素材：详情 / 重命名 / 删除', 'GET /v1/assets/{id}；PUT /v1/assets/{id}；DELETE /v1/assets/{id}'],
+                  ['素材：上传本地文件', 'POST /v1/assets/upload'],
+                  ['真人认证：创建 / 查询', 'POST /v1/assets/real-person/sessions；GET /v1/assets/real-person/sessions/{id}'],
+                  ['真人认证：历史', 'GET /v1/assets/real-person/sessions'],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-3' title={t('7.3 请求约束')}>
+              <T
+                headers={['项目', '说明']}
+                rows={[
+                  [
+                    '新建素材',
+                    '请求体为 name、url、asset_type；group_id 可选，省略时使用默认素材组（不存在则自动创建）。url 必须为公网 HTTP(S) 地址；asset_type 取 Image、Video、Audio',
+                  ],
+                  [
+                    '入库状态',
+                    '异步：新建后为 PROCESSING，需轮询 GET /v1/assets/{id} 至 ACTIVE（该接口同时同步上游状态）；ACTIVE 后方可引用',
+                  ],
+                  [
+                    '列表分页',
+                    'page 从 1 开始，page_size 默认 20、上限 100；响应除 data 外含 total、page、page_size',
+                  ],
+                  [
+                    '列表筛选',
+                    '素材支持 group_id、asset_type、status（逗号分隔）、keyword',
+                  ],
+                  [
+                    '上传本地文件',
+                    'multipart/form-data，字段 file，可选 name、group_id；单文件上限 100MB，仅支持常见图片、视频、音频扩展名。平台先暂存文件，再将其公网地址交由上游抓取，故本站须部署在公网可达域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 指定对外地址）；入库前平台会回抓该地址自检，不可达时返回 502 asset_public_url_unreachable',
+                  ],
+                  [
+                    '引用素材',
+                    '在 content 的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<本站素材 ID>。仅接受本站数字 ID，上游原始素材 ID 返回 400 invalid_asset_ref；平台提交上游前校验归属与状态，并替换为上游素材 ID',
+                  ],
+                  [
+                    '渠道绑定',
+                    '引用素材的任务固定走素材所属渠道，单次请求引用的素材须属于同一渠道；同一上游素材不可跨渠道复用',
+                  ],
+                  [
+                    '渠道支持',
+                    '素材能力取决于渠道是否支持素材接口；当前移动云 Seedance 渠道不支持，其模型无法引用素材',
+                  ],
+                  [
+                    '计费',
+                    '素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费',
+                  ],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-4' title={t('7.4 调用示例')}>
+              <ET title={t('新建素材（公网 URL）')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/assets \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -868,22 +922,13 @@ data: [DONE]`}</Code>
     "url": "https://cdn.example.com/portrait.png",
     "asset_type": "Image"
   }'`}</Code>
-            <ET title={t('直接上传文件（可选）')} />
-            <P>
-              {t('若素材文件还在本机，可直接上传（multipart/form-data，字段名 file）：本站先临时保存一份，再把该文件的公网地址交给上游入库。该能力默认关闭，需管理员为账号开通直传权限；单文件上限 100MB，支持图片、视频、音频常见格式，删除素材时本地副本一并删除。')}
-            </P>
-            <Code>{`curl -X POST https://ghyc.top/v1/assets/upload \\
+              <ET title={t('上传本地文件')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/assets/upload \\
   -H "Authorization: Bearer sk-..." \\
   -F "file=@./portrait.png" \\
   -F "name=角色定妆图"`}</Code>
-            <P>
-              {t('注意：上游服务端需要能访问本站地址来抓取文件，因此本站必须部署在公网可达的域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 覆盖对外地址）。入库前本站会先回抓该地址，确认它返回的正是刚上传的文件；地址不可达时直接返回 502 asset_public_url_unreachable，并在错误信息里附上实际使用的地址。')}
-            </P>
-            <ET title={t('在视频生成中引用素材')} />
-            <P>
-              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。引用只接受本站素材 ID（数字）：上游原始素材 ID（形如 asset-2026...）会被拒并返回 400 invalid_asset_ref，因为它属于上游账号下的对象，放行会绕过归属校验。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道；同一个上游素材不能跨渠道复用。素材能力取决于渠道是否支持素材接口（当前移动云 Seedance 渠道不支持，移动云模型上无法引用素材）。素材入库、上传与真人认证当前不单独计费。')}
-            </P>
-            <Code>{`curl -X POST https://ghyc.top/v1/videos \\
+              <ET title={t('引用素材生成')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
   -d '{
@@ -894,28 +939,42 @@ data: [DONE]`}</Code>
     ],
     "metadata": { "resolution": "480p", "ratio": "16:9" }
   }'`}</Code>
-            <ET title={t('真人素材')} />
-            <P>
-              {t('真人素材必须先完成真人活体认证：调用创建会话接口拿到 h5_link，由本人用手机完成认证，再用查询接口换取真人素材组；随后把真人图片或视频入库到该组即可用于生成。认证不可绕过，链接有效期较短，过期后重新生成即可。响应里的 short_link 是本站短链（形如 /rp/<短码>），扫码二维码建议编码短链，上游原始链接过长会导致二维码过密。')}
-            </P>
-            <ET title={t('错误码')} />
-            <T
-              headers={['code', '说明']}
-              rows={[
-                ['asset_library_disabled', '该账号未开通云端素材库，请联系管理员开通'],
-                ['asset_upload_disabled', '该账号未开通直接上传权限，请联系管理员开通'],
-                ['asset_file_too_large', '上传文件超过大小上限（100MB）'],
-                ['asset_file_type_not_allowed', '上传文件类型不在白名单内'],
-                ['asset_public_url_unreachable', '暂存文件的地址无法被上游抓取：对外地址是本地或内网地址，或该域名未部署 /asset-media 路由，错误信息含实际地址'],
-                ['asset_not_supported', '模型所在渠道不支持素材库'],
-                ['asset_not_found', '素材不存在或不属于当前账号'],
-                ['invalid_asset_ref', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
-                ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
-                ['asset_channel_mismatch', '同一次请求引用了不同渠道的素材，请统一到同一渠道'],
-                ['asset_channel_disable', '素材所属渠道已禁用'],
-                ['asset_upstream_error', '上游素材接口报错，错误信息含上游原文'],
-              ]}
-            />
+            </Sub>
+            <Sub id='sec-7-5' title={t('7.5 真人素材')}>
+              <P>
+                {t('真人素材须先完成真人活体认证，认证由真人本人在手机上完成，不可绕过。步骤：')}
+              </P>
+              <P>
+                {t('1）调用 POST /v1/assets/real-person/sessions 获取 h5_link 与 short_link；')}
+              </P>
+              <P>{t('2）由真人本人打开链接完成活体认证；')}</P>
+              <P>
+                {t('3）轮询 GET /v1/assets/real-person/sessions/{id}，认证通过后返回真人素材组 group_id；')}
+              </P>
+              <P>{t('4）将真人图片或视频入库至该组，即可按 7.3 引用。')}</P>
+              <P>
+                {t('认证链接有效期较短，过期后重新生成即可。short_link 为本站短链（形如 /rp/<短码>，302 跳转到上游链接），二维码应编码短链：上游原始链接近千字符，直接编码会导致码点过密。')}
+              </P>
+            </Sub>
+            <Sub id='sec-7-6' title={t('7.6 错误码')}>
+              <T
+                headers={['code', '说明']}
+                rows={[
+                  ['asset_library_disabled', '该账号未开通云端素材库，请联系管理员开通'],
+                  ['asset_upload_disabled', '该账号未开通上传权限，请联系管理员开通'],
+                  ['asset_file_too_large', '上传文件超过大小上限（100MB）'],
+                  ['asset_file_type_not_allowed', '上传文件类型不在白名单内'],
+                  ['asset_public_url_unreachable', '暂存文件的地址无法被上游抓取（对外地址为本地/内网地址，或该域名未部署 /asset-media 路由），错误信息含实际地址'],
+                  ['asset_not_supported', '模型所在渠道不支持素材库'],
+                  ['asset_not_found', '素材不存在或不属于当前账号'],
+                  ['invalid_asset_ref', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
+                  ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
+                  ['asset_channel_mismatch', '单次请求引用了不同渠道的素材'],
+                  ['asset_channel_disable', '素材所属渠道已禁用'],
+                  ['asset_upstream_error', '上游素材接口报错，错误信息含上游原文'],
+                ]}
+              />
+            </Sub>
           </Section>
 
           <Section id='sec-8' title={t('8. 图像生成')}>
