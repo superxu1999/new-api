@@ -21,9 +21,10 @@ import type { AuthUser } from '@/stores/auth-store'
 /**
  * 素材库与直传是账号级权限，按账号开关判定，管理员及以上同样受开关限制（与后端一致）。
  *
- * 这里只决定界面是否显示对应入口，接口始终会再校验一次（素材库未开通返回 403
- * asset_library_disabled，直传未开通返回 403 asset_upload_disabled）。字段缺失
- * （升级前写入的本地会话缓存）时按可用处理，避免把已开通的账号挡在外面。
+ * 这两个开关只决定素材库模块内的功能，不影响模块入口：入口由系统设置里的侧边栏配置
+ * 决定；真人认证同样不受开关限制。这里只决定界面元素是否显示，接口始终会再校验一次
+ * （素材功能未开通返回 403 asset_library_disabled，直传未开通返回 403 asset_upload_disabled）。
+ * 字段缺失（升级前写入的本地会话缓存）时按可用处理，避免把已开通的账号挡在外面。
  */
 export function canUseAssetLibrary(user?: Partial<AuthUser> | null): boolean {
   if (!user) return false

@@ -20,7 +20,6 @@ import { useMemo } from 'react'
 
 import type { NavGroup, NavItem } from '@/components/layout/types'
 import { useStatus } from '@/hooks/use-status'
-import { canUseAssetLibrary } from '@/lib/asset-access'
 import { useAuthStore } from '@/stores/auth-store'
 
 type SidebarSectionConfig = {
@@ -33,24 +32,6 @@ type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 // User-layer config is shape-identical to admin, but may be null
 // to signal "no narrowing" (empty/invalid/legacy users).
 type SidebarModulesUserConfig = SidebarModulesAdminConfig | null
-
-/**
- * 账号级能力开关：与 sidebar_modules 无关，由管理端按账号开通。即使两层配置都允许，
- * 账号没有开通对应能力也不显示入口。
- */
-type ModuleEntitlements = {
-  assetLibrary: boolean
-}
-
-const ASSET_LIBRARY_URL = '/asset-library'
-
-function isModuleEntitled(
-  url: string,
-  entitlements: ModuleEntitlements
-): boolean {
-  if (url === ASSET_LIBRARY_URL) return entitlements.assetLibrary
-  return true
-}
 
 /**
  * Default sidebar modules configuration
@@ -184,18 +165,13 @@ function parseUserSidebarConfig(
  * Check if a module is enabled. Admin config is the first (authoritative)
  * layer: if admin disables a section/module it is always hidden. User config
  * is a second narrower layer: it can only further hide what admin allowed.
- * A null user config means "do not narrow" (legacy/empty users). Account
- * entitlements are the third layer: a module backed by a per-account switch
- * stays hidden until the administrator enables it for that account.
+ * A null user config means "do not narrow" (legacy/empty users).
  */
 function isModuleEnabled(
   url: string,
   adminConfig: SidebarModulesAdminConfig,
-  userConfig: SidebarModulesUserConfig,
-  entitlements: ModuleEntitlements
+  userConfig: SidebarModulesUserConfig
 ): boolean {
-  if (!isModuleEntitled(url, entitlements)) return false
-
   const mapping = URL_TO_CONFIG_MAP[url]
   if (!mapping) {
     // No mapping config, default to visible (e.g. system settings and new features)
@@ -223,8 +199,7 @@ function isModuleEnabled(
 function isNavItemVisible(
   item: NavItem,
   adminConfig: SidebarModulesAdminConfig,
-  userConfig: SidebarModulesUserConfig,
-  entitlements: ModuleEntitlements
+  userConfig: SidebarModulesUserConfig
 ): boolean {
   // Handle dynamic chat presets type — also runs the admin × user AND gate
   if ('type' in item && item.type === 'chat-presets') {
@@ -242,7 +217,7 @@ function isNavItemVisible(
   if ('url' in item && item.url) {
     const configUrls = item.configUrls ?? [item.url]
     return configUrls.some((url) =>
-      isModuleEnabled(url as string, adminConfig, userConfig, entitlements)
+      isModuleEnabled(url as string, adminConfig, userConfig)
     )
   }
 
@@ -250,12 +225,7 @@ function isNavItemVisible(
   if ('items' in item && item.items) {
     // If has sub-items, show this collapsible item if at least one sub-item is visible
     return item.items.some((subItem) =>
-      isModuleEnabled(
-        subItem.url as string,
-        adminConfig,
-        userConfig,
-        entitlements
-      )
+      isModuleEnabled(subItem.url as string, adminConfig, userConfig)
     )
   }
 
@@ -268,20 +238,14 @@ function isNavItemVisible(
 function filterNavItems(
   items: NavItem[],
   adminConfig: SidebarModulesAdminConfig,
-  userConfig: SidebarModulesUserConfig,
-  entitlements: ModuleEntitlements
+  userConfig: SidebarModulesUserConfig
 ): NavItem[] {
   return items
     .map((item) => {
       // If collapsible item, also filter its sub-items
       if ('items' in item && item.items) {
         const filteredSubItems = item.items.filter((subItem) =>
-          isModuleEnabled(
-            subItem.url as string,
-            adminConfig,
-            userConfig,
-            entitlements
-          )
+          isModuleEnabled(subItem.url as string, adminConfig, userConfig)
         )
 
         return {
@@ -291,15 +255,13 @@ function filterNavItems(
       }
       return item
     })
-    .filter((item) =>
-      isNavItemVisible(item, adminConfig, userConfig, entitlements)
-    )
+    .filter((item) => isNavItemVisible(item, adminConfig, userConfig))
 }
 
 /**
  * Filter sidebar navigation groups by admin × user sidebar_modules config.
  *
- * Three layers, AND-combined:
+ * Two layers, AND-combined:
  *   1. Admin (status.SidebarModulesAdmin) — authoritative, falls back to
  *      DEFAULT_SIDEBAR_MODULES when empty/invalid. Disabling here hides the
  *      item for everyone regardless of user preference.
@@ -311,9 +273,10 @@ function filterNavItems(
  *      user cannot configure sidebar_settings (e.g. root accounts), so a
  *      stale historical value cannot lock them out of entries they have no
  *      UI to restore.
- *   3. Account entitlements (auth.user.asset_library_enabled …) — capability
- *      switches the administrator grants per account. A module backed by such
- *      a switch stays hidden until that account is enabled.
+ *
+ * Account capability switches (asset_library_enabled / asset_upload_enabled)
+ * deliberately do NOT participate here: they gate functions inside the asset
+ * library page, not the module entry itself.
  */
 export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
@@ -339,26 +302,15 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
     return parseUserSidebarConfig(auth?.user?.sidebar_modules)
   }, [auth?.user?.permissions?.sidebar_settings, auth?.user?.sidebar_modules])
 
-  // 账号级开关来自 /api/user/self，随会话进入受保护区时刷新一次。
-  const entitlements = useMemo<ModuleEntitlements>(
-    () => ({ assetLibrary: canUseAssetLibrary(auth?.user) }),
-    [auth?.user]
-  )
-
   const filteredNavGroups = useMemo(
     () =>
       navGroups
         .map((group) => ({
           ...group,
-          items: filterNavItems(
-            group.items,
-            adminConfig,
-            userConfig,
-            entitlements
-          ),
+          items: filterNavItems(group.items, adminConfig, userConfig),
         }))
         .filter((group) => group.items.length > 0), // Only show navigation groups with visible items
-    [navGroups, adminConfig, userConfig, entitlements]
+    [navGroups, adminConfig, userConfig]
   )
 
   return filteredNavGroups
@@ -366,8 +318,8 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
 
 /**
  * Check whether a single route is visible under the current sidebar_modules
- * config and account entitlements. Used by entries living outside the sidebar
- * (e.g. the profile dropdown's wallet link) so they honour the same toggles.
+ * config. Used by entries living outside the sidebar (e.g. the profile
+ * dropdown's wallet link) so they honour the same "wallet display" toggle.
  */
 export function useIsSidebarModuleVisible(url: string): boolean {
   const { status } = useStatus()
@@ -381,7 +333,5 @@ export function useIsSidebarModuleVisible(url: string): boolean {
       ? null
       : parseUserSidebarConfig(auth?.user?.sidebar_modules)
 
-  return isModuleEnabled(url, adminConfig, userConfig, {
-    assetLibrary: canUseAssetLibrary(auth?.user),
-  })
+  return isModuleEnabled(url, adminConfig, userConfig)
 }

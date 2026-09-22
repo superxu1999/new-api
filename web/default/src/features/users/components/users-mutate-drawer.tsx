@@ -506,7 +506,7 @@ export function UsersMutateDrawer({
                   {canEditAdminPermissions && (
                     <p className='text-muted-foreground text-xs'>
                       {t(
-                        'These switches apply to every account, administrators included; when off, this account neither sees the asset library entry nor may use it.'
+                        'The asset library switch controls whether this account can use materials (groups and ingestion); the direct upload switch controls local file uploads. Real-person verification is not affected by these switches, and administrators follow them too.'
                       )}
                     </p>
                   )}

@@ -98,12 +98,8 @@ func resolveTaskAssets(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		return nil
 	}
 
-	if user, err := model.GetUserById(userId, false); err != nil || user == nil || user.AssetLibraryEnabled != 1 {
-		return service.TaskErrorWrapperLocal(
-			fmt.Errorf("cloud asset library is not enabled for this account"),
-			"asset_library_disabled", 403)
-	}
-
+	// 不校验账号的素材库开关：真人素材是认证流程产出的（该流程不受开关限制），
+	// 关掉素材开关后仍要能用它生成。安全边界是「只能引用自己的、状态为 ACTIVE 的素材」。
 	if len(channelIds) != 1 {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("referenced assets belong to different channels, use assets from one channel"),

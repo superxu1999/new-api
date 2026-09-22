@@ -714,10 +714,9 @@ func defaultRealPersonCallback(c *gin.Context) string {
 // CreateRealPersonSession 创建真人活体认证会话，返回 H5 链接。
 //
 // 认证必须由真人在手机上完成，不可绕过；有效期较短，前端需支持重新生成。
+// 真人认证不受账号的素材库开关限制：素材库开关只控制素材（素材组与素材入库）功能，
+// 而真人认证是生成真人素材的前置流程，任何已登录账号都可以完成。
 func CreateRealPersonSession(c *gin.Context) {
-	if !requireAssetPermission(c) {
-		return
-	}
 	var req createRealPersonSessionRequest
 	_ = common.DecodeJson(c.Request.Body, &req)
 	callbackUrl := strings.TrimSpace(req.CallbackUrl)
@@ -769,10 +768,8 @@ func CreateRealPersonSession(c *gin.Context) {
 }
 
 // GetRealPersonSession 查询认证结果；认证通过后把真人素材组登记到本地。
+// 与创建会话一致，不受账号的素材库开关限制。
 func GetRealPersonSession(c *gin.Context) {
-	if !requireAssetPermission(c) {
-		return
-	}
 	userId := c.GetInt("id")
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	session, err := model.GetRealPersonSession(userId, id)
