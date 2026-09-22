@@ -209,6 +209,14 @@ func UploadAsset(c *gin.Context) {
 	})
 	if err != nil {
 		discard()
+		// 上游抓不到/认不出这个地址时，把地址一并写进日志与错误里：最常见的两种原因是
+		// 域名还没部署 /asset-media 路由（上游抓到的其实是网页），或反向代理没有转发该路径。
+		common.SysLog(fmt.Sprintf("asset upload: upstream rejected %s: %s", publicUrl, err.Error()))
+		if assetFetchProblem(err) {
+			assetError(c, http.StatusBadGateway, "asset_public_url_unreachable",
+				fmt.Sprintf("%s | upstream could not read the material from this public url (usually the url does not return the file: the domain has not deployed /asset-media yet, or a reverse proxy answers with a web page). url: %s", err.Error(), publicUrl))
+			return
+		}
 		assetFailure(c, err)
 		return
 	}
@@ -290,6 +298,30 @@ func removeAssetLocalFile(localKey string) {
 		return
 	}
 	_ = os.Remove(filepath.Join(assetUploadDirName, localKey))
+}
+
+// assetFetchProblem 判断上游错误是否属于「抓不到或认不出这个公网地址」。
+//
+// 火山方舟对抓下来的内容做格式校验，抓到网页/空内容时返回 FormatUnsupported；
+// 网关侧常见的是 404/403 或 download failed。
+func assetFetchProblem(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, marker := range []string{
+		"FormatUnsupported",
+		"InvalidURL",
+		"DownloadFailed",
+		"download failed",
+		"cannot download",
+		"failed to download",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // RedirectRealPersonSession 真人认证短链：手机扫码后 302 到上游的认证页。
