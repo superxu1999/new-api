@@ -45,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { canUploadAsset } from '@/lib/asset-access'
+import { canUploadAsset, canUseAssetLibrary } from '@/lib/asset-access'
 import { formatTimestampToDate } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -88,7 +88,8 @@ export function AssetsPanel() {
   const [assetFile, setAssetFile] = useState<File | null>(null)
 
   const currentUser = useAuthStore((state) => state.auth.user)
-  // 直传入口按账号开关显示；管理员本身始终可用。
+  // 两个开关互不依赖：「素材库」决定能否浏览与管理素材，「上传素材」决定能否上传本地文件。
+  const canUseLibrary = canUseAssetLibrary(currentUser)
   const canUpload = canUploadAsset(currentUser)
 
   /** 关闭「新建素材」对话框并清空输入。 */
@@ -104,11 +105,14 @@ export function AssetsPanel() {
     queryKey: ['asset-groups'],
     queryFn: listAssetGroups,
     retry: false,
+    // 未开通素材功能时列表接口会返回 403，这里直接不发请求。
+    enabled: canUseLibrary,
   })
   const assetsQuery = useQuery({
     queryKey: ['assets'],
     queryFn: listAssets,
     retry: false,
+    enabled: canUseLibrary,
     // 素材入库是异步的，存在处理中的素材时自动轮询状态。
     refetchInterval: (query) => {
       const list = query.state.data as Asset[] | undefined
@@ -191,6 +195,69 @@ export function AssetsPanel() {
           )}
         </AlertDescription>
       </Alert>
+    )
+  }
+
+  // 只开通了「上传素材」：不请求素材列表（会 403），只提供上传入口。
+  if (!canUseLibrary) {
+    const uploaded = uploadAssetMutation.data
+    return (
+      <div className='space-y-4'>
+        <Alert>
+          <AlertTitle>{t('Direct upload')}</AlertTitle>
+          <AlertDescription>
+            {t(
+              'The asset library is not enabled for this account, so materials cannot be browsed or managed here. Uploads still work, and the returned material ID can be referenced as asset://<id> in generation requests.'
+            )}
+          </AlertDescription>
+        </Alert>
+        <Card>
+          <CardContent className='space-y-4 pt-6'>
+            <div className='space-y-1.5'>
+              <Label htmlFor='upload-only-name'>{t('Name')}</Label>
+              <Input
+                id='upload-only-name'
+                value={assetName}
+                onChange={(event) => setAssetName(event.target.value)}
+              />
+            </div>
+            <div className='space-y-1.5'>
+              <Label htmlFor='upload-only-file'>{t('File')}</Label>
+              <Input
+                id='upload-only-file'
+                type='file'
+                accept={UPLOAD_ACCEPT}
+                onChange={(event) =>
+                  setAssetFile(event.target.files?.[0] ?? null)
+                }
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'The file is stored on this site only as a temporary copy so the upstream channel can fetch it, and is removed together with the material.'
+                )}
+              </p>
+            </div>
+            <Button
+              disabled={assetFile === null || uploadAssetMutation.isPending}
+              onClick={() => {
+                if (assetFile === null) return
+                uploadAssetMutation.mutate({
+                  file: assetFile,
+                  name: assetName.trim() === '' ? assetFile.name : assetName,
+                  groupId: 0,
+                })
+              }}
+            >
+              {t('Upload')}
+            </Button>
+            {uploaded && (
+              <p className='text-sm'>
+                {uploaded.name} · #{uploaded.id} · {uploaded.status}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 

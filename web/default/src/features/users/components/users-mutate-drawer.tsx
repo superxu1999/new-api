@@ -486,7 +486,7 @@ export function UsersMutateDrawer({
                             <FormLabel>{t('Direct upload')}</FormLabel>
                             <FormDescription>
                               {t(
-                                'Allow this user to upload local files, which are kept on this site as a temporary copy. Requires the asset library to be enabled too. Disabled by default.'
+                                'Allow this user to upload local files, which are kept on this site as a temporary copy. Can be granted without the asset library. Disabled by default.'
                               )}
                             </FormDescription>
                           </div>
@@ -506,7 +506,7 @@ export function UsersMutateDrawer({
                   {canEditAdminPermissions && (
                     <p className='text-muted-foreground text-xs'>
                       {t(
-                        'The asset library switch controls whether this account can use materials (groups and ingestion); the direct upload switch controls local file uploads. Real-person verification is not affected by these switches, and administrators follow them too.'
+                        'The asset library switch controls whether this account can browse and manage materials (groups and ingestion); the direct upload switch controls local file uploads and can be granted on its own. Real-person verification is not governed by these switches, and administrators follow them too.'
                       )}
                     </p>
                   )}

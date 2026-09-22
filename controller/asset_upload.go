@@ -119,11 +119,13 @@ func assetPublicBase(c *gin.Context) string {
 	return requestOrigin(c)
 }
 
-// requireAssetUploadPermission 校验直传权限：需要「素材库」与「直传」两个开关都打开
-// （直传是素材库的子能力）。管理员及以上同样按开关判定。
+// requireAssetUploadPermission 校验直传权限：只按「上传素材」开关判定。
+//
+// 上传会把文件入库到该账号的默认素材组（组不存在时自动创建），因此可以脱离素材功能
+// 单独开通：未开通素材功能的账号看不到素材列表，但依然能上传并拿到素材 ID。
 func requireAssetUploadPermission(c *gin.Context) bool {
 	user, err := model.GetUserById(c.GetInt("id"), false)
-	if err != nil || user == nil || user.AssetLibraryEnabled != 1 || user.AssetUploadEnabled != 1 {
+	if err != nil || user == nil || user.AssetUploadEnabled != 1 {
 		assetError(c, http.StatusForbidden, "asset_upload_disabled",
 			"direct upload is not enabled for this account, please contact the administrator")
 		return false
