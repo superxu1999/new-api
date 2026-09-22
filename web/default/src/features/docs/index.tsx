@@ -44,12 +44,16 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
     id: 'sec-7',
     label: '7. 素材库（云端素材）',
     sub: [
-      { id: 'sec-7-1', label: '7.1 权限' },
-      { id: 'sec-7-2', label: '7.2 接口一览' },
-      { id: 'sec-7-3', label: '7.3 请求约束' },
-      { id: 'sec-7-4', label: '7.4 调用示例' },
-      { id: 'sec-7-5', label: '7.5 真人素材' },
-      { id: 'sec-7-6', label: '7.6 错误码' },
+      { id: 'sec-7-1', label: '7.1 权限与准备' },
+      { id: 'sec-7-2', label: '7.2 新建素材' },
+      { id: 'sec-7-3', label: '7.3 查询素材列表' },
+      { id: 'sec-7-4', label: '7.4 素材详情 / 重命名 / 删除' },
+      { id: 'sec-7-5', label: '7.5 素材组' },
+      { id: 'sec-7-6', label: '7.6 上传本地文件' },
+      { id: 'sec-7-7', label: '7.7 在生成请求中引用素材' },
+      { id: 'sec-7-8', label: '7.8 真人认证' },
+      { id: 'sec-7-9', label: '7.9 能力查询' },
+      { id: 'sec-7-10', label: '7.10 错误码' },
     ],
   },
   { id: 'sec-8', label: '8. 图像生成' },
@@ -107,15 +111,16 @@ function Note(props: { title?: string; children: ReactNode }) {
   )
 }
 
-/** 方法徽章的配色（GET 蓝 / POST 绿 / DELETE 红） */
-const METHOD_CHIP_CLASS: Record<'GET' | 'POST' | 'DELETE', string> = {
+/** 方法徽章的配色（GET 蓝 / POST 绿 / PUT 琥珀 / DELETE 红） */
+const METHOD_CHIP_CLASS: Record<'GET' | 'POST' | 'PUT' | 'DELETE', string> = {
   GET: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
   POST: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  PUT: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
   DELETE: 'bg-red-500/15 text-red-600 dark:text-red-400',
 }
 
-/** 方法徽章（GET 蓝 / POST 绿 / DELETE 红） */
-function MethodChip(props: { method: 'GET' | 'POST' | 'DELETE' }) {
+/** 方法徽章（GET 蓝 / POST 绿 / PUT 琥珀 / DELETE 红） */
+function MethodChip(props: { method: 'GET' | 'POST' | 'PUT' | 'DELETE' }) {
   return (
     <span
       className={cn(
@@ -129,7 +134,7 @@ function MethodChip(props: { method: 'GET' | 'POST' | 'DELETE' }) {
 }
 
 /** 接口行：方法徽章 + 路径 */
-function Endpoint(props: { method: 'GET' | 'POST' | 'DELETE'; path: string }) {
+function Endpoint(props: { method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string }) {
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <MethodChip method={props.method} />
@@ -838,10 +843,13 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-7' title={t('7. 素材库（云端素材）')}>
-            <Sub id='sec-7-1' title={t('7.1 权限')}>
-              <P>
-                {t('素材实体由上游渠道托管，平台只登记归属、渠道绑定与状态。')}
-              </P>
+            <P>
+              {t('素材文件、转码、审核与真人活体认证均由上游渠道托管；平台只登记素材归属、渠道绑定与状态。素材状态为 ACTIVE 后方可用于视频生成，引用写法为 asset://<素材 ID>。')}
+            </P>
+            <P>
+              {t('本节接口同时支持登录会话与 Bearer key 鉴权，路径前缀为 /v1/assets。')}
+            </P>
+            <Sub id='sec-7-1' title={t('7.1 权限与准备')}>
               <T
                 headers={['项目', '说明']}
                 rows={[
@@ -850,70 +858,30 @@ data: [DONE]`}</Code>
                   ['上传本地文件', '需开通账号开关「上传素材」，与素材库开关相互独立；未开通时返回 403 asset_upload_disabled'],
                   ['真人认证', '不受上述开关限制，任何已登录账号均可使用'],
                   ['开通方式', '超级管理员在「用户 → 配置」中按账号开通，默认关闭；管理员及以上同样受开关约束'],
-                  ['能力查询', 'GET /v1/assets/capabilities 返回开关状态、可用渠道与模型，不受开关限制'],
                 ]}
               />
+              <P>
+                {t('调用前可用 7.9 的能力查询接口确认账号权限与可用模型。')}
+              </P>
             </Sub>
-            <Sub id='sec-7-2' title={t('7.2 接口一览')}>
+            <Sub id='sec-7-2' title={t('7.2 新建素材')}>
+              <Endpoint method='POST' path='/v1/assets' />
+              <P>
+                {t('提交一个公网可访问的素材地址，由上游服务端下载并入库。入库为异步操作，状态变为 ACTIVE 后方可引用。')}
+              </P>
+              <ET title={t('请求参数')} />
               <T
-                headers={['能力', '接口']}
+                headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
-                  ['能力查询', 'GET /v1/assets/capabilities'],
-                  ['素材组：列表 / 新建', 'GET /v1/assets/groups；POST /v1/assets/groups'],
-                  ['素材组：重命名 / 删除', 'PUT /v1/assets/groups/{id}；DELETE /v1/assets/groups/{id}'],
-                  ['素材：列表 / 新建', 'GET /v1/assets；POST /v1/assets'],
-                  ['素材：详情 / 重命名 / 删除', 'GET /v1/assets/{id}；PUT /v1/assets/{id}；DELETE /v1/assets/{id}'],
-                  ['素材：上传本地文件', 'POST /v1/assets/upload'],
-                  ['真人认证：创建 / 查询', 'POST /v1/assets/real-person/sessions；GET /v1/assets/real-person/sessions/{id}'],
-                  ['真人认证：历史', 'GET /v1/assets/real-person/sessions'],
+                  ['name', 'string', '是', '—', '素材名称，用于列表展示与识别'],
+                  ['url', 'string', '是', '—', '公网 HTTP(S) 地址；不支持文件直传，本地文件请走 7.6'],
+                  ['asset_type', 'string', '是', '—', '素材类型：Image / Video / Audio'],
+                  ['group_id', 'integer', '否', '默认素材组', '所属素材组 ID；省略时使用默认素材组，不存在则自动创建'],
+                  ['channel_id', 'integer', '否', '自动选择', '指定承载素材的渠道，须支持素材接口'],
+                  ['model', 'string', '否', '—', '按模型选择渠道，与 channel_id 二选一'],
                 ]}
               />
-            </Sub>
-            <Sub id='sec-7-3' title={t('7.3 请求约束')}>
-              <T
-                headers={['项目', '说明']}
-                rows={[
-                  [
-                    '新建素材',
-                    '请求体为 name、url、asset_type；group_id 可选，省略时使用默认素材组（不存在则自动创建）。url 必须为公网 HTTP(S) 地址；asset_type 取 Image、Video、Audio',
-                  ],
-                  [
-                    '入库状态',
-                    '异步：新建后为 PROCESSING，需轮询 GET /v1/assets/{id} 至 ACTIVE（该接口同时同步上游状态）；ACTIVE 后方可引用',
-                  ],
-                  [
-                    '列表分页',
-                    'page 从 1 开始，page_size 默认 20、上限 100；响应除 data 外含 total、page、page_size',
-                  ],
-                  [
-                    '列表筛选',
-                    '素材支持 group_id、asset_type、status（逗号分隔）、keyword',
-                  ],
-                  [
-                    '上传本地文件',
-                    'multipart/form-data，字段 file，可选 name、group_id；单文件上限 100MB，仅支持常见图片、视频、音频扩展名。平台先暂存文件，再将其公网地址交由上游抓取，故本站须部署在公网可达域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 指定对外地址）；入库前平台会回抓该地址自检，不可达时返回 502 asset_public_url_unreachable',
-                  ],
-                  [
-                    '引用素材',
-                    '在 content 的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<本站素材 ID>。仅接受本站数字 ID，上游原始素材 ID 返回 400 invalid_asset_ref；平台提交上游前校验归属与状态，并替换为上游素材 ID',
-                  ],
-                  [
-                    '渠道绑定',
-                    '引用素材的任务固定走素材所属渠道，单次请求引用的素材须属于同一渠道；同一上游素材不可跨渠道复用',
-                  ],
-                  [
-                    '渠道支持',
-                    '素材能力取决于渠道是否支持素材接口；当前移动云 Seedance 渠道不支持，其模型无法引用素材',
-                  ],
-                  [
-                    '计费',
-                    '素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费',
-                  ],
-                ]}
-              />
-            </Sub>
-            <Sub id='sec-7-4' title={t('7.4 调用示例')}>
-              <ET title={t('新建素材（公网 URL）')} />
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/assets \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -922,12 +890,229 @@ data: [DONE]`}</Code>
     "url": "https://cdn.example.com/portrait.png",
     "asset_type": "Image"
   }'`}</Code>
-              <ET title={t('上传本地文件')} />
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": {
+    "id": 12,
+    "group_id": 14,
+    "channel_id": 14,
+    "name": "角色定妆图",
+    "asset_type": "Image",
+    "source_url": "https://cdn.example.com/portrait.png",
+    "status": "PROCESSING",
+    "fail_reason": "",
+    "created_at": 1790047202,
+    "updated_at": 1790047202
+  }
+}`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['id', 'integer', '本站素材 ID，引用时写作 asset://<id>'],
+                  ['group_id', 'integer', '所属素材组（本站 ID）'],
+                  ['channel_id', 'integer', '素材绑定的渠道'],
+                  ['name', 'string', '素材名称'],
+                  ['asset_type', 'string', 'Image / Video / Audio'],
+                  ['source_url', 'string', '提交入库的公网地址'],
+                  ['status', 'string', 'PROCESSING（入库中）/ ACTIVE（可用）/ FAILED（失败）'],
+                  ['fail_reason', 'string', '失败原因，仅 FAILED 时有值'],
+                  ['created_at', 'integer', '创建时间戳（秒）'],
+                ]}
+              />
+              <ET title={t('说明')} />
+              <P>
+                {t('入库完成后状态才会变为 ACTIVE；可轮询 7.4 的详情接口（该接口每次会同步一次上游状态）。状态长期停留在 PROCESSING，多为上游仍在转码或审核。')}
+              </P>
+            </Sub>
+            <Sub id='sec-7-3' title={t('7.3 查询素材列表')}>
+              <Endpoint method='GET' path='/v1/assets' />
+              <P>
+                {t('返回当前账号的素材。列表为本站登记数据，状态为最近一次同步结果。')}
+              </P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['参数', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['group_id', 'integer', '否', '—', '按素材组筛选'],
+                  ['asset_type', 'string', '否', '—', '按类型筛选：Image / Video / Audio'],
+                  ['status', 'string', '否', '—', '按状态筛选，多个用逗号分隔：PROCESSING,ACTIVE,FAILED'],
+                  ['keyword', 'string', '否', '—', '按素材名称模糊匹配'],
+                  ['channel_id', 'integer', '否', '—', '按渠道筛选'],
+                  ['page', 'integer', '否', '1', '页码，从 1 开始'],
+                  ['page_size', 'integer', '否', '20', '每页条数，上限 100'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl "https://ghyc.top/v1/assets?page=1&page_size=20&status=ACTIVE" \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": [
+    {
+      "id": 12,
+      "group_id": 14,
+      "channel_id": 14,
+      "name": "角色定妆图",
+      "asset_type": "Image",
+      "source_url": "https://cdn.example.com/portrait.png",
+      "status": "ACTIVE",
+      "fail_reason": "",
+      "created_at": 1790047202
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['data', 'array', '素材数组，元素字段同 7.2 的响应字段'],
+                  ['total', 'integer', '符合条件的素材总数'],
+                  ['page', 'integer', '当前页码'],
+                  ['page_size', 'integer', '当前每页条数'],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-4' title={t('7.4 素材详情 / 重命名 / 删除')}>
+              <Endpoint method='GET' path='/v1/assets/{id}' />
+              <P>
+                {t('查询单个素材，并同步一次上游状态：PROCESSING 的素材在入库完成后会推进为 ACTIVE 或 FAILED。响应字段同 7.2。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl https://ghyc.top/v1/assets/12 \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <Endpoint method='PUT' path='/v1/assets/{id}' />
+              <P>{t('重命名素材。上游只支持修改名称。')}</P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '说明']}
+                rows={[['name', 'string', '是', '新的素材名称']]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X PUT https://ghyc.top/v1/assets/12 \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{ "name": "角色定妆图-正面" }'`}</Code>
+              <Endpoint method='DELETE' path='/v1/assets/{id}' />
+              <P>
+                {t('删除素材：上游删除成功后清理本地登记；若该素材来自本地上传，其暂存文件一并删除。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X DELETE https://ghyc.top/v1/assets/12 \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+            </Sub>
+            <Sub id='sec-7-5' title={t('7.5 素材组')}>
+              <Endpoint method='GET' path='/v1/assets/groups' />
+              <P>
+                {t('返回当前账号的素材组。真人素材组（LivenessFace）由认证流程产生，不能通过本接口创建。')}
+              </P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['参数', '类型', '必填', '说明']}
+                rows={[
+                  ['group_type', 'string', '否', '按类型筛选：AIGC / LivenessFace'],
+                  ['channel_id', 'integer', '否', '按渠道筛选'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl https://ghyc.top/v1/assets/groups \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <Endpoint method='POST' path='/v1/assets/groups' />
+              <P>{t('新建素材组，仅支持 AIGC 类型。')}</P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['name', 'string', '是', '—', '素材组名称'],
+                  ['description', 'string', '否', '空', '素材组描述'],
+                  ['group_type', 'string', '否', 'AIGC', '仅支持 AIGC'],
+                  ['channel_id', 'integer', '否', '自动选择', '指定承载素材组的渠道'],
+                  ['model', 'string', '否', '—', '按模型选择渠道，与 channel_id 二选一'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/assets/groups \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{ "name": "角色定妆图组" }'`}</Code>
+              <Endpoint method='PUT' path='/v1/assets/groups/{id}' />
+              <P>{t('修改素材组名称与描述；未提交的字段保持原值。')}</P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '说明']}
+                rows={[
+                  ['name', 'string', '否', '新的素材组名称'],
+                  ['description', 'string', '否', '新的素材组描述'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X PUT https://ghyc.top/v1/assets/groups/14 \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{ "name": "角色定妆图组-2" }'`}</Code>
+              <Endpoint method='DELETE' path='/v1/assets/groups/{id}' />
+              <P>{t('删除素材组，组内素材随上游一并删除。')}</P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X DELETE https://ghyc.top/v1/assets/groups/14 \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+            </Sub>
+            <Sub id='sec-7-6' title={t('7.6 上传本地文件')}>
+              <Endpoint method='POST' path='/v1/assets/upload' />
+              <P>
+                {t('素材文件在本地时使用本接口：平台先暂存文件，再将其公网地址交由上游抓取入库。该能力默认关闭，需开通账号开关「上传素材」，与素材库开关相互独立。')}
+              </P>
+              <ET title={t('请求参数（multipart/form-data）')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['file', 'file', '是', '—', '待上传文件；单文件上限 100MB，支持常见图片、视频、音频扩展名'],
+                  ['name', 'string', '否', '文件名', '素材名称'],
+                  ['group_id', 'integer', '否', '默认素材组', '所属素材组 ID；省略时使用默认素材组'],
+                  ['channel_id', 'integer', '否', '自动选择', '指定承载素材的渠道，须支持素材接口'],
+                  ['model', 'string', '否', '—', '按模型选择渠道，与 channel_id 二选一'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/assets/upload \\
   -H "Authorization: Bearer sk-..." \\
   -F "file=@./portrait.png" \\
   -F "name=角色定妆图"`}</Code>
-              <ET title={t('引用素材生成')} />
+              <ET title={t('响应说明')} />
+              <P>
+                {t('响应与 7.2 新建素材一致，另含 local_key（本站暂存文件名）。入库流程、状态与轮询方式同 7.2。')}
+              </P>
+              <ET title={t('说明')} />
+              <T
+                headers={['项目', '说明']}
+                rows={[
+                  ['公网可达', '上游服务端需能访问本站地址抓取文件，故本站须部署在公网可达域名下；可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 指定对外地址'],
+                  ['入库前自检', '平台会回抓该地址确认返回的正是刚上传的文件；不可达时返回 502 asset_public_url_unreachable，错误信息含实际地址'],
+                  ['本地副本', '暂存文件在素材删除时一并清理；素材入库完成后生成请求引用的是上游素材，不依赖该副本'],
+                  ['大小与格式', '超过 100MB 返回 asset_file_too_large；扩展名不在白名单返回 asset_file_type_not_allowed'],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-7' title={t('7.7 在生成请求中引用素材')}>
+              <Endpoint method='POST' path='/v1/videos' />
+              <P>
+                {t('在生成请求的媒体字段中填写 asset://<本站素材 ID>；平台在提交上游前校验素材归属与状态，并替换为上游素材 ID。')}
+              </P>
+              <ET title={t('引用写法')} />
+              <T
+                headers={['位置', '写法']}
+                rows={[
+                  ['content 数组元素', 'content[].image_url.url / video_url.url / audio_url.url'],
+                  ['metadata 扁平写法', 'metadata.image_url / video_url / audio_url'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
               <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer sk-..." \\
@@ -939,39 +1124,147 @@ data: [DONE]`}</Code>
     ],
     "metadata": { "resolution": "480p", "ratio": "16:9" }
   }'`}</Code>
-            </Sub>
-            <Sub id='sec-7-5' title={t('7.5 真人素材')}>
-              <P>
-                {t('真人素材须先完成真人活体认证，认证由真人本人在手机上完成，不可绕过。步骤：')}
-              </P>
-              <P>
-                {t('1）调用 POST /v1/assets/real-person/sessions 获取 h5_link 与 short_link；')}
-              </P>
-              <P>{t('2）由真人本人打开链接完成活体认证；')}</P>
-              <P>
-                {t('3）轮询 GET /v1/assets/real-person/sessions/{id}，认证通过后返回真人素材组 group_id；')}
-              </P>
-              <P>{t('4）将真人图片或视频入库至该组，即可按 7.3 引用。')}</P>
-              <P>
-                {t('认证链接有效期较短，过期后重新生成即可。short_link 为本站短链（形如 /rp/<短码>，302 跳转到上游链接），二维码应编码短链：上游原始链接近千字符，直接编码会导致码点过密。')}
-              </P>
-            </Sub>
-            <Sub id='sec-7-6' title={t('7.6 错误码')}>
+              <ET title={t('说明')} />
               <T
-                headers={['code', '说明']}
+                headers={['项目', '说明']}
                 rows={[
-                  ['asset_library_disabled', '该账号未开通云端素材库，请联系管理员开通'],
-                  ['asset_upload_disabled', '该账号未开通上传权限，请联系管理员开通'],
-                  ['asset_file_too_large', '上传文件超过大小上限（100MB）'],
-                  ['asset_file_type_not_allowed', '上传文件类型不在白名单内'],
-                  ['asset_public_url_unreachable', '暂存文件的地址无法被上游抓取（对外地址为本地/内网地址，或该域名未部署 /asset-media 路由），错误信息含实际地址'],
-                  ['asset_not_supported', '模型所在渠道不支持素材库'],
-                  ['asset_not_found', '素材不存在或不属于当前账号'],
-                  ['invalid_asset_ref', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
-                  ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
-                  ['asset_channel_mismatch', '单次请求引用了不同渠道的素材'],
-                  ['asset_channel_disable', '素材所属渠道已禁用'],
-                  ['asset_upstream_error', '上游素材接口报错，错误信息含上游原文'],
+                  ['引用格式', '只接受本站数字 ID；上游原始素材 ID（形如 asset-2026...）返回 400 invalid_asset_ref'],
+                  ['素材状态', '仅 ACTIVE 素材可引用，否则返回 asset_not_active'],
+                  ['渠道绑定', '引用素材的任务固定走素材所属渠道，单次请求引用的素材须属于同一渠道，否则返回 asset_channel_mismatch'],
+                  ['渠道支持', '素材能力取决于渠道是否支持素材接口；当前移动云 Seedance 渠道不支持，其模型无法引用素材'],
+                  ['跨渠道复用', '同一上游素材不可跨渠道复用：同一份源文件在两条渠道各入库一次会得到两个上游素材'],
+                  ['计费', '素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费'],
+                ]}
+              />
+            </Sub>
+            <Sub id='sec-7-8' title={t('7.8 真人认证')}>
+              <Endpoint method='POST' path='/v1/assets/real-person/sessions' />
+              <P>
+                {t('创建真人活体认证会话，返回认证链接。认证由真人本人在手机上完成，不可绕过。')}
+              </P>
+              <ET title={t('请求参数')} />
+              <T
+                headers={['字段', '类型', '必填', '默认值', '说明']}
+                rows={[
+                  ['callback_url', 'string', '否', '本站素材库页', '认证完成后的回跳地址'],
+                  ['channel_id', 'integer', '否', '自动选择', '指定承载认证的渠道，须支持素材接口'],
+                  ['model', 'string', '否', '—', '按模型选择渠道，与 channel_id 二选一'],
+                ]}
+              />
+              <ET title={t('请求示例')} />
+              <Code>{`curl -X POST https://ghyc.top/v1/assets/real-person/sessions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-..." \\
+  -d '{}'`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": {
+    "session_id": 7,
+    "h5_link": "https://ark.volcengine.com/region:cn-beijing/mobile/livenees-face-manage/authorization?pl=...",
+    "short_link": "https://ghyc.top/rp/masnwk4gvf",
+    "expires_at": 1790042969,
+    "status": "pending"
+  }
+}`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['session_id', 'integer', '会话 ID，用于查询认证结果'],
+                  ['h5_link', 'string', '上游认证页地址，约 900 字符'],
+                  ['short_link', 'string', '本站短链（/rp/<短码>，302 跳转到 h5_link）；二维码应编码该短链，避免码点过密'],
+                  ['expires_at', 'integer', '会话过期时间戳（秒），过期后重新创建'],
+                  ['status', 'string', '会话状态，创建时为 pending'],
+                ]}
+              />
+              <Endpoint method='GET' path='/v1/assets/real-person/sessions/{id}' />
+              <P>
+                {t('查询认证结果。认证通过后返回绑定的真人素材组 group_id；未完成或已过期时 status 仍为 pending，并在 message 中给出上游提示。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl https://ghyc.top/v1/assets/real-person/sessions/7 \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('响应示例（已通过）')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": {
+    "session_id": 7,
+    "status": "verified",
+    "group_id": 15
+  }
+}`}</Code>
+              <Endpoint method='GET' path='/v1/assets/real-person/sessions' />
+              <P>
+                {t('返回当前账号的认证历史，最近的在前。分页参数与本页其他列表接口一致。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl "https://ghyc.top/v1/assets/real-person/sessions?page=1&page_size=20" \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('说明')} />
+              <P>
+                {t('认证通过的真人素材组（LivenessFace）不能用 7.5 的建组接口创建；把真人图片或视频入库至该组（7.2 携带 group_id）后即可按 7.7 引用。真人认证不受账号开关限制。')}
+              </P>
+            </Sub>
+            <Sub id='sec-7-9' title={t('7.9 能力查询')}>
+              <Endpoint method='GET' path='/v1/assets/capabilities' />
+              <P>
+                {t('返回当前账号的素材能力：两个开关状态、可用渠道与支持素材的模型。该接口不受开关限制，用于在调用前判断能否使用素材。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl https://ghyc.top/v1/assets/capabilities \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": {
+    "asset_library_enabled": true,
+    "asset_upload_enabled": false,
+    "channels": [
+      {
+        "channel_id": 14,
+        "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"]
+      }
+    ],
+    "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"],
+    "real_person_available": true
+  }
+}`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['asset_library_enabled', 'boolean', '素材功能是否已开通'],
+                  ['asset_upload_enabled', 'boolean', '上传本地文件是否已开通'],
+                  ['channels', 'array', '可用渠道及其支持的模型；channel_name 仅管理员可见'],
+                  ['models', 'array', '当前分组下支持素材的模型去重列表'],
+                  ['real_person_available', 'boolean', '是否存在可做真人认证的渠道'],
+                ]}
+              />
+              <ET title={t('说明')} />
+              <P>
+                {t('探测会向候选渠道实际发一次只读请求确认可用性，结果按渠道缓存 30 分钟，因此列出的渠道与模型均为已验证可用；上游没有素材接口路由的渠道不会出现。')}
+              </P>
+            </Sub>
+            <Sub id='sec-7-10' title={t('7.10 错误码')}>
+              <T
+                headers={['code', 'HTTP', '说明']}
+                rows={[
+                  ['asset_library_disabled', '403', '该账号未开通云端素材库'],
+                  ['asset_upload_disabled', '403', '该账号未开通上传权限'],
+                  ['asset_file_too_large', '400', '上传文件超过大小上限（100MB）'],
+                  ['asset_file_type_not_allowed', '400', '上传文件类型不在白名单内'],
+                  ['asset_public_url_unreachable', '502', '暂存文件的地址无法被上游抓取（对外地址为本地/内网地址，或该域名未部署 /asset-media 路由），错误信息含实际地址'],
+                  ['asset_not_supported', '400', '模型所在渠道不支持素材库'],
+                  ['asset_not_found', '400', '素材不存在或不属于当前账号'],
+                  ['invalid_asset_ref', '400', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
+                  ['asset_not_active', '400', '素材尚未入库完成（状态不是 ACTIVE）'],
+                  ['asset_channel_mismatch', '400', '单次请求引用了不同渠道的素材'],
+                  ['asset_channel_disable', '400', '素材所属渠道已禁用'],
+                  ['asset_upstream_error', '502', '上游素材接口报错，错误信息含上游原文'],
                 ]}
               />
             </Sub>

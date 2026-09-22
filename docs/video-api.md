@@ -240,9 +240,9 @@ GET /v1/videos/:task_id
 
 ## 素材库（云端素材）
 
-素材文件、转码、审核与真人活体认证均由上游渠道托管；平台只登记素材归属、渠道绑定与状态。素材状态为 `ACTIVE` 后可用于视频生成，引用写法为 `asset://<素材 ID>`。
+素材文件、转码、审核与真人活体认证均由上游渠道托管；平台只登记素材归属、渠道绑定与状态。素材状态为 `ACTIVE` 后可用于视频生成，引用写法为 `asset://<本站素材 ID>`。本节接口同时支持登录会话与 Bearer key 鉴权，路径前缀为 `/v1/assets`。
 
-### 权限
+### 权限与准备
 
 | 项目 | 说明 |
 |------|------|
@@ -251,41 +251,134 @@ GET /v1/videos/:task_id
 | 上传本地文件 | 需开通账号开关「上传素材」（`user.asset_upload_enabled`），与素材库开关相互独立；未开通时返回 403 `asset_upload_disabled` |
 | 真人认证 | 不受上述开关限制，任何已登录账号均可使用 |
 | 开通方式 | 超级管理员在「用户 → 配置」中按账号开通，默认关闭；管理员及以上同样受开关约束 |
-| 能力查询 | `GET /v1/assets/capabilities` 返回开关状态、可用渠道与模型，不受开关限制 |
 
-### 接口一览
+### 新建素材
 
-| 能力 | 接口 |
+```
+POST /v1/assets
+```
+
+提交一个公网可访问的素材地址，由上游服务端下载并入库。入库为异步操作，状态变为 `ACTIVE` 后方可引用。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `name` | string | 是 | — | 素材名称 |
+| `url` | string | 是 | — | 公网 HTTP(S) 地址；不支持文件直传 |
+| `asset_type` | string | 是 | — | `Image` / `Video` / `Audio` |
+| `group_id` | integer | 否 | 默认素材组 | 所属素材组 ID；省略时使用默认素材组，不存在则自动创建 |
+| `channel_id` | integer | 否 | 自动选择 | 指定承载素材的渠道，须支持素材接口 |
+| `model` | string | 否 | — | 按模型选择渠道，与 `channel_id` 二选一 |
+
+```bash
+curl -X POST "https://baseadd.vip/v1/assets" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{ "name": "角色定妆图", "url": "https://cdn.example.com/portrait.png", "asset_type": "Image" }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 12, "group_id": 14, "channel_id": 14, "name": "角色定妆图",
+    "asset_type": "Image", "source_url": "https://cdn.example.com/portrait.png",
+    "status": "PROCESSING", "fail_reason": "", "created_at": 1790047202
+  }
+}
+```
+
+响应字段：`id`（本站素材 ID，引用时写作 `asset://<id>`）、`group_id`、`channel_id`、`name`、`asset_type`、`source_url`、`status`（`PROCESSING` / `ACTIVE` / `FAILED`）、`fail_reason`、`created_at`。
+
+### 查询素材列表
+
+```
+GET /v1/assets
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `group_id` / `channel_id` | integer | 否 | — | 按素材组 / 渠道筛选 |
+| `asset_type` | string | 否 | — | `Image` / `Video` / `Audio` |
+| `status` | string | 否 | — | 逗号分隔：`PROCESSING,ACTIVE,FAILED` |
+| `keyword` | string | 否 | — | 按名称模糊匹配 |
+| `page` | integer | 否 | `1` | 页码，从 1 开始 |
+| `page_size` | integer | 否 | `20` | 每页条数，上限 100 |
+
+```bash
+curl "https://baseadd.vip/v1/assets?page=1&page_size=20&status=ACTIVE" -H "Authorization: Bearer sk-..."
+```
+
+响应为 `{ success, data: [...], total, page, page_size }`；`data` 元素字段同「新建素材」的响应字段。
+
+### 素材详情 / 重命名 / 删除
+
+| 接口 | 说明 |
 |------|------|
-| 能力查询 | `GET /v1/assets/capabilities` |
-| 素材组：列表 / 新建 | `GET /v1/assets/groups`、`POST /v1/assets/groups` |
-| 素材组：重命名 / 删除 | `PUT /v1/assets/groups/{id}`、`DELETE /v1/assets/groups/{id}` |
-| 素材：列表 / 新建 | `GET /v1/assets`、`POST /v1/assets` |
-| 素材：详情 / 重命名 / 删除 | `GET /v1/assets/{id}`、`PUT /v1/assets/{id}`、`DELETE /v1/assets/{id}` |
-| 素材：上传本地文件 | `POST /v1/assets/upload` |
-| 真人认证：创建 / 查询 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}` |
-| 真人认证：历史 | `GET /v1/assets/real-person/sessions` |
+| `GET /v1/assets/{id}` | 查询单个素材，并同步一次上游状态（`PROCESSING` → `ACTIVE` / `FAILED`） |
+| `PUT /v1/assets/{id}` | 重命名素材，请求体 `{ "name": "..." }`；上游只支持改名称 |
+| `DELETE /v1/assets/{id}` | 删除素材：上游删除成功后清理本地登记与暂存文件 |
 
-### 请求约束
+### 素材组
+
+| 接口 | 说明 |
+|------|------|
+| `GET /v1/assets/groups` | 列出素材组，可按 `group_type`（`AIGC` / `LivenessFace`）、`channel_id` 筛选 |
+| `POST /v1/assets/groups` | 新建素材组：`name`（必填）、`description`、`group_type`（仅 `AIGC`）、`channel_id` / `model` |
+| `PUT /v1/assets/groups/{id}` | 修改名称与描述；未提交的字段保持原值 |
+| `DELETE /v1/assets/groups/{id}` | 删除素材组，组内素材随上游一并删除 |
+
+真人素材组（`LivenessFace`）由认证流程产生，不能通过建组接口创建。
+
+### 上传本地文件
+
+```
+POST /v1/assets/upload
+```
+
+素材文件在本地时使用本接口：平台先暂存文件，再将其公网地址交由上游抓取入库。该能力默认关闭，需开通账号开关「上传素材」，与素材库开关相互独立。
+
+`multipart/form-data` 字段：`file`（必填，≤ 100MB，常见图片 / 视频 / 音频扩展名）、`name`（可选，默认文件名）、`group_id`、`channel_id` / `model`。
+
+```bash
+curl -X POST "https://baseadd.vip/v1/assets/upload" \
+  -H "Authorization: Bearer sk-..." -F "file=@./portrait.png" -F "name=角色定妆图"
+```
 
 | 项目 | 说明 |
 |------|------|
-| 新建素材 | 请求体为 `name`、`url`、`asset_type`；`group_id` 可选，省略时使用默认素材组（不存在则自动创建）。`url` 必须为公网 HTTP(S) 地址；`asset_type` 取 `Image`、`Video`、`Audio` |
-| 入库状态 | 异步：新建后为 `PROCESSING`，需轮询 `GET /v1/assets/{id}` 至 `ACTIVE`（该接口同时同步上游状态）；`ACTIVE` 后方可引用 |
-| 列表分页 | `page` 从 1 开始，`page_size` 默认 20、上限 100；响应除 `data` 外含 `total`、`page`、`page_size` |
-| 列表筛选 | 素材支持 `group_id`、`asset_type`、`status`（逗号分隔）、`keyword` |
-| 素材组重命名 | 只支持 `name` 与 `description`；空值表示不修改 |
-| 上传本地文件 | `multipart/form-data`，字段 `file`，可选 `name`、`group_id`；单文件上限 100MB，仅支持常见图片、视频、音频扩展名。平台先暂存文件，再将其公网地址交由上游抓取（本地副本随素材删除一并清理），故本站须部署在公网可达域名下；可用环境变量 `ASSET_UPLOAD_PUBLIC_BASE` 指定对外地址（默认取系统设置的服务器地址，其次取请求的 scheme://host）。入库前平台会回抓该地址自检，不可达时返回 502 `asset_public_url_unreachable` |
-| 引用素材 | 在 `content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url` 中填 `asset://<本站素材 ID>`。引用只接受本站数字 ID，上游原始素材 ID（形如 `asset-2026...`）返回 400 `invalid_asset_ref`；平台提交上游前校验归属与状态，并替换为上游素材 ID |
-| 渠道绑定 | 上游素材组按渠道凭证隔离：引用素材的任务被锁定到素材所属渠道，单次请求引用的素材须属于同一渠道，否则返回 `asset_channel_mismatch`；同一上游素材不可跨渠道复用（同一份源文件在两条渠道各入库一次会得到两个上游素材） |
+| 公网可达 | 上游需访问本站地址抓取文件，故本站须部署在公网可达域名下；可用环境变量 `ASSET_UPLOAD_PUBLIC_BASE` 指定对外地址（默认取系统设置的服务器地址，其次取请求的 scheme://host） |
+| 入库前自检 | 平台回抓该地址确认返回的正是刚上传的文件；不可达时返回 502 `asset_public_url_unreachable`，错误信息含实际地址 |
+| 本地副本 | 暂存文件在素材删除时一并清理；素材入库完成后引用的是上游素材，不依赖该副本 |
+
+### 在生成请求中引用素材
+
+引用位置：`content[].image_url.url` / `video_url.url` / `audio_url.url`，或扁平写法 `metadata.image_url` / `video_url` / `audio_url`，值为 `asset://<本站素材 ID>`。
+
+| 项目 | 说明 |
+|------|------|
+| 引用格式 | 只接受本站数字 ID；上游原始素材 ID（形如 `asset-2026...`）返回 400 `invalid_asset_ref` |
+| 素材状态 | 仅 `ACTIVE` 素材可引用，否则返回 `asset_not_active` |
+| 渠道绑定 | 引用素材的任务固定走素材所属渠道，单次请求引用的素材须属于同一渠道，否则返回 `asset_channel_mismatch`；同一上游素材不可跨渠道复用 |
 | 渠道支持 | 素材能力取决于渠道是否支持素材接口：当前仅火山方舟系渠道（经 CyAI 等中转入口）支持，移动云 Seedance 渠道不支持，其模型无法引用素材 |
 | 计费 | 素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费 |
 
-能力查询接口返回 `asset_library_enabled`、`asset_upload_enabled`、`channels`（可用渠道，`channel_name` 仅管理员可见）、`models`（当前分组下支持素材的模型）、`real_person_available`。探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，因此列出的渠道与模型均为已验证可用。
+### 真人认证
 
-### 真人素材
+| 接口 | 说明 |
+|------|------|
+| `POST /v1/assets/real-person/sessions` | 创建认证会话，返回 `session_id`、`h5_link`、`short_link`、`expires_at`、`status`；可选 `callback_url`、`channel_id` / `model` |
+| `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果：通过后返回真人素材组 `group_id`；未完成时 `status` 为 `pending` |
+| `GET /v1/assets/real-person/sessions` | 认证历史，最近的在前，分页参数同上 |
 
-真人素材须先完成真人活体认证，认证由真人本人在手机上完成，不可绕过。步骤：创建会话拿到 `h5_link` 与 `short_link` → 本人打开链接完成认证 → 轮询查询接口换取真人素材组 `group_id` → 将真人图片或视频入库至该组。认证链接有效期较短，过期重新生成即可；`short_link` 为本站短链（`/rp/<短码>`，302 跳转到上游链接），二维码应编码短链（上游原始链接近千字符，直接编码会导致码点过密）。
+认证由真人本人在手机上完成，不可绕过；`short_link` 为本站短链（`/rp/<短码>`，302 跳转到约 900 字符的上游链接），二维码应编码短链。认证通过后把真人图片或视频入库至该组（`POST /v1/assets` 携带 `group_id`），即可按上一节引用。
+
+### 能力查询
+
+```
+GET /v1/assets/capabilities
+```
+
+返回 `asset_library_enabled`、`asset_upload_enabled`、`channels`（可用渠道，`channel_name` 仅管理员可见）、`models`（当前分组下支持素材的模型）、`real_person_available`；不受开关限制。探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，因此列出的渠道与模型均为已验证可用。
 
 ### 素材相关错误码
 
