@@ -378,7 +378,7 @@ curl -X POST "https://baseadd.vip/v1/assets" \
 | `fail_reason` | string | 失败原因，仅 `FAILED` 时有值 |
 | `created_at` | integer | 创建时间戳（秒） |
 
-入库为异步操作：状态变为 `ACTIVE` 后方可引用；可轮询 11.4 的详情接口获取最新状态。状态长时间停留在 `PROCESSING`，表示素材仍在处理中。
+入库为异步操作：状态变为 `ACTIVE` 后方可引用；可轮询「查询素材」获取最新状态。状态长时间停留在 `PROCESSING`，表示素材仍在处理中。
 
 未指定 `channel_id` / `model` 时，由系统按账号分组与优先级自动选择素材渠道；管理员也可在控制台新建时指定渠道。
 
