@@ -150,7 +150,17 @@ export function AssetsPanel() {
       closeAssetDialog()
       void queryClient.invalidateQueries({ queryKey: ['assets'] })
     },
-    onError: (error) => toast.error(extractAssetError(error).message),
+    onError: (error) => {
+      const { message, code } = extractAssetError(error)
+      // 地址不可达是本站的部署问题，先给一句用户能看懂的话，再接上给管理员排查用的原始信息。
+      if (code === 'asset_public_url_unreachable') {
+        toast.error(
+          `${t('The upstream cannot read the material from this site. Please contact the administrator.')} ${message}`
+        )
+        return
+      }
+      toast.error(message)
+    },
   })
 
   const deleteAssetMutation = useMutation({

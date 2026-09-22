@@ -867,7 +867,7 @@ data: [DONE]`}</Code>
   -F "file=@./portrait.png" \\
   -F "name=角色定妆图"`}</Code>
             <P>
-              {t('注意：上游服务端需要能访问本站地址来抓取文件，因此本站必须部署在公网可达的域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 覆盖对外地址）。')}
+              {t('注意：上游服务端需要能访问本站地址来抓取文件，因此本站必须部署在公网可达的域名下（可用环境变量 ASSET_UPLOAD_PUBLIC_BASE 覆盖对外地址）。入库前本站会先回抓该地址，确认它返回的正是刚上传的文件；地址不可达时直接返回 502 asset_public_url_unreachable，并在错误信息里附上实际使用的地址。')}
             </P>
             <ET title={t('在视频生成中引用素材')} />
             <P>
@@ -896,6 +896,7 @@ data: [DONE]`}</Code>
                 ['asset_upload_disabled', '该账号未开通直接上传权限，请联系管理员开通'],
                 ['asset_file_too_large', '上传文件超过大小上限（100MB）'],
                 ['asset_file_type_not_allowed', '上传文件类型不在白名单内'],
+                ['asset_public_url_unreachable', '暂存文件的地址无法被上游抓取：对外地址是本地或内网地址，或该域名未部署 /asset-media 路由，错误信息含实际地址'],
                 ['asset_not_supported', '模型所在渠道不支持素材库'],
                 ['asset_not_found', '素材不存在或不属于当前账号'],
                 ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],

@@ -19,14 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 package controller
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -52,6 +56,10 @@ const (
 	assetUploadDirName = "asset-uploads"
 	// realPersonShortPath 真人认证短链前缀：二维码里编码这个短链而不是上游那条长链接。
 	realPersonShortPath = "/rp/"
+	// assetVerifyHeadBytes 入库前回抓自身地址时对比的字节数，够区分文件与网页即可。
+	assetVerifyHeadBytes = 512
+	// assetVerifyTimeout 入库前回抓自身地址的超时。
+	assetVerifyTimeout = 30 * time.Second
 )
 
 // assetUploadTypes 扩展名 → 上游素材类型（Image / Video / Audio）。
@@ -124,6 +132,81 @@ func requireAssetUploadPermission(c *gin.Context) bool {
 		return false
 	}
 	return true
+}
+
+// assetBaseNotServedReason 判断对外地址是否根本不可能被上游抓取：回环、内网、链路本地与
+// 不带点的裸主机名（localhost、容器名、内网短名）都不行。返回空串表示看起来可用。
+func assetBaseNotServedReason(base string) string {
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Host == "" {
+		return fmt.Sprintf("%q is not an absolute http(s) address", base)
+	}
+	host := parsed.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return fmt.Sprintf("%s is a private address", host)
+		}
+		return ""
+	}
+	lowered := strings.ToLower(host)
+	for _, suffix := range []string{".localhost", ".local", ".internal", ".lan"} {
+		if strings.HasSuffix(lowered, suffix) {
+			return fmt.Sprintf("%s is not a public host", host)
+		}
+	}
+	if lowered == "localhost" || !strings.Contains(lowered, ".") {
+		return fmt.Sprintf("%s is not a public host", host)
+	}
+	return ""
+}
+
+// verifyAssetPublicUrl 入库前从本站回抓一次即将交给上游的地址。
+//
+// 上游拿到的是 URL，由上游服务端自己下载，所以「这个地址是否真的返回这份文件」直接决定入库
+// 成败。地址返回网页、404 或别的内容时，直接报错比等上游回一个含义模糊的 FormatUnsupported
+// 更有用（本站自己够不到该地址时无法判定，放行给上游）。
+func verifyAssetPublicUrl(publicUrl string, fullPath string, size int64) (string, bool) {
+	localHead, err := readFileHead(fullPath, assetVerifyHeadBytes)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("asset upload: self-check could not read %s back, letting the upstream decide: %s", fullPath, err.Error()))
+		return "", false
+	}
+	client := &http.Client{Timeout: assetVerifyTimeout}
+	resp, err := client.Get(publicUrl)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("asset upload: self-check could not reach %s, letting the upstream decide: %s", publicUrl, err.Error()))
+		return "", false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Sprintf("the upstream downloads the material itself, but %s answered HTTP %d: the /asset-media route is not deployed on that host, or a reverse proxy intercepts that path", publicUrl, resp.StatusCode), true
+	}
+	head := make([]byte, len(localHead))
+	read, _ := io.ReadFull(resp.Body, head)
+	head = head[:read]
+	if len(head) != len(localHead) || !bytes.Equal(head, localHead) {
+		return fmt.Sprintf("the upstream downloads the material itself, but %s answered with different content (Content-Type: %s): that host is not serving this uploaded file, because its /asset-media route is missing or the file was stored on another instance", publicUrl, resp.Header.Get("Content-Type")), true
+	}
+	if resp.ContentLength >= 0 && resp.ContentLength != size {
+		return fmt.Sprintf("the upstream downloads the material itself, but %s returned %d bytes while the uploaded file has %d bytes", publicUrl, resp.ContentLength, size), true
+	}
+	return "", false
+}
+
+// readFileHead 读取文件开头若干字节，文件更短时返回实际读到的内容。
+func readFileHead(fullPath string, limit int) ([]byte, error) {
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	buffer := make([]byte, limit)
+	read, err := io.ReadFull(file, buffer)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return nil, err
+	}
+	return buffer[:read], nil
 }
 
 // UploadAsset 接收 multipart 上传（字段名 file），落盘后交给上游入库。
@@ -199,7 +282,20 @@ func UploadAsset(c *gin.Context) {
 		assetFailure(c, err)
 		return
 	}
-	publicUrl := assetPublicBase(c) + assetMediaPrefix + key
+	publicBase := assetPublicBase(c)
+	publicUrl := publicBase + assetMediaPrefix + key
+	if reason := assetBaseNotServedReason(publicBase); reason != "" {
+		discard()
+		assetError(c, http.StatusBadGateway, "asset_public_url_unreachable",
+			fmt.Sprintf("the upstream downloads the material itself, but this site advertises %s (%s), which the upstream cannot reach. deploy this site behind a public domain, or set ASSET_UPLOAD_PUBLIC_BASE to a publicly reachable address", publicBase, reason))
+		return
+	}
+	if problem, certain := verifyAssetPublicUrl(publicUrl, fullPath, fileHeader.Size); certain {
+		discard()
+		common.SysLog(fmt.Sprintf("asset upload: self-check rejected %s: %s", publicUrl, problem))
+		assetError(c, http.StatusBadGateway, "asset_public_url_unreachable", problem)
+		return
+	}
 	result, err := assetAction(ac, "CreateAsset", map[string]any{
 		"GroupId":     group.UpstreamGroupId,
 		"Name":        name,
@@ -209,12 +305,12 @@ func UploadAsset(c *gin.Context) {
 	})
 	if err != nil {
 		discard()
-		// 上游抓不到/认不出这个地址时，把地址一并写进日志与错误里：最常见的两种原因是
-		// 域名还没部署 /asset-media 路由（上游抓到的其实是网页），或反向代理没有转发该路径。
+		// 自检能取到文件、上游仍读不到时，多半是上游到本站的网络问题（端口未开放、上游侧 DNS
+		// 解析不同、只在内网可达）。把地址一并写进日志与错误里。
 		common.SysLog(fmt.Sprintf("asset upload: upstream rejected %s: %s", publicUrl, err.Error()))
 		if assetFetchProblem(err) {
 			assetError(c, http.StatusBadGateway, "asset_public_url_unreachable",
-				fmt.Sprintf("%s | upstream could not read the material from this public url (usually the url does not return the file: the domain has not deployed /asset-media yet, or a reverse proxy answers with a web page). url: %s", err.Error(), publicUrl))
+				fmt.Sprintf("%s | this site did serve the material itself, so the upstream could not reach that address (port not open to the internet, a different DNS view, or the address is only reachable inside this network). url: %s", err.Error(), publicUrl))
 			return
 		}
 		assetFailure(c, err)
@@ -316,6 +412,7 @@ func assetFetchProblem(err error) bool {
 		"download failed",
 		"cannot download",
 		"failed to download",
+		"must not target a private network",
 	} {
 		if strings.Contains(message, marker) {
 			return true

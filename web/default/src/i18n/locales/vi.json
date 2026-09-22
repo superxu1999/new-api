@@ -4583,6 +4583,7 @@
     "The two roles of a group": "Hai vai trò của một nhóm",
     "The unique identifier for this model": "Mã định danh duy nhất cho mô hình này",
     "The unique name for this vendor": "Tên duy nhất cho nhà cung cấp này",
+    "The upstream cannot read the material from this site. Please contact the administrator.": "Dịch vụ thượng nguồn không thể đọc tư liệu từ trang này. Vui lòng liên hệ quản trị viên.",
     "The upstream channel that served the requests": "Kênh thượng nguồn đã phục vụ các yêu cầu",
     "The URL for this chat client.": "URL của ứng dụng chat này.",
     "The user group applied to the requests": "Nhóm người dùng được áp dụng cho các yêu cầu",

@@ -4583,6 +4583,7 @@
     "The two roles of a group": "グループの2つの役割",
     "The unique identifier for this model": "このモデルの一意の識別子",
     "The unique name for this vendor": "このベンダーの一意の名前",
+    "The upstream cannot read the material from this site. Please contact the administrator.": "上流が本サイトの素材を読み取れません。管理者にお問い合わせください。",
     "The upstream channel that served the requests": "リクエストを処理した上流チャネル",
     "The URL for this chat client.": "このチャットクライアントのURL。",
     "The user group applied to the requests": "リクエストに適用されたユーザーグループ",

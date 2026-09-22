@@ -4583,6 +4583,7 @@
     "The two roles of a group": "分组的两种角色",
     "The unique identifier for this model": "此模型的唯一标识符",
     "The unique name for this vendor": "此供应商的唯一名称",
+    "The upstream cannot read the material from this site. Please contact the administrator.": "上游无法读取本站的素材文件，请联系管理员。",
     "The upstream channel that served the requests": "处理请求的上游渠道",
     "The URL for this chat client.": "此聊天客户端的 URL。",
     "The user group applied to the requests": "请求所应用的用户分组",

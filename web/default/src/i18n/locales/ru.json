@@ -4583,6 +4583,7 @@
     "The two roles of a group": "Две роли группы",
     "The unique identifier for this model": "Уникальный идентификатор для этой модели",
     "The unique name for this vendor": "Уникальное имя для этого поставщика",
+    "The upstream cannot read the material from this site. Please contact the administrator.": "Вышестоящий сервис не может прочитать материал с этого сайта. Обратитесь к администратору.",
     "The upstream channel that served the requests": "Вышестоящий канал, обслуживший запросы",
     "The URL for this chat client.": "URL для этого чат-клиента.",
     "The user group applied to the requests": "Группа пользователей, применённая к запросам",
