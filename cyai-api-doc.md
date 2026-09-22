@@ -299,7 +299,7 @@ POST /v1/audio/speech          语音合成（TTS）
 | 真人认证 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果，换取真人素材组 |
 | 真人认证 | `POST /v1/assets/real-person/sessions/{id}/cancel` | 取消尚未完成的认证会话 |
 | 真人认证 | `GET /v1/assets/real-person/sessions` | 列出认证会话 |
-| 账号能力 | `GET /v1/assets/capabilities` | 查询开关状态与可用模型 |
+| 权限 | `GET /v1/assets/capabilities` | 查询本账号的素材权限与可用模型 |
 
 ### 11.1 权限与准备
 
@@ -310,7 +310,40 @@ POST /v1/audio/speech          语音合成（TTS）
 | 真人认证接口 | 登录即可调用，无需额外权限 |
 | 权限开通 | 由管理员在用户配置中开通，默认关闭 |
 
-建议先调用「账号能力查询」确认权限状态与可用模型。
+**查询本账号的素材权限与可用模型**：`GET /v1/assets/capabilities`。该接口不受开关限制，用于在调用其它接口前自查。
+
+```bash
+curl https://baseadd.vip/v1/assets/capabilities \
+  -H "Authorization: Bearer sk-..."
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "asset_library_enabled": true,
+    "asset_upload_enabled": false,
+    "channels": [
+      {
+        "channel_id": 14,
+        "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"]
+      }
+    ],
+    "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"],
+    "real_person_available": true
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `asset_library_enabled` | boolean | 素材功能是否已开通 |
+| `asset_upload_enabled` | boolean | 上传素材是否已开通 |
+| `channels` | array | 可用渠道及其支持的模型；`channel_name` 仅管理员可见 |
+| `models` | array | 当前分组下支持素材的模型去重列表 |
+| `real_person_available` | boolean | 是否存在可做真人认证的渠道 |
+
+列表中的渠道与模型均为校验可用的结果，最长可能有 30 分钟缓存。
 
 ### 11.2 素材组
 
@@ -594,11 +627,11 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 | 引用格式 | 只接受本站素材 ID（数字）；其它写法返回 400 `invalid_asset_ref` |
 | 素材状态 | 仅 `ACTIVE` 素材可引用，否则返回 `asset_not_active` |
 | 素材所属渠道 | 引用素材的生成请求会自动使用素材所属渠道；同一次请求引用的素材须属于同一渠道，否则返回 `asset_channel_mismatch` |
-| 模型支持 | 仅部分模型支持引用素材，可用「账号能力查询」确认；模型不支持时返回 `asset_not_supported` |
+| 模型支持 | 仅部分模型支持引用素材，可先用 11.1 的素材权限查询确认；模型不支持时返回 `asset_not_supported` |
 | 跨渠道使用 | 素材不能在其它渠道复用；如需在另一渠道使用同一文件，请在该渠道重新入库 |
 | 计费 | 素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费 |
 
-### 11.8 真人认证
+### 11.8 真人认证：创建 / 查询结果 / 取消 / 列表
 
 **创建认证会话**：`POST /v1/assets/real-person/sessions`。认证由真人本人在手机上完成，不可绕过。
 
@@ -677,48 +710,7 @@ curl -X POST "https://baseadd.vip/v1/assets/real-person/sessions/7/cancel" \
 
 认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传素材」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
 
-### 11.9 账号能力查询
-
-```
-GET /v1/assets/capabilities
-```
-
-返回当前账号的素材能力，不受开关限制，用于在调用前判断能否使用素材。
-
-```bash
-curl https://baseadd.vip/v1/assets/capabilities \
-  -H "Authorization: Bearer sk-..."
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "asset_library_enabled": true,
-    "asset_upload_enabled": false,
-    "channels": [
-      {
-        "channel_id": 14,
-        "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"]
-      }
-    ],
-    "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"],
-    "real_person_available": true
-  }
-}
-```
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `asset_library_enabled` | boolean | 素材功能是否已开通 |
-| `asset_upload_enabled` | boolean | 上传素材是否已开通 |
-| `channels` | array | 可用渠道及其支持的模型；`channel_name` 仅管理员可见 |
-| `models` | array | 当前分组下支持素材的模型去重列表 |
-| `real_person_available` | boolean | 是否存在可做真人认证的渠道 |
-
-列表中的渠道与模型均为校验可用的结果，最长可能有 30 分钟缓存。
-
-### 11.10 素材相关错误码
+### 11.9 素材相关错误码
 
 | code | HTTP | 说明 |
 | --- | --- | --- |
@@ -728,7 +720,7 @@ curl https://baseadd.vip/v1/assets/capabilities \
 | `asset_file_type_not_allowed` | 400 | 上传文件类型不在支持范围内 |
 | `asset_public_url_unreachable` | 502 | 系统无法读取上传的文件，请联系管理员检查服务地址配置 |
 | `asset_not_supported` | 400 | 所用模型不支持素材 |
-| `asset_not_found` | 400 | 素材不存在或不属于当前账号 |
+| `asset_not_found` | 404 / 400 | 素材不存在或不属于当前账号；素材接口返回 404，在生成请求中引用该素材时返回 400 |
 | `invalid_asset_ref` | 400 | 素材引用写法非法（只接受 `asset://<本站素材 ID>`） |
 | `asset_not_active` | 400 | 素材尚未入库完成（状态不是 `ACTIVE`） |
 | `asset_channel_mismatch` | 400 | 单次请求引用了不同渠道的素材 |

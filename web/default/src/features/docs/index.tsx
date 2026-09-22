@@ -51,9 +51,8 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
       { id: 'sec-7-5', label: '7.5 素材：详情 / 重命名 / 删除' },
       { id: 'sec-7-6', label: '7.6 上传素材' },
       { id: 'sec-7-7', label: '7.7 在生成请求中引用素材' },
-      { id: 'sec-7-8', label: '7.8 真人认证' },
-      { id: 'sec-7-9', label: '7.9 账号能力查询' },
-      { id: 'sec-7-10', label: '7.10 错误码' },
+      { id: 'sec-7-8', label: '7.8 真人认证：创建 / 查询结果 / 取消 / 列表' },
+      { id: 'sec-7-9', label: '7.9 错误码' },
     ],
   },
   { id: 'sec-8', label: '8. 图像生成' },
@@ -875,7 +874,7 @@ data: [DONE]`}</Code>
                 ['真人认证', 'GET /v1/assets/real-person/sessions/{id}', '查询认证结果，换取真人素材组'],
                 ['真人认证', 'POST /v1/assets/real-person/sessions/{id}/cancel', '取消尚未完成的认证会话'],
                 ['真人认证', 'GET /v1/assets/real-person/sessions', '列出认证会话'],
-                ['账号能力', 'GET /v1/assets/capabilities', '查询开关状态与可用模型'],
+                ['权限', 'GET /v1/assets/capabilities', '查询本账号的素材权限与可用模型'],
               ]}
             />
             <Sub id='sec-7-1' title={t('7.1 权限与准备')}>
@@ -888,8 +887,43 @@ data: [DONE]`}</Code>
                   ['权限开通', '由管理员在用户配置中开通，默认关闭'],
                 ]}
               />
+              <Endpoint method='GET' path='/v1/assets/capabilities' />
               <P>
-                {t('建议先调用「账号能力查询」确认权限状态与可用模型。')}
+                {t('查询本账号的素材权限与可用模型，用于在调用其它接口前自查；该接口不受开关限制。')}
+              </P>
+              <ET title={t('请求示例')} />
+              <Code>{`curl https://ghyc.top/v1/assets/capabilities \\
+  -H "Authorization: Bearer sk-..."`}</Code>
+              <ET title={t('响应示例')} />
+              <Code>{`HTTP/1.1 200 OK
+{
+  "success": true,
+  "data": {
+    "asset_library_enabled": true,
+    "asset_upload_enabled": false,
+    "channels": [
+      {
+        "channel_id": 14,
+        "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"]
+      }
+    ],
+    "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"],
+    "real_person_available": true
+  }
+}`}</Code>
+              <ET title={t('响应字段')} />
+              <T
+                headers={['字段', '类型', '说明']}
+                rows={[
+                  ['asset_library_enabled', 'boolean', '素材功能是否已开通'],
+                  ['asset_upload_enabled', 'boolean', '上传素材是否已开通'],
+                  ['channels', 'array', '可用渠道及其支持的模型；channel_name 仅管理员可见'],
+                  ['models', 'array', '当前分组下支持素材的模型去重列表'],
+                  ['real_person_available', 'boolean', '是否存在可做真人认证的渠道'],
+                ]}
+              />
+              <P>
+                {t('列表中的渠道与模型均为校验可用的结果，最长可能有 30 分钟缓存。')}
               </P>
             </Sub>
             <Sub id='sec-7-2' title={t('7.2 素材组：列表 / 新建 / 重命名 / 删除')}>
@@ -1158,13 +1192,13 @@ data: [DONE]`}</Code>
                   ['引用格式', '只接受本站素材 ID（数字）；其它写法返回 400 invalid_asset_ref'],
                   ['素材状态', '仅 ACTIVE 素材可引用，否则返回 asset_not_active'],
                   ['素材所属渠道', '引用素材的生成请求会自动使用素材所属渠道；同一次请求引用的素材须属于同一渠道，否则返回 asset_channel_mismatch'],
-                  ['模型支持', '仅部分模型支持引用素材，可用「账号能力查询」确认；模型不支持时返回 asset_not_supported'],
+                  ['模型支持', '仅部分模型支持引用素材，可先用 7.1 的素材权限查询确认；模型不支持时返回 asset_not_supported'],
                   ['跨渠道使用', '素材不能在其它渠道复用；如需在另一渠道使用同一文件，请在该渠道重新入库'],
                   ['计费', '素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费'],
                 ]}
               />
             </Sub>
-            <Sub id='sec-7-8' title={t('7.8 真人认证')}>
+            <Sub id='sec-7-8' title={t('7.8 真人认证：创建 / 查询结果 / 取消 / 列表')}>
               <Endpoint method='POST' path='/v1/assets/real-person/sessions' />
               <P>
                 {t('创建真人活体认证会话，返回认证链接。认证由真人本人在手机上完成，不可绕过。')}
@@ -1255,48 +1289,7 @@ data: [DONE]`}</Code>
                 {t('认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传本地文件」时携带 group_id）后即可按「在生成请求中引用素材」引用。真人认证不受账号开关限制。')}
               </P>
             </Sub>
-            <Sub id='sec-7-9' title={t('7.9 账号能力查询')}>
-              <Endpoint method='GET' path='/v1/assets/capabilities' />
-              <P>
-                {t('返回当前账号的素材能力：两个开关状态、可用渠道与支持素材的模型。该接口不受开关限制，用于在调用前判断能否使用素材。')}
-              </P>
-              <ET title={t('请求示例')} />
-              <Code>{`curl https://ghyc.top/v1/assets/capabilities \\
-  -H "Authorization: Bearer sk-..."`}</Code>
-              <ET title={t('响应示例')} />
-              <Code>{`HTTP/1.1 200 OK
-{
-  "success": true,
-  "data": {
-    "asset_library_enabled": true,
-    "asset_upload_enabled": false,
-    "channels": [
-      {
-        "channel_id": 14,
-        "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"]
-      }
-    ],
-    "models": ["seedance2.0-cyai-260128", "seedance2.0-cyai-fast-260128"],
-    "real_person_available": true
-  }
-}`}</Code>
-              <ET title={t('响应字段')} />
-              <T
-                headers={['字段', '类型', '说明']}
-                rows={[
-                  ['asset_library_enabled', 'boolean', '素材功能是否已开通'],
-                  ['asset_upload_enabled', 'boolean', '上传本地文件是否已开通'],
-                  ['channels', 'array', '可用渠道及其支持的模型；channel_name 仅管理员可见'],
-                  ['models', 'array', '当前分组下支持素材的模型去重列表'],
-                  ['real_person_available', 'boolean', '是否存在可做真人认证的渠道'],
-                ]}
-              />
-              <ET title={t('说明')} />
-              <P>
-                {t('列表中的渠道与模型均为校验可用的结果，最长可能有 30 分钟缓存。')}
-              </P>
-            </Sub>
-            <Sub id='sec-7-10' title={t('7.10 错误码')}>
+            <Sub id='sec-7-9' title={t('7.9 错误码')}>
               <T
                 headers={['code', 'HTTP', '说明']}
                 rows={[
@@ -1306,7 +1299,7 @@ data: [DONE]`}</Code>
                   ['asset_file_type_not_allowed', '400', '上传文件类型不在支持范围内'],
                   ['asset_public_url_unreachable', '502', '系统无法读取上传的文件，请联系管理员检查服务地址配置'],
                   ['asset_not_supported', '400', '所用模型不支持素材'],
-                  ['asset_not_found', '400', '素材不存在或不属于当前账号'],
+                  ['asset_not_found', '404 / 400', '素材不存在或不属于当前账号；素材接口返回 404，在生成请求中引用该素材时返回 400'],
                   ['invalid_asset_ref', '400', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
                   ['asset_not_active', '400', '素材尚未入库完成（状态不是 ACTIVE）'],
                   ['asset_channel_mismatch', '400', '单次请求引用了不同渠道的素材'],
