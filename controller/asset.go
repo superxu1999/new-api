@@ -248,9 +248,20 @@ func assetRouteMissing(err error) bool {
 // assetRouteMissingTTL 是「该渠道上游没有素材路由」这一结论的缓存时长。
 const assetRouteMissingTTL = 30 * time.Minute
 
+// assetChannelProbeTTL 是渠道可用性探测结果的缓存时长。
+const assetChannelProbeTTL = 30 * time.Minute
+
 // assetRouteMissingCache 记录上游没有素材动作路由的渠道，避免每次调用都白跑一次，
 // 也让能力探测不会把这种渠道列成「可用」。只影响自动选路，显式指定 channel_id 时不受限。
 var assetRouteMissingCache sync.Map // channelId(int) -> 到期时间(time.Time)
+
+// assetChannelProbeCache 记录「这条渠道确实能调素材接口」的探测结果。
+var assetChannelProbeCache sync.Map // channelId(int) -> assetChannelProbe
+
+type assetChannelProbe struct {
+	ok       bool
+	expireAt time.Time
+}
 
 func markAssetRouteMissing(channelId int) {
 	assetRouteMissingCache.Store(channelId, time.Now().Add(assetRouteMissingTTL))
@@ -267,6 +278,35 @@ func isAssetRouteMissing(channelId int) bool {
 		return false
 	}
 	return true
+}
+
+// probeAssetChannel 用一次只读的列表动作确认这条渠道真的能调素材接口。
+//
+// 能力探测要回答「哪些模型能用素材」，而「配了渠道 + 适配器实现了 AssetAction」并不等于
+// 上游真的开放了素材入口（例如 Foxtoken 中转的 /api 就没有）。所以这里实际探一次并缓存，
+// 避免把不可用的渠道与模型展示给用户。
+func probeAssetChannel(ac *assetChannel) bool {
+	if value, ok := assetChannelProbeCache.Load(ac.channelId); ok {
+		if probe, ok := value.(assetChannelProbe); ok && time.Now().Before(probe.expireAt) {
+			return probe.ok
+		}
+	}
+	_, err := assetAction(ac, "ListAssetGroups", map[string]any{
+		// 上游要求必须带 Filter（空对象即可），否则报 InvalidRequest: Filter is required。
+		"Filter":      map[string]any{},
+		"PageNumber":  1,
+		"PageSize":    1,
+		"ProjectName": "default",
+	})
+	usable := err == nil
+	if err != nil && assetRouteMissing(err) {
+		markAssetRouteMissing(ac.channelId)
+	}
+	assetChannelProbeCache.Store(ac.channelId, assetChannelProbe{
+		ok:       usable,
+		expireAt: time.Now().Add(assetChannelProbeTTL),
+	})
+	return usable
 }
 
 // assetActionWithFallback 依次在候选渠道上执行动作，自动跳过没有素材接口的上游。
@@ -1024,9 +1064,15 @@ func AssetCapabilities(c *gin.Context) {
 	models := make([]string, 0)
 	// 候选渠道解析失败（无可用渠道、上游不支持）时按「没有素材能力」返回，不报错。
 	if candidates, err := assetChannelCandidates(c, 0, ""); err == nil {
-		group, groupErr := assetUserGroup(c)
-		channelIds := make([]int, 0, len(candidates))
+		usable := make([]*assetChannel, 0, len(candidates))
 		for _, candidate := range candidates {
+			if probeAssetChannel(candidate) {
+				usable = append(usable, candidate)
+			}
+		}
+		group, groupErr := assetUserGroup(c)
+		channelIds := make([]int, 0, len(usable))
+		for _, candidate := range usable {
 			channelIds = append(channelIds, candidate.channelId)
 		}
 		channelModels := map[int][]string{}
@@ -1035,7 +1081,7 @@ func AssetCapabilities(c *gin.Context) {
 				channelModels = list
 			}
 		}
-		for _, candidate := range candidates {
+		for _, candidate := range usable {
 			item := gin.H{"channel_id": candidate.channelId}
 			if isAdmin {
 				item["channel_name"] = candidate.channel.Name

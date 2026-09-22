@@ -327,17 +327,21 @@ export function AssetsPanel() {
           {t(
             'Materials are ingested from a public HTTP(S) URL and become usable only after the status turns ACTIVE.'
           )}
-          {capabilityModels.length > 0 && (
-            <span className='mt-1 block font-mono text-xs'>
-              {t('These models support materials')}: {capabilityModels.join('、')}
-              {(capabilitiesQuery.data?.models.length ?? 0) >
-              capabilityModels.length
-                ? '…'
-                : ''}
-            </span>
-          )}
         </AlertDescription>
       </Alert>
+
+      {capabilityModels.length > 0 && (
+        <p className='text-muted-foreground text-xs'>
+          {t('These models support materials')}:{' '}
+          <span className='font-mono'>
+            {capabilityModels.join(', ')}
+            {(capabilitiesQuery.data?.models.length ?? 0) >
+            capabilityModels.length
+              ? '…'
+              : ''}
+          </span>
+        </p>
+      )}
 
       <Card>
         <CardContent className='space-y-4 pt-6'>

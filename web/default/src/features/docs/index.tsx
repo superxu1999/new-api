@@ -854,7 +854,7 @@ data: [DONE]`}</Code>
               ]}
             />
             <P>
-              {t('列表接口支持 page（从 1 开始）与 page_size（默认 20，上限 100），响应除 data 外还返回 total、page、page_size。能力探测接口返回两个开关状态、可用渠道与模型（channels 里的 channel_name 仅管理员可见），不受素材库开关限制；已确认上游没有素材路由的渠道不会再列出。')}
+              {t('列表接口支持 page（从 1 开始）与 page_size（默认 20，上限 100），响应除 data 外还返回 total、page、page_size。能力探测接口返回两个开关状态、可用渠道与模型（channels 里的 channel_name 仅管理员可见），不受素材库开关限制；探测会向候选渠道实际发一次只读请求确认可用性并缓存 30 分钟，因此列出的渠道与模型都是已验证可用的。')}
             </P>
             <ET title={t('新建素材')} />
             <P>
