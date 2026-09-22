@@ -279,10 +279,17 @@ POST /v1/audio/speech          语音合成（TTS）
 
 | 能力 | 接口 |
 | --- | --- |
-| 素材组列表 / 新建 / 删除 | `GET /v1/assets/groups`、`POST /v1/assets/groups`、`DELETE /v1/assets/groups/{id}` |
+| 能力探测 | `GET /v1/assets/capabilities` |
+| 素材组列表 / 新建 / 重命名 / 删除 | `GET /v1/assets/groups`、`POST /v1/assets/groups`、`PUT /v1/assets/groups/{id}`、`DELETE /v1/assets/groups/{id}` |
 | 素材列表 / 新建 | `GET /v1/assets`、`POST /v1/assets` |
 | 素材详情 / 重命名 / 删除 | `GET /v1/assets/{id}`、`PUT /v1/assets/{id}`、`DELETE /v1/assets/{id}` |
-| 真人认证 | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}` |
+| 直接上传文件 | `POST /v1/assets/upload` |
+| 真人认证（创建 / 查询 / 历史） | `POST /v1/assets/real-person/sessions`、`GET /v1/assets/real-person/sessions/{id}`、`GET /v1/assets/real-person/sessions` |
+
+- 能力探测不受素材开关限制，用来回答「这个账号能不能用素材」：
+  `asset_library_enabled`、`asset_upload_enabled` 为两个开关状态，`channels` 为可用渠道（管理员额外带 `channel_name`），`models` 为当前分组下支持素材的模型，`real_person_available` 表示是否有可用渠道做真人认证。已经确认上游没有素材路由的渠道不会再列出（结论在进程内缓存 30 分钟）。
+- 列表接口（`GET /v1/assets`、`GET /v1/assets/real-person/sessions`）支持 `page`（从 1 开始）与 `page_size`（默认 20，上限 100），响应在 `data` 之外额外返回 `total`、`page`、`page_size`。
+- 素材列表另支持 `group_id`、`asset_type`、`status`（逗号分隔）、`keyword` 筛选；素材组重命名只支持 `name` 与 `description`，空值表示不修改。
 
 ### 11.2 新建素材
 

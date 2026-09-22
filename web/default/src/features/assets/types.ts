@@ -62,6 +62,40 @@ export interface RealPersonSession {
   message?: string
 }
 
+/** 真人认证历史行：列表接口返回的是会话记录本身。 */
+export interface RealPersonSessionRow {
+  id: number
+  channel_id: number
+  short_code: string
+  h5_link: string
+  group_id: number
+  group_type: string
+  status: string
+  expires_at: number
+  created_at: number
+}
+
+/** 素材列表结果：列表接口带分页信息。 */
+export interface AssetListResult {
+  items: Asset[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/** 账号素材能力：开关状态 + 可用于素材的渠道与模型。 */
+export interface AssetCapabilities {
+  asset_library_enabled: boolean
+  asset_upload_enabled: boolean
+  channels: {
+    channel_id: number
+    channel_name?: string
+    models?: string[]
+  }[]
+  models: string[]
+  real_person_available: boolean
+}
+
 export interface CreateAssetPayload {
   group_id: number
   name: string

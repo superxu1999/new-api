@@ -837,18 +837,25 @@ data: [DONE]`}</Code>
             <T
               headers={['能力', '接口']}
               rows={[
+                ['能力探测（能否用素材、哪些模型支持）', 'GET /v1/assets/capabilities'],
                 ['列出素材组', 'GET /v1/assets/groups'],
                 ['新建素材组', 'POST /v1/assets/groups'],
+                ['重命名素材组', 'PUT /v1/assets/groups/{id}'],
                 ['删除素材组', 'DELETE /v1/assets/groups/{id}'],
-                ['列出素材', 'GET /v1/assets'],
+                ['列出素材（支持 group_id / asset_type / status / keyword / page / page_size）', 'GET /v1/assets'],
                 ['新建素材', 'POST /v1/assets'],
                 ['素材详情（同时同步上游状态）', 'GET /v1/assets/{id}'],
                 ['重命名素材', 'PUT /v1/assets/{id}'],
                 ['删除素材', 'DELETE /v1/assets/{id}'],
+                ['直接上传文件（默认关闭）', 'POST /v1/assets/upload'],
                 ['创建真人认证会话', 'POST /v1/assets/real-person/sessions'],
                 ['查询真人认证结果', 'GET /v1/assets/real-person/sessions/{id}'],
+                ['真人认证历史', 'GET /v1/assets/real-person/sessions'],
               ]}
             />
+            <P>
+              {t('列表接口支持 page（从 1 开始）与 page_size（默认 20，上限 100），响应除 data 外还返回 total、page、page_size。能力探测接口返回两个开关状态、可用渠道与模型（channels 里的 channel_name 仅管理员可见），不受素材库开关限制；已确认上游没有素材路由的渠道不会再列出。')}
+            </P>
             <ET title={t('新建素材')} />
             <P>
               {t('请求体为 group_id（可选，省略时自动使用默认素材组）、name、url（公网 HTTP(S) 地址，不支持文件直传）、asset_type（Image / Video / Audio）。入库为异步操作：先返回 PROCESSING，变为 ACTIVE 后才可引用。')}

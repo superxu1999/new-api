@@ -20,10 +20,13 @@ import { api } from '@/lib/api'
 
 import type {
   Asset,
+  AssetCapabilities,
   AssetGroup,
+  AssetListResult,
   CreateAssetGroupPayload,
   CreateAssetPayload,
   RealPersonSession,
+  RealPersonSessionRow,
   UploadAssetPayload,
 } from './types'
 
@@ -66,9 +69,46 @@ export async function deleteAssetGroup(id: number): Promise<void> {
   await api.delete(`/v1/assets/groups/${id}`, NO_GLOBAL_TOAST)
 }
 
-export async function listAssets(): Promise<Asset[]> {
-  const res = await api.get('/v1/assets', NO_GLOBAL_TOAST)
-  return (res.data?.data ?? []) as Asset[]
+/** 更新素材组名称/描述（空值表示不改）。 */
+export async function updateAssetGroup(
+  id: number,
+  payload: { name?: string; description?: string }
+): Promise<AssetGroup> {
+  const res = await api.put(`/v1/assets/groups/${id}`, payload, NO_GLOBAL_TOAST)
+  return res.data?.data as AssetGroup
+}
+
+export interface ListAssetsParams {
+  groupId?: number
+  assetType?: string
+  status?: string
+  keyword?: string
+  page?: number
+  pageSize?: number
+}
+
+/** 素材列表：本站登记数据，支持按素材组/类型/状态/名称筛选与分页。 */
+export async function listAssets(
+  params: ListAssetsParams = {}
+): Promise<AssetListResult> {
+  const res = await api.get('/v1/assets', {
+    ...NO_GLOBAL_TOAST,
+    params: {
+      group_id: params.groupId && params.groupId > 0 ? params.groupId : undefined,
+      asset_type: params.assetType || undefined,
+      status: params.status || undefined,
+      keyword: params.keyword || undefined,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 20,
+    },
+  })
+  const body = res.data ?? {}
+  return {
+    items: (body.data ?? []) as Asset[],
+    total: Number(body.total ?? 0),
+    page: Number(body.page ?? 1),
+    page_size: Number(body.page_size ?? 20),
+  }
 }
 
 export async function createAsset(
@@ -85,6 +125,30 @@ export async function getAsset(id: number): Promise<Asset> {
 
 export async function deleteAsset(id: number): Promise<void> {
   await api.delete(`/v1/assets/${id}`, NO_GLOBAL_TOAST)
+}
+
+/** 重命名素材（上游只支持改名称）。 */
+export async function updateAsset(
+  id: number,
+  payload: { name: string }
+): Promise<Asset> {
+  const res = await api.put(`/v1/assets/${id}`, payload, NO_GLOBAL_TOAST)
+  return res.data?.data as Asset
+}
+
+/** 账号素材能力：用于回答「我能不能用素材、哪些模型支持素材」。 */
+export async function getAssetCapabilities(): Promise<AssetCapabilities> {
+  const res = await api.get('/v1/assets/capabilities', NO_GLOBAL_TOAST)
+  return res.data?.data as AssetCapabilities
+}
+
+/** 真人认证历史（最近的在前）。 */
+export async function listRealPersonSessions(): Promise<RealPersonSessionRow[]> {
+  const res = await api.get(
+    '/v1/assets/real-person/sessions',
+    NO_GLOBAL_TOAST
+  )
+  return (res.data?.data ?? []) as RealPersonSessionRow[]
 }
 
 export async function createRealPersonSession(): Promise<RealPersonSession> {

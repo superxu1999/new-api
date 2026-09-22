@@ -28,11 +28,21 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { formatTimestampToDate } from '@/lib/format'
 
 import {
   createRealPersonSession,
   extractAssetError,
   getRealPersonSession,
+  listRealPersonSessions,
 } from '../api'
 
 /**
@@ -75,6 +85,14 @@ export function RealPersonPanel() {
 
   const session = sessionQuery.data
   const verified = session?.status === 'verified'
+
+  // 认证历史：完成后刷新一次，方便对账与继续查看已绑定的真人素材组。
+  const historyQuery = useQuery({
+    queryKey: ['real-person-sessions', session?.status],
+    queryFn: listRealPersonSessions,
+    retry: false,
+  })
+  const history = historyQuery.data ?? []
 
   return (
     <div className='space-y-4'>
@@ -147,6 +165,68 @@ export function RealPersonPanel() {
           )}
         </CardContent>
       </Card>
+
+      {history.length > 0 && (
+        <Card>
+          <CardContent className='space-y-3 pt-6'>
+            <h3 className='text-sm font-medium'>
+              {t('Verification history')}
+            </h3>
+            <div className='overflow-x-auto rounded-lg border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('ID')}</TableHead>
+                    <TableHead>{t('Status')}</TableHead>
+                    <TableHead>{t('Asset group')}</TableHead>
+                    <TableHead>{t('Created At')}</TableHead>
+                    <TableHead className='text-right'>
+                      {t('Actions')}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className='font-mono text-xs'>
+                        #{item.id}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            item.status === 'verified' ? 'default' : 'secondary'
+                          }
+                        >
+                          {item.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {item.group_id > 0 ? `#${item.group_id}` : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {formatTimestampToDate(item.created_at)}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => {
+                            setSessionId(item.id)
+                            setH5Link('')
+                            setShortLink('')
+                          }}
+                        >
+                          {t('Details')}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

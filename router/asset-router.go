@@ -16,9 +16,13 @@ func SetAssetRouter(router *gin.Engine) {
 	assetRouter.Use(middleware.RouteTag("relay"))
 	assetRouter.Use(middleware.TokenOrUserAuth())
 	{
+		// 能力探测：回答「当前账号能用哪些素材能力、哪些渠道与模型支持素材」。
+		assetRouter.GET("/capabilities", controller.AssetCapabilities)
+
 		assetRouter.GET("/groups", controller.ListAssetGroups)
 		assetRouter.POST("/groups", controller.CreateAssetGroup)
 		assetRouter.GET("/groups/:id", controller.GetAssetGroup)
+		assetRouter.PUT("/groups/:id", controller.UpdateAssetGroup)
 		assetRouter.DELETE("/groups/:id", controller.DeleteAssetGroup)
 
 		// 本地文件直传：先落盘暂存，再把公网地址交给上游入库（默认关闭，需管理员开通）。
@@ -30,6 +34,7 @@ func SetAssetRouter(router *gin.Engine) {
 		assetRouter.PUT("/:id", controller.UpdateAsset)
 		assetRouter.DELETE("/:id", controller.DeleteAsset)
 
+		assetRouter.GET("/real-person/sessions", controller.ListRealPersonSessions)
 		assetRouter.POST("/real-person/sessions", controller.CreateRealPersonSession)
 		assetRouter.GET("/real-person/sessions/:id", controller.GetRealPersonSession)
 	}

@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -34,6 +36,12 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 
 	"github.com/gin-gonic/gin"
+)
+
+// 素材列表分页：默认 20 条/页，最多 100 条/页。
+const (
+	assetListDefaultPageSize = 20
+	assetListMaxPageSize     = 100
 )
 
 // 云端素材库控制台接口（/v1/assets）。
@@ -79,19 +87,27 @@ func requireAssetPermission(c *gin.Context) bool {
 	return true
 }
 
+// assetUserGroup 取当前请求用户的用户分组：上下文里没有时回落到数据库。
+func assetUserGroup(c *gin.Context) (string, error) {
+	if group := common.GetContextKeyString(c, constant.ContextKeyUserGroup); group != "" {
+		return group, nil
+	}
+	group, err := model.GetUserGroup(c.GetInt("id"), false)
+	if err != nil {
+		return "", fmt.Errorf("failed to query user group: %w", err)
+	}
+	return group, nil
+}
+
 // assetChannelCandidates 返回素材操作可用的候选渠道，顺序确定（优先级降序、渠道 id 升序）。
 //
 // 只保留「渠道启用且适配器实现了 AssetLibrary」的渠道。之所以返回列表而不是单条：有些中转
 // （例如 Foxtoken 这类 new-api 中转）复用了同一适配器，但上游并没有开放素材动作接口，
 // 只有实际调用时才会返回「没有这个路由」，因此需要按顺序换下一条（见 assetActionWithFallback）。
 func assetChannelCandidates(c *gin.Context, channelId int, modelName string) ([]*assetChannel, error) {
-	group := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-	if group == "" {
-		userGroup, err := model.GetUserGroup(c.GetInt("id"), false)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query user group: %w", err)
-		}
-		group = userGroup
+	group, err := assetUserGroup(c)
+	if err != nil {
+		return nil, err
 	}
 
 	var ids []int
@@ -111,6 +127,10 @@ func assetChannelCandidates(c *gin.Context, channelId int, modelName string) ([]
 	var lastErr error
 	result := make([]*assetChannel, 0, len(ids))
 	for _, id := range ids {
+		// 自动选路时跳过已知没有素材路由的渠道；显式指定渠道时照常尝试。
+		if channelId == 0 && isAssetRouteMissing(id) {
+			continue
+		}
 		ch, err := model.CacheGetChannel(id)
 		if err != nil || ch == nil {
 			lastErr = fmt.Errorf("channel %d not found", id)
@@ -225,6 +245,30 @@ func assetRouteMissing(err error) bool {
 		strings.Contains(body, "resource_not_found")
 }
 
+// assetRouteMissingTTL 是「该渠道上游没有素材路由」这一结论的缓存时长。
+const assetRouteMissingTTL = 30 * time.Minute
+
+// assetRouteMissingCache 记录上游没有素材动作路由的渠道，避免每次调用都白跑一次，
+// 也让能力探测不会把这种渠道列成「可用」。只影响自动选路，显式指定 channel_id 时不受限。
+var assetRouteMissingCache sync.Map // channelId(int) -> 到期时间(time.Time)
+
+func markAssetRouteMissing(channelId int) {
+	assetRouteMissingCache.Store(channelId, time.Now().Add(assetRouteMissingTTL))
+}
+
+func isAssetRouteMissing(channelId int) bool {
+	value, ok := assetRouteMissingCache.Load(channelId)
+	if !ok {
+		return false
+	}
+	expireAt, ok := value.(time.Time)
+	if !ok || time.Now().After(expireAt) {
+		assetRouteMissingCache.Delete(channelId)
+		return false
+	}
+	return true
+}
+
 // assetActionWithFallback 依次在候选渠道上执行动作，自动跳过没有素材接口的上游。
 //
 // 仅在「未指定渠道」时允许换渠道：一旦素材落在某条渠道上，后续素材组/素材操作都必须
@@ -242,6 +286,7 @@ func assetActionWithFallback(c *gin.Context, channelId int, modelName string, ac
 			return result, ac, nil
 		}
 		if channelId == 0 && assetRouteMissing(err) {
+			markAssetRouteMissing(ac.channelId)
 			tried = append(tried, strconv.Itoa(ac.channelId))
 			lastErr = err
 			continue
@@ -435,6 +480,69 @@ func GetAssetGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": group})
 }
 
+// UpdateAssetGroup 更新素材组名称与描述。
+//
+// 上游只支持改名称与描述，且空值表示「不改」，因此请求里至少要给一项。
+func UpdateAssetGroup(c *gin.Context) {
+	if !requireAssetPermission(c) {
+		return
+	}
+	userId := c.GetInt("id")
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		assetError(c, http.StatusBadRequest, "invalid_request", "invalid request body")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Description = strings.TrimSpace(req.Description)
+	if req.Name == "" && req.Description == "" {
+		assetError(c, http.StatusBadRequest, "invalid_request", "name or description is required")
+		return
+	}
+	group, err := model.GetAssetGroupById(userId, id)
+	if err != nil {
+		assetError(c, http.StatusNotFound, "asset_group_not_found", "asset group not found")
+		return
+	}
+	ac, err := resolveAssetChannel(c, group.ChannelId, "")
+	if err != nil {
+		assetError(c, http.StatusBadRequest, "asset_not_supported", err.Error())
+		return
+	}
+	name := req.Name
+	if name == "" {
+		name = group.Name
+	}
+	payload := map[string]any{
+		"Id": group.UpstreamGroupId,
+		// 上游要求带名称：只改描述时沿用原名。
+		"Name":        name,
+		"ProjectName": "default",
+	}
+	if req.Description != "" {
+		payload["Description"] = req.Description
+	}
+	if _, err := assetAction(ac, "UpdateAssetGroup", payload); err != nil {
+		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
+		return
+	}
+	if err := model.UpdateAssetGroup(userId, id, req.Name, req.Description); err != nil {
+		assetError(c, http.StatusInternalServerError, "update_asset_group_failed", err.Error())
+		return
+	}
+	if req.Name != "" {
+		group.Name = req.Name
+	}
+	if req.Description != "" {
+		group.Description = req.Description
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": group})
+}
+
 // DeleteAssetGroup 删除素材组（上游删除成功后再软删本地映射）。
 func DeleteAssetGroup(c *gin.Context) {
 	if !requireAssetPermission(c) {
@@ -479,27 +587,67 @@ type createAssetRequest struct {
 	Model     string `json:"model"`
 }
 
-// ListAssets 返回当前用户的素材列表（状态为本站最近一次同步的结果）。
+// assetListPage 解析列表分页参数：页码从 1 开始，每页 1..assetListMaxPageSize，默认 20。
+// 列表来自本站登记数据，加上限避免用超大 page_size 一次拉全表。
+func assetListPage(c *gin.Context) (page int, pageSize int) {
+	page, _ = strconv.Atoi(c.Query("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ = strconv.Atoi(c.Query("page_size"))
+	if pageSize <= 0 {
+		pageSize = assetListDefaultPageSize
+	}
+	if pageSize > assetListMaxPageSize {
+		pageSize = assetListMaxPageSize
+	}
+	return page, pageSize
+}
+
+// parseAssetStatuses 解析逗号分隔的状态筛选（沿用早期的 status 参数写法）。
+func parseAssetStatuses(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var statuses []string
+	for _, item := range strings.Split(raw, ",") {
+		if item = strings.ToUpper(strings.TrimSpace(item)); item != "" {
+			statuses = append(statuses, item)
+		}
+	}
+	return statuses
+}
+
+// ListAssets 返回当前用户的素材列表（状态为本站最近一次同步的结果），支持筛选与分页。
 func ListAssets(c *gin.Context) {
 	if !requireAssetPermission(c) {
 		return
 	}
+	page, pageSize := assetListPage(c)
 	groupId, _ := strconv.ParseInt(c.Query("group_id"), 10, 64)
 	channelId, _ := strconv.Atoi(c.Query("channel_id"))
-	var statuses []string
-	if raw := strings.TrimSpace(c.Query("status")); raw != "" {
-		for _, s := range strings.Split(raw, ",") {
-			if s = strings.ToUpper(strings.TrimSpace(s)); s != "" {
-				statuses = append(statuses, s)
-			}
-		}
-	}
-	assets, err := model.ListAssets(c.GetInt("id"), channelId, groupId, statuses, strings.TrimSpace(c.Query("keyword")))
+	assets, total, err := model.ListAssets(
+		c.GetInt("id"),
+		channelId,
+		groupId,
+		parseAssetStatuses(c.Query("status")),
+		strings.TrimSpace(c.Query("keyword")),
+		strings.TrimSpace(c.Query("asset_type")),
+		(page-1)*pageSize,
+		pageSize,
+	)
 	if err != nil {
 		assetError(c, http.StatusInternalServerError, "query_asset_failed", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": assets})
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"data":      assets,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 // CreateAsset 创建素材：上游异步入库，本地先记为 PROCESSING。
@@ -839,6 +987,83 @@ func GetRealPersonSession(c *gin.Context) {
 			"session_id": session.Id,
 			"status":     model.RealPersonStatusVerified,
 			"group_id":   group.Id,
+		},
+	})
+}
+
+// ListRealPersonSessions 返回当前用户的真人认证历史（最近的在前）。
+func ListRealPersonSessions(c *gin.Context) {
+	page, pageSize := assetListPage(c)
+	sessions, total, err := model.ListRealPersonSessions(c.GetInt("id"), (page-1)*pageSize, pageSize)
+	if err != nil {
+		assetError(c, http.StatusInternalServerError, "query_real_person_session_failed", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"data":      sessions,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// AssetCapabilities 返回当前账号的素材能力：两个开关状态、可用于素材的渠道与模型。
+//
+// 它回答的是「我能不能用素材」，所以不校验素材开关本身（未开通时如实返回 false），
+// 但仍需登录。渠道名称只对管理员及以上返回，普通用户只看得到渠道 id 与模型名。
+func AssetCapabilities(c *gin.Context) {
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil || user == nil {
+		assetError(c, http.StatusUnauthorized, "invalid_user", "user not found")
+		return
+	}
+	isAdmin := c.GetInt("role") >= common.RoleAdminUser
+
+	channels := make([]gin.H, 0)
+	models := make([]string, 0)
+	// 候选渠道解析失败（无可用渠道、上游不支持）时按「没有素材能力」返回，不报错。
+	if candidates, err := assetChannelCandidates(c, 0, ""); err == nil {
+		group, groupErr := assetUserGroup(c)
+		channelIds := make([]int, 0, len(candidates))
+		for _, candidate := range candidates {
+			channelIds = append(channelIds, candidate.channelId)
+		}
+		channelModels := map[int][]string{}
+		if groupErr == nil {
+			if list, err := model.ListAssetChannelModels(group, channelIds); err == nil {
+				channelModels = list
+			}
+		}
+		for _, candidate := range candidates {
+			item := gin.H{"channel_id": candidate.channelId}
+			if isAdmin {
+				item["channel_name"] = candidate.channel.Name
+			}
+			if list := channelModels[candidate.channelId]; len(list) > 0 {
+				item["models"] = list
+				models = append(models, list...)
+			}
+			channels = append(channels, item)
+		}
+	}
+
+	sort.Strings(models)
+	uniqueModels := make([]string, 0, len(models))
+	for _, modelName := range models {
+		if len(uniqueModels) == 0 || uniqueModels[len(uniqueModels)-1] != modelName {
+			uniqueModels = append(uniqueModels, modelName)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"asset_library_enabled": user.AssetLibraryEnabled == 1,
+			"asset_upload_enabled":  user.AssetUploadEnabled == 1,
+			"channels":              channels,
+			"models":                uniqueModels,
+			"real_person_available": len(channels) > 0,
 		},
 	})
 }

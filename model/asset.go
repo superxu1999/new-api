@@ -63,43 +63,43 @@ type AssetGroup struct {
 
 // Asset 是上游素材在本地的一行映射；文件本身不落在本站。
 type Asset struct {
-	Id              int64          `json:"id" gorm:"primaryKey"`
-	UserId          int            `json:"user_id" gorm:"index"`
-	ChannelId       int            `json:"channel_id" gorm:"index"`
-	GroupId         int64          `json:"group_id" gorm:"index"`
-	UpstreamGroupId string         `json:"upstream_group_id" gorm:"type:varchar(191);index"`
-	UpstreamAssetId string         `json:"upstream_asset_id" gorm:"type:varchar(191);index"`
-	Name            string         `json:"name" gorm:"type:varchar(191)"`
-	AssetType       string         `json:"asset_type" gorm:"type:varchar(16)"`
-	SourceUrl       string         `json:"source_url" gorm:"type:text"`
+	Id              int64  `json:"id" gorm:"primaryKey"`
+	UserId          int    `json:"user_id" gorm:"index"`
+	ChannelId       int    `json:"channel_id" gorm:"index"`
+	GroupId         int64  `json:"group_id" gorm:"index"`
+	UpstreamGroupId string `json:"upstream_group_id" gorm:"type:varchar(191);index"`
+	UpstreamAssetId string `json:"upstream_asset_id" gorm:"type:varchar(191);index"`
+	Name            string `json:"name" gorm:"type:varchar(191)"`
+	AssetType       string `json:"asset_type" gorm:"type:varchar(16)"`
+	SourceUrl       string `json:"source_url" gorm:"type:text"`
 	// LocalKey 仅在「用户直接上传文件」时有值：本站暂存文件的随机文件名，
 	// 通过 /asset-media/<LocalKey> 对外提供下载（上游也用它来抓取素材）。
 	LocalKey   string         `json:"local_key" gorm:"type:varchar(191);index"`
 	Status     string         `json:"status" gorm:"type:varchar(32);index"`
-	FailReason      string         `json:"fail_reason" gorm:"type:varchar(255)"`
-	CreatedAt       int64          `json:"created_at" gorm:"index"`
-	UpdatedAt       int64          `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+	FailReason string         `json:"fail_reason" gorm:"type:varchar(255)"`
+	CreatedAt  int64          `json:"created_at" gorm:"index"`
+	UpdatedAt  int64          `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 // RealPersonSession 记录一次真人活体认证会话：上游返回 byted_token 与 H5 链接，
 // 终端客户在手机上完成认证后，用 byted_token 换取真人素材组。
 type RealPersonSession struct {
-	Id         int64          `json:"id" gorm:"primaryKey"`
-	UserId     int            `json:"user_id" gorm:"index"`
-	ChannelId  int            `json:"channel_id" gorm:"index"`
-	BytedToken string         `json:"-" gorm:"type:varchar(191);index"`
-	H5Link     string         `json:"h5_link" gorm:"type:text"`
+	Id         int64  `json:"id" gorm:"primaryKey"`
+	UserId     int    `json:"user_id" gorm:"index"`
+	ChannelId  int    `json:"channel_id" gorm:"index"`
+	BytedToken string `json:"-" gorm:"type:varchar(191);index"`
+	H5Link     string `json:"h5_link" gorm:"type:text"`
 	// ShortCode 是短链码：把很长的上游认证链接换成 {本站}/rp/{短码}，
 	// 二维码内容短得多、码点更粗，低端手机才扫得动。
 	ShortCode string         `json:"short_code" gorm:"type:varchar(16);index"`
 	GroupId   int64          `json:"group_id"`
-	GroupType  string         `json:"group_type" gorm:"type:varchar(32)"`
-	Status     string         `json:"status" gorm:"type:varchar(32);index"`
-	ExpiresAt  int64          `json:"expires_at"`
-	CreatedAt  int64          `json:"created_at" gorm:"index"`
-	UpdatedAt  int64          `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
+	GroupType string         `json:"group_type" gorm:"type:varchar(32)"`
+	Status    string         `json:"status" gorm:"type:varchar(32);index"`
+	ExpiresAt int64          `json:"expires_at"`
+	CreatedAt int64          `json:"created_at" gorm:"index"`
+	UpdatedAt int64          `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 // AllowedAssetTypes 是上游素材类型白名单。
@@ -119,18 +119,32 @@ func nowUnix() int64 {
 
 // ListAssetCandidateChannelIds 按分组与模型返回候选渠道 id，按优先级降序、渠道 id 升序
 // 排序 —— 素材必须绑在固定渠道上，所以这里要确定性顺序，不能用带随机/重试的选路函数。
+// abilities 是「渠道 × 模型」一行，因此这里要去重，否则同一条渠道会被重复尝试。
 func ListAssetCandidateChannelIds(group string, modelName string) ([]int, error) {
 	if group == "" {
 		return nil, errors.New("group is empty")
 	}
-	var ids []int
-	query := DB.Model(&Ability{}).Where(commonGroupCol+" = ?", group).Where("enabled = ?", true)
+	var rows []struct {
+		ChannelId int
+	}
+	query := DB.Model(&Ability{}).
+		Select("channel_id").
+		Where(commonGroupCol+" = ?", group).
+		Where("enabled = ?", true)
 	if modelName != "" {
 		query = query.Where("model = ?", modelName)
 	}
-	err := query.Order("priority desc, channel_id asc").Pluck("channel_id", &ids).Error
-	if err != nil {
+	if err := query.Order("priority desc, channel_id asc").Scan(&rows).Error; err != nil {
 		return nil, err
+	}
+	ids := make([]int, 0, len(rows))
+	seen := make(map[int]bool, len(rows))
+	for _, row := range rows {
+		if seen[row.ChannelId] {
+			continue
+		}
+		seen[row.ChannelId] = true
+		ids = append(ids, row.ChannelId)
 	}
 	return ids, nil
 }
@@ -208,15 +222,18 @@ func DeleteAssetGroup(userId int, id int64) error {
 // 素材
 // ============================
 
-// ListAssets 返回素材列表，groupType 通过所属素材组过滤。
-func ListAssets(userId int, channelId int, groupId int64, statuses []string, keyword string) ([]*Asset, error) {
-	var assets []*Asset
-	query := DB.Where("user_id = ?", userId)
+// ListAssets 返回素材列表与总数：筛选与分页都在本站登记数据上做（上游列表不区分本站用户）。
+// num <= 0 时不分页，返回全部。
+func ListAssets(userId int, channelId int, groupId int64, statuses []string, keyword string, assetType string, startIdx int, num int) (assets []*Asset, total int64, err error) {
+	query := DB.Model(&Asset{}).Where("user_id = ?", userId)
 	if channelId > 0 {
 		query = query.Where("channel_id = ?", channelId)
 	}
 	if groupId > 0 {
 		query = query.Where("group_id = ?", groupId)
+	}
+	if assetType != "" {
+		query = query.Where("asset_type = ?", assetType)
 	}
 	if len(statuses) > 0 {
 		query = query.Where("status IN ?", statuses)
@@ -224,8 +241,43 @@ func ListAssets(userId int, channelId int, groupId int64, statuses []string, key
 	if keyword != "" {
 		query = query.Where("name LIKE ?", "%"+keyword+"%")
 	}
-	err := query.Order("id desc").Find(&assets).Error
-	return assets, err
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	page := query.Order("id desc")
+	if num > 0 && startIdx >= 0 {
+		page = page.Offset(startIdx).Limit(num)
+	}
+	if err = page.Find(&assets).Error; err != nil {
+		return nil, 0, err
+	}
+	return assets, total, nil
+}
+
+// ListAssetChannelModels 返回给定渠道在分组下可用的模型，用于能力探测接口。
+func ListAssetChannelModels(group string, channelIds []int) (map[int][]string, error) {
+	result := make(map[int][]string)
+	if group == "" || len(channelIds) == 0 {
+		return result, nil
+	}
+	var rows []struct {
+		ChannelId int
+		Model     string
+	}
+	err := DB.Model(&Ability{}).
+		Select("channel_id, model").
+		Where(commonGroupCol+" = ?", group).
+		Where("enabled = ?", true).
+		Where("channel_id IN ?", channelIds).
+		Order("channel_id asc, model asc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.ChannelId] = append(result[row.ChannelId], row.Model)
+	}
+	return result, nil
 }
 
 // GetAssetById 按本地 ID 取素材，并校验归属。
@@ -305,6 +357,22 @@ func GetRealPersonSessionByShortCode(code string) (*RealPersonSession, error) {
 		return nil, err
 	}
 	return session, nil
+}
+
+// ListRealPersonSessions 返回认证会话与总数，最近的在前。
+func ListRealPersonSessions(userId int, startIdx int, num int) (sessions []*RealPersonSession, total int64, err error) {
+	query := DB.Model(&RealPersonSession{}).Where("user_id = ?", userId)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	page := query.Order("id desc")
+	if num > 0 && startIdx >= 0 {
+		page = page.Offset(startIdx).Limit(num)
+	}
+	if err = page.Find(&sessions).Error; err != nil {
+		return nil, 0, err
+	}
+	return sessions, total, nil
 }
 
 // MarkRealPersonSessionVerified 记录认证成功并回填真人素材组。
