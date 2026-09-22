@@ -101,6 +101,8 @@ export interface CreateAssetPayload {
   name: string
   url: string
   asset_type: AssetType
+  /** 素材所属渠道；省略时由系统按分组与优先级选择 */
+  channel_id?: number
 }
 
 /** 直传：文件走 multipart，其余参数与公网 URL 方式一致。 */
@@ -108,9 +110,12 @@ export interface UploadAssetPayload {
   file: File
   name: string
   groupId: number
+  channelId?: number
 }
 
 export interface CreateAssetGroupPayload {
   name: string
   description?: string
+  /** 素材组所属渠道；省略时由系统按分组与优先级选择 */
+  channel_id?: number
 }

@@ -97,6 +97,8 @@ export function AssetsPanel() {
   const [detailAssetId, setDetailAssetId] = useState(0)
   const [groupFilter, setGroupFilter] = useState(0)
   const [assetPage, setAssetPage] = useState(1)
+  // 素材渠道：0 表示由系统选择；管理员可在新建素材 / 素材组 / 上传时指定。
+  const [assetChannelId, setAssetChannelId] = useState(0)
 
   const currentUser = useAuthStore((state) => state.auth.user)
   // 两个开关互不依赖：「素材库」决定能否浏览与管理素材，「上传素材」决定能否上传本地文件。
@@ -150,6 +152,11 @@ export function AssetsPanel() {
   const assetTotal = assetsQuery.data?.total ?? 0
   const assetPageCount = Math.max(1, Math.ceil(assetTotal / ASSET_PAGE_SIZE))
   const capabilityModels = (capabilitiesQuery.data?.models ?? []).slice(0, 6)
+  // 素材渠道选择仅对管理员开放：普通用户由系统按分组与优先级自动选择。
+  const canChooseChannel =
+    (currentUser?.role ?? 0) >= 10 &&
+    (capabilitiesQuery.data?.channels.length ?? 0) > 0
+  const channelOptions = capabilitiesQuery.data?.channels ?? []
   const disabledError = extractAssetError(groupsQuery.error ?? assetsQuery.error)
   const notEnabled = disabledError.code === 'asset_library_disabled'
 
@@ -301,6 +308,7 @@ export function AssetsPanel() {
                   file: assetFile,
                   name: assetName.trim() === '' ? assetFile.name : assetName,
                   groupId: 0,
+                  channelId: assetChannelId,
                 })
               }}
             >
@@ -694,6 +702,32 @@ export function AssetsPanel() {
                 'Real-person material groups cannot be created here; they are created by the real-person verification flow.'
               )}
             </p>
+            {canChooseChannel && (
+              <div className='space-y-1.5'>
+                <Label htmlFor='asset-group-channel'>
+                  {t('Material channel')}
+                </Label>
+                <NativeSelect
+                  id='asset-group-channel'
+                  value={String(assetChannelId)}
+                  onChange={(event) =>
+                    setAssetChannelId(Number(event.target.value))
+                  }
+                >
+                  <NativeSelectOption value='0'>
+                    {t('Automatic selection')}
+                  </NativeSelectOption>
+                  {channelOptions.map((channel) => (
+                    <NativeSelectOption
+                      key={channel.channel_id}
+                      value={String(channel.channel_id)}
+                    >
+                      {channel.channel_name ?? `#${channel.channel_id}`}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -704,7 +738,12 @@ export function AssetsPanel() {
             </Button>
             <Button
               disabled={groupName.trim() === '' || createGroupMutation.isPending}
-              onClick={() => createGroupMutation.mutate({ name: groupName })}
+              onClick={() =>
+                createGroupMutation.mutate({
+                  name: groupName,
+                  channel_id: assetChannelId > 0 ? assetChannelId : undefined,
+                })
+              }
             >
               {t('Confirm')}
             </Button>
@@ -745,6 +784,30 @@ export function AssetsPanel() {
                 onChange={(event) => setAssetName(event.target.value)}
               />
             </div>
+            {canChooseChannel && (
+              <div className='space-y-1.5'>
+                <Label htmlFor='asset-channel'>{t('Material channel')}</Label>
+                <NativeSelect
+                  id='asset-channel'
+                  value={String(assetChannelId)}
+                  onChange={(event) =>
+                    setAssetChannelId(Number(event.target.value))
+                  }
+                >
+                  <NativeSelectOption value='0'>
+                    {t('Automatic selection')}
+                  </NativeSelectOption>
+                  {channelOptions.map((channel) => (
+                    <NativeSelectOption
+                      key={channel.channel_id}
+                      value={String(channel.channel_id)}
+                    >
+                      {channel.channel_name ?? `#${channel.channel_id}`}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
             {canUpload && (
               <div className='space-y-1.5'>
                 <Label>{t('Source')}</Label>
@@ -830,6 +893,7 @@ export function AssetsPanel() {
                     name: assetName,
                     url: assetUrl,
                     asset_type: assetType,
+                    channel_id: assetChannelId > 0 ? assetChannelId : undefined,
                   })
                 }
               >
@@ -848,6 +912,7 @@ export function AssetsPanel() {
                     file: assetFile,
                     name: uploadName,
                     groupId: assetGroupId,
+                    channelId: assetChannelId,
                   })
                 }}
               >

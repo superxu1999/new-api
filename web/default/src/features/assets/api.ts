@@ -179,6 +179,9 @@ export async function uploadAsset(
   if (payload.groupId > 0) {
     form.append('group_id', String(payload.groupId))
   }
+  if (payload.channelId && payload.channelId > 0) {
+    form.append('channel_id', String(payload.channelId))
+  }
   const res = await api.post('/v1/assets/upload', form, NO_GLOBAL_TOAST)
   return res.data?.data as Asset
 }
