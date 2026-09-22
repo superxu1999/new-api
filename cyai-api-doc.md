@@ -347,6 +347,8 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 
 平台在提交上游前会校验素材归属与状态，并替换为上游素材 ID。**素材绑定渠道**：引用了素材的任务会固定走素材所属渠道，同一次请求引用的素材必须来自同一渠道（否则返回 `asset_channel_mismatch`）。
 
+引用只接受**本站素材 ID**（数字）：上游原始素材 ID（形如 `asset-2026...`）一律拒绝并返回 `invalid_asset_ref`；原始 ID 属于上游账号下的对象，与本站用户不是一一对应，放行会绕过归属校验。
+
 ### 11.5 真人素材
 
 真人素材必须先完成真人活体认证（上游流程，不可绕过）：
@@ -366,6 +368,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 | `asset_file_type_not_allowed` | 400 | 上传文件类型不在白名单内 |
 | `asset_not_supported` | 400 | 模型所在渠道不支持素材库 |
 | `asset_not_found` | 400 | 素材不存在或不属于当前账号 |
+| `invalid_asset_ref` | 400 | 素材引用写法非法（只接受 `asset://<本站素材 ID>`） |
 | `asset_not_active` | 400 | 素材尚未入库完成（状态不是 `ACTIVE`） |
 | `asset_channel_mismatch` | 400 | 同一次请求引用了不同渠道的素材 |
 | `asset_channel_disable` | 400 | 素材所属渠道已禁用 |

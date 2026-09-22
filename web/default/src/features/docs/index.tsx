@@ -881,7 +881,7 @@ data: [DONE]`}</Code>
             </P>
             <ET title={t('在视频生成中引用素材')} />
             <P>
-              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道。')}
+              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。引用只接受本站素材 ID（数字）：上游原始素材 ID（形如 asset-2026...）会被拒并返回 400 invalid_asset_ref，因为它属于上游账号下的对象，放行会绕过归属校验。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道。')}
             </P>
             <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
@@ -909,6 +909,7 @@ data: [DONE]`}</Code>
                 ['asset_public_url_unreachable', '暂存文件的地址无法被上游抓取：对外地址是本地或内网地址，或该域名未部署 /asset-media 路由，错误信息含实际地址'],
                 ['asset_not_supported', '模型所在渠道不支持素材库'],
                 ['asset_not_found', '素材不存在或不属于当前账号'],
+                ['invalid_asset_ref', '素材引用写法非法（只接受 asset://<本站素材 ID>）'],
                 ['asset_not_active', '素材尚未入库完成（状态不是 ACTIVE）'],
                 ['asset_channel_mismatch', '同一次请求引用了不同渠道的素材，请统一到同一渠道'],
                 ['asset_channel_disable', '素材所属渠道已禁用'],

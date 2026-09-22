@@ -8,23 +8,24 @@ import (
 )
 
 // TestParseLocalAssetRef 锁定站内素材引用写法：只有 asset://<数字>（或 asset:<数字>）算
-// 站内引用，上游自己的素材 ID（asset-2026...）与普通 URL 都必须原样放行。
+// 站内引用；上游素材 ID 与普通 URL 都不是站内引用（前者会被 looksLikeAssetRef 拦下）。
 func TestParseLocalAssetRef(t *testing.T) {
 	cases := []struct {
-		name   string
-		raw    string
-		wantID int64
-		wantOK bool
+		name    string
+		raw     string
+		wantID  int64
+		wantOK  bool
+		wantRef bool
 	}{
-		{name: "标准写法", raw: "asset://12", wantID: 12, wantOK: true},
-		{name: "短前缀", raw: "asset:12", wantID: 12, wantOK: true},
-		{name: "带空格", raw: "  asset://7  ", wantID: 7, wantOK: true},
-		{name: "上游素材 ID 放行", raw: "asset://asset-20260921143729-aqngz", wantOK: false},
-		{name: "上游裸 ID 放行", raw: "asset-20260921143729-aqngz", wantOK: false},
-		{name: "公网 URL 放行", raw: "https://cdn.example.com/a.png", wantOK: false},
-		{name: "空 ID 拒绝", raw: "asset://", wantOK: false},
-		{name: "零与负数拒绝", raw: "asset://0", wantOK: false},
-		{name: "非数字拒绝", raw: "asset://abc", wantOK: false},
+		{name: "标准写法", raw: "asset://12", wantID: 12, wantOK: true, wantRef: true},
+		{name: "短前缀", raw: "asset:12", wantID: 12, wantOK: true, wantRef: true},
+		{name: "带空格", raw: "  asset://7  ", wantID: 7, wantOK: true, wantRef: true},
+		{name: "上游素材 ID 不是站内引用", raw: "asset://asset-20260921143729-aqngz", wantOK: false, wantRef: true},
+		{name: "上游裸 ID 不是引用", raw: "asset-20260921143729-aqngz", wantOK: false, wantRef: false},
+		{name: "公网 URL 不是引用", raw: "https://cdn.example.com/a.png", wantOK: false, wantRef: false},
+		{name: "空 ID 拒绝", raw: "asset://", wantOK: false, wantRef: true},
+		{name: "零与负数拒绝", raw: "asset://0", wantOK: false, wantRef: true},
+		{name: "非数字拒绝", raw: "asset://abc", wantOK: false, wantRef: true},
 	}
 
 	for _, tc := range cases {
@@ -32,6 +33,7 @@ func TestParseLocalAssetRef(t *testing.T) {
 			id, ok := parseLocalAssetRef(tc.raw)
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.wantID, id)
+			assert.Equal(t, tc.wantRef, looksLikeAssetRef(tc.raw))
 		})
 	}
 }

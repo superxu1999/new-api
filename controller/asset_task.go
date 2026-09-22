@@ -35,11 +35,19 @@ import (
 )
 
 // 站内素材引用写法：asset://<本地素材 ID>（数字部分是本地 assets 表的主键）。
-// 上游自己的素材 ID 不是纯数字，遇到时原样放行，便于直接透传上游 ID 排障。
+// 上游自己的素材 ID 不是纯数字，一律拒绝：上游素材按渠道凭证隔离，放行原始 ID 等于绕过
+// 「素材归属」校验，可能引用到其他用户的素材。
 const (
 	assetRefSchemeFull  = "asset://"
 	assetRefSchemeShort = "asset:"
 )
+
+// looksLikeAssetRef 判断字符串是不是素材引用写法（asset:// 或 asset:）。
+func looksLikeAssetRef(raw string) bool {
+	value := strings.TrimSpace(raw)
+	return strings.HasPrefix(value, assetRefSchemeFull) ||
+		strings.HasPrefix(value, assetRefSchemeShort)
+}
 
 // resolveTaskAssets 在渠道选择之前把请求体里的站内素材引用换成上游素材 ID，并把任务锁到
 // 素材所属渠道。
@@ -67,6 +75,12 @@ func resolveTaskAssets(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	replaceTaskAssetRefs(payload, func(raw string) (string, bool) {
 		id, ok := parseLocalAssetRef(raw)
 		if !ok {
+			// 只接受本站素材 ID：上游原始素材 ID 一律拒绝，否则可以绕过归属校验引用他人的素材。
+			if looksLikeAssetRef(raw) {
+				resolveErr = service.TaskErrorWrapperLocal(
+					fmt.Errorf("asset reference must be asset://<local asset id>, got %q", raw),
+					"invalid_asset_ref", 400)
+			}
 			return "", false
 		}
 		asset, exist := referenced[raw]
