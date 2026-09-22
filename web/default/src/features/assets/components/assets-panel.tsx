@@ -45,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { canUploadAsset } from '@/lib/asset-access'
 import { formatTimestampToDate } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -87,9 +88,8 @@ export function AssetsPanel() {
   const [assetFile, setAssetFile] = useState<File | null>(null)
 
   const currentUser = useAuthStore((state) => state.auth.user)
-  // 直传需要管理员开通；管理员本身始终可用。
-  const canUpload =
-    (currentUser?.role ?? 0) >= 10 || currentUser?.asset_upload_enabled === 1
+  // 直传入口按账号开关显示；管理员本身始终可用。
+  const canUpload = canUploadAsset(currentUser)
 
   /** 关闭「新建素材」对话框并清空输入。 */
   const closeAssetDialog = () => {

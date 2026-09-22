@@ -615,7 +615,7 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer":   user.StripeCustomer,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,                // 新增权限字段
-		// 素材库相关权限：前端据此决定是否展示「直接上传」入口。
+		// 素材库相关权限：前端据此决定是否展示素材库入口与「直接上传」入口。
 		"asset_library_enabled": user.AssetLibraryEnabled,
 		"asset_upload_enabled":  user.AssetUploadEnabled,
 	}
