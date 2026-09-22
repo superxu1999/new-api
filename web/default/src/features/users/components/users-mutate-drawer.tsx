@@ -502,6 +502,14 @@ export function UsersMutateDrawer({
                       )}
                     />
                   )}
+
+                  {canEditAdminPermissions && (
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'These switches apply to every account, administrators included; when off, this account neither sees the asset library entry nor may use it.'
+                      )}
+                    </p>
+                  )}
                 </SideDrawerSection>
               )}
 

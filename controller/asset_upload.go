@@ -119,12 +119,9 @@ func assetPublicBase(c *gin.Context) string {
 	return requestOrigin(c)
 }
 
-// requireAssetUploadPermission 校验直传权限：管理员始终允许，普通用户需要
-// 「素材库」与「直传」两个开关都打开（直传是素材库的子能力）。
+// requireAssetUploadPermission 校验直传权限：需要「素材库」与「直传」两个开关都打开
+// （直传是素材库的子能力）。管理员及以上同样按开关判定。
 func requireAssetUploadPermission(c *gin.Context) bool {
-	if c.GetInt("role") >= common.RoleAdminUser {
-		return true
-	}
 	user, err := model.GetUserById(c.GetInt("id"), false)
 	if err != nil || user == nil || user.AssetLibraryEnabled != 1 || user.AssetUploadEnabled != 1 {
 		assetError(c, http.StatusForbidden, "asset_upload_disabled",

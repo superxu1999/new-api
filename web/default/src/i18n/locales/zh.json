@@ -4594,6 +4594,7 @@
     "There are both add and remove models pending, but you only selected one type. Confirm submitting only the selected items?": "当前有新增和删除两类待处理模型，但您只勾选了其中一类。确认仅提交已勾选的部分吗？",
     "There is a rule for vip billed as premium → use its ratio 0.3": "存在「vip 按 premium 计费」的规则 → 用规则里的 0.3",
     "These models are still in your selection but were not returned by the upstream listing. Entries that are only model_mapping source aliases are omitted. Toggle to adjust before saving.": "这些模型仍然在您的勾选列表中，但上游已不再返回该名称；仅作为 model_mapping 来源键而不会出现在 upstream 列表的别名已从本视图排除，请在保存前调整勾选。",
+    "These switches apply to every account, administrators included; when off, this account neither sees the asset library entry nor may use it.": "这两个开关对每个账号都生效（管理员及以上同样如此）；关闭后该账号看不到素材库入口，也不能使用。",
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "这些开关控制某些请求字段是否透传到上游服务。",
     "Thinking Suffix Adapter": "思考后缀适配器",
     "Thinking to Content": "思维到内容",

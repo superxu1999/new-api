@@ -4594,6 +4594,7 @@
     "There are both add and remove models pending, but you only selected one type. Confirm submitting only the selected items?": "追加と削除の両方のモデルが保留中ですが、一方のタイプのみ選択されています。選択した項目のみ送信してよろしいですか？",
     "There is a rule for vip billed as premium → use its ratio 0.3": "「vip が premium として課金」のルールあり → ルールの 0.3 を使用",
     "These models are still in your selection but were not returned by the upstream listing. Entries that are only model_mapping source aliases are omitted. Toggle to adjust before saving.": "これらはまだ選択中ですが上流のリストにありません。model_mapping にのみソース別名として載る名前は除外されています。保存前に選択を調整してください。",
+    "These switches apply to every account, administrators included; when off, this account neither sees the asset library entry nor may use it.": "この2つのスイッチは管理者を含むすべてのアカウントに適用されます。オフにすると、そのアカウントでは素材ライブラリの入口が表示されず、利用もできません。",
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "これらの切り替えは、特定の要求フィールドがアップストリームプロバイダーに渡されるかどうかに影響します。",
     "Thinking Suffix Adapter": "思考サフィックスアダプター",
     "Thinking to Content": "思考からコンテンツへ",

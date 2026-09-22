@@ -4594,6 +4594,7 @@
     "There are both add and remove models pending, but you only selected one type. Confirm submitting only the selected items?": "Il y a à la fois des modèles à ajouter et à supprimer, mais vous n'avez sélectionné qu'un seul type. Confirmer l'envoi uniquement des éléments sélectionnés ?",
     "There is a rule for vip billed as premium → use its ratio 0.3": "Il existe une règle pour vip facturé sous premium → son taux 0,3 s’applique",
     "These models are still in your selection but were not returned by the upstream listing. Entries that are only model_mapping source aliases are omitted. Toggle to adjust before saving.": "Ces modèles restent encore sélectionnés mais ne figurent pas dans la liste renvoyée par l'amont ; les noms qui sont uniquement des clés sources de model_mapping sont exclus. Modifiez la sélection avant d'enregistrer.",
+    "These switches apply to every account, administrators included; when off, this account neither sees the asset library entry nor may use it.": "Ces interrupteurs s'appliquent à tous les comptes, administrateurs compris ; désactivés, ce compte ne voit plus l'entrée de la bibliothèque de matériels et ne peut plus l'utiliser.",
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "Ces bascules déterminent si certains champs de demande sont transmis au fournisseur en amont.",
     "Thinking Suffix Adapter": "Adaptateur de suffixe thinking",
     "Thinking to Content": "Réflexion vers Contenu",

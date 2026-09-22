@@ -16,11 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ROLE } from '@/lib/roles'
 import type { AuthUser } from '@/stores/auth-store'
 
 /**
- * 素材库与直传是账号级权限：管理员及以上始终可用，普通用户由管理端在用户配置里开通。
+ * 素材库与直传是账号级权限，按账号开关判定，管理员及以上同样受开关限制（与后端一致）。
  *
  * 这里只决定界面是否显示对应入口，接口始终会再校验一次（素材库未开通返回 403
  * asset_library_disabled，直传未开通返回 403 asset_upload_disabled）。字段缺失
@@ -28,13 +27,11 @@ import type { AuthUser } from '@/stores/auth-store'
  */
 export function canUseAssetLibrary(user?: Partial<AuthUser> | null): boolean {
   if (!user) return false
-  if ((user.role ?? 0) >= ROLE.ADMIN) return true
   return user.asset_library_enabled !== 0
 }
 
 /** 直传是素材库的子能力：显示上传入口还要求账号已开通直传。 */
 export function canUploadAsset(user?: Partial<AuthUser> | null): boolean {
   if (!user) return false
-  if ((user.role ?? 0) >= ROLE.ADMIN) return true
   return user.asset_upload_enabled !== 0
 }

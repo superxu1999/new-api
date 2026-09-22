@@ -67,12 +67,9 @@ func assetError(c *gin.Context, status int, code string, message string) {
 
 // requireAssetPermission 校验当前用户是否被允许使用云端素材库。
 //
-// 规则：管理员及以上始终允许；普通用户必须由管理员在用户配置里显式开启
-// （user.asset_library_enabled），默认关闭，避免被当作免费网盘使用。
+// 规则：按账号开关判定（user.asset_library_enabled），管理员及以上同样需要开启，
+// 默认关闭，避免被当作免费网盘使用。开关只有超级管理员能在用户配置里修改。
 func requireAssetPermission(c *gin.Context) bool {
-	if c.GetInt("role") >= common.RoleAdminUser {
-		return true
-	}
 	user, err := model.GetUserById(c.GetInt("id"), false)
 	if err != nil || user == nil || user.AssetLibraryEnabled != 1 {
 		assetError(c, http.StatusForbidden, "asset_library_disabled",

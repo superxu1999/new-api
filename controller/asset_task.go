@@ -60,7 +60,6 @@ func resolveTaskAssets(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	}
 
 	userId := c.GetInt("id")
-	isAdmin := c.GetInt("role") >= common.RoleAdminUser
 	referenced := make(map[string]*model.Asset)
 	channelIds := make(map[int]bool)
 	var resolveErr *dto.TaskError
@@ -99,13 +98,10 @@ func resolveTaskAssets(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		return nil
 	}
 
-	if !isAdmin {
-		user, err := model.GetUserById(userId, false)
-		if err != nil || user == nil || user.AssetLibraryEnabled != 1 {
-			return service.TaskErrorWrapperLocal(
-				fmt.Errorf("cloud asset library is not enabled for this account"),
-				"asset_library_disabled", 403)
-		}
+	if user, err := model.GetUserById(userId, false); err != nil || user == nil || user.AssetLibraryEnabled != 1 {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("cloud asset library is not enabled for this account"),
+			"asset_library_disabled", 403)
 	}
 
 	if len(channelIds) != 1 {

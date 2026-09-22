@@ -44,22 +44,29 @@ describe('asset access rules', () => {
     assert.equal(canUploadAsset(both), true)
   })
 
-  test('keeps both features available for administrators', () => {
-    const admin = {
+  test('applies the same switches to administrators', () => {
+    const adminOff = {
       role: 10,
       asset_library_enabled: 0,
       asset_upload_enabled: 0,
     }
-    const root = {
+    const adminOn = {
+      role: 10,
+      asset_library_enabled: 1,
+      asset_upload_enabled: 1,
+    }
+    const rootOff = {
       role: 100,
       asset_library_enabled: 0,
       asset_upload_enabled: 0,
     }
 
-    assert.equal(canUseAssetLibrary(admin), true)
-    assert.equal(canUploadAsset(admin), true)
-    assert.equal(canUseAssetLibrary(root), true)
-    assert.equal(canUploadAsset(root), true)
+    assert.equal(canUseAssetLibrary(adminOff), false)
+    assert.equal(canUploadAsset(adminOff), false)
+    assert.equal(canUseAssetLibrary(adminOn), true)
+    assert.equal(canUploadAsset(adminOn), true)
+    assert.equal(canUseAssetLibrary(rootOff), false)
+    assert.equal(canUploadAsset(rootOff), false)
   })
 
   test('keeps entries visible when a cached session lacks the fields', () => {
