@@ -269,6 +269,37 @@ POST /v1/audio/speech          语音合成（TTS）
 
 ## 11. 云端素材库
 
+素材入库分三步：① 新建素材（公网 URL 或上传本地文件）；② 轮询「查询素材」直到状态为 `ACTIVE`；③ 在生成请求的媒体字段中填 `asset://<本站素材 ID>`。
+
+### 术语与标识
+
+| 术语 | 含义 |
+| --- | --- |
+| 素材 | 一条入库的图片 / 视频 / 音频记录，用本站素材 ID 标识 |
+| 素材组 | 素材的容器；普通素材组用「新建素材组」创建，真人素材组由真人认证流程生成 |
+| 本站素材 ID | 接口返回的 `id`（数字）；引用时写作 `asset://<id>`。上游素材 ID 不对外使用 |
+| 素材渠道 | 素材落在哪家素材库；素材与渠道绑定，生成时自动使用该渠道 |
+| 状态 | `PROCESSING` 入库中 / `ACTIVE` 可用 / `FAILED` 失败（`fail_reason` 给出原因） |
+
+### 接口总览
+
+| 分组 | 接口 | 作用 |
+| --- | --- | --- |
+| 素材组 | `GET /v1/assets/groups` | 列出素材组 |
+| 素材组 | `POST /v1/assets/groups` | 新建素材组 |
+| 素材组 | `PUT /v1/assets/groups/{id}` | 修改素材组名称与描述 |
+| 素材组 | `DELETE /v1/assets/groups/{id}` | 删除素材组 |
+| 素材 | `GET /v1/assets` | 列出素材（分页与筛选） |
+| 素材 | `POST /v1/assets` | 新建素材（公网 URL） |
+| 素材 | `POST /v1/assets/upload` | 上传本地文件 |
+| 素材 | `GET /v1/assets/{id}` | 查询素材（含最新状态） |
+| 素材 | `PUT /v1/assets/{id}` | 重命名素材 |
+| 素材 | `DELETE /v1/assets/{id}` | 删除素材 |
+| 真人认证 | `POST /v1/assets/real-person/sessions` | 创建认证会话，取认证链接 |
+| 真人认证 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果，换取真人素材组 |
+| 真人认证 | `GET /v1/assets/real-person/sessions` | 认证历史 |
+| 账号能力 | `GET /v1/assets/capabilities` | 查询开关状态与可用模型 |
+
 ### 11.1 权限与准备
 
 | 项目 | 说明 |
@@ -279,7 +310,7 @@ POST /v1/audio/speech          语音合成（TTS）
 | 真人认证 | 不受上述开关限制，任何已登录账号均可使用 |
 | 开通方式 | 由管理员在「用户 → 配置」中按账号开通；默认关闭 |
 
-调用前可用 11.9 的能力查询接口确认账号权限与可用模型。
+调用前建议先调用「账号能力查询」确认权限与可用模型。开关「上传素材」指上传本地文件，与素材库开关相互独立。
 
 ### 11.2 新建素材
 
@@ -294,7 +325,7 @@ POST /v1/assets
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `name` | string | 是 | — | 素材名称，用于列表展示与识别 |
-| `url` | string | 是 | — | 公网 HTTP(S) 地址；本地文件见 11.6 |
+| `url` | string | 是 | — | 公网 HTTP(S) 地址；本地文件请用「上传本地文件」 |
 | `asset_type` | string | 是 | — | 素材类型：`Image` / `Video` / `Audio` |
 | `group_id` | integer | 否 | 默认素材组 | 所属素材组 ID；省略时使用默认素材组，不存在则自动创建 |
 | `channel_id` | integer | 否 | 系统选择 | 素材所属渠道；省略时由系统选择 |
@@ -406,7 +437,7 @@ curl "https://baseadd.vip/v1/assets?page=1&page_size=20&status=ACTIVE" \
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `data` | array | 素材数组，元素字段同 11.2 的响应字段 |
+| `data` | array | 素材数组，元素字段与「新建素材（公网 URL）」的响应字段一致 |
 | `total` | integer | 符合条件的素材总数 |
 | `page` | integer | 当前页码 |
 | `page_size` | integer | 当前每页条数 |
@@ -415,7 +446,7 @@ curl "https://baseadd.vip/v1/assets?page=1&page_size=20&status=ACTIVE" \
 
 **查询详情**：`GET /v1/assets/{id}`
 
-查询单个素材并获取最新状态：入库完成后状态为 `ACTIVE` 或 `FAILED`。响应字段同 11.2。
+查询单个素材并获取最新状态：入库完成后状态为 `ACTIVE` 或 `FAILED`。响应字段与「新建素材（公网 URL）」一致。
 
 ```bash
 curl https://baseadd.vip/v1/assets/12 \
@@ -523,7 +554,7 @@ curl -X POST "https://baseadd.vip/v1/assets/upload" \
   -F "name=角色定妆图"
 ```
 
-响应与 11.2 新建素材一致，另含 `local_key`（临时文件名）。约束：
+响应与「新建素材（公网 URL）」一致，另含 `local_key`（临时文件名）。本接口只处理本地文件；已有公网地址请用「新建素材（公网 URL）」。约束：
 
 | 项目 | 说明 |
 | --- | --- |
@@ -563,7 +594,7 @@ curl -X POST "https://baseadd.vip/v1/videos" \
 | 引用格式 | 只接受本站素材 ID（数字）；其它写法返回 400 `invalid_asset_ref` |
 | 素材状态 | 仅 `ACTIVE` 素材可引用，否则返回 `asset_not_active` |
 | 素材所属渠道 | 引用素材的生成请求会自动使用素材所属渠道；同一次请求引用的素材须属于同一渠道，否则返回 `asset_channel_mismatch` |
-| 模型支持 | 仅部分模型支持引用素材，可用 11.9 查询；模型不支持时返回 `asset_not_supported` |
+| 模型支持 | 仅部分模型支持引用素材，可用「账号能力查询」确认；模型不支持时返回 `asset_not_supported` |
 | 跨渠道使用 | 素材不能在其它渠道复用；如需在另一渠道使用同一文件，请在该渠道重新入库 |
 | 计费 | 素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费 |
 
@@ -623,9 +654,9 @@ curl https://baseadd.vip/v1/assets/real-person/sessions/7 \
 }
 ```
 
-**认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数同 11.3。
+**认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数与「查询素材列表」一致。
 
-认证通过的真人素材组不能用 11.5 的建组接口创建；把真人图片或视频入库至该组（调用 11.2 时携带 `group_id`）后即可按 11.7 引用。
+认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传本地文件」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
 
 ### 11.9 能力查询
 

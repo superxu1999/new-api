@@ -45,14 +45,14 @@ const TOC: { id: string; label: string; sub?: { id: string; label: string }[] }[
     label: '7. 素材库（云端素材）',
     sub: [
       { id: 'sec-7-1', label: '7.1 权限与准备' },
-      { id: 'sec-7-2', label: '7.2 新建素材' },
+      { id: 'sec-7-2', label: '7.2 新建素材（公网 URL）' },
       { id: 'sec-7-3', label: '7.3 查询素材列表' },
       { id: 'sec-7-4', label: '7.4 素材详情 / 重命名 / 删除' },
       { id: 'sec-7-5', label: '7.5 素材组' },
       { id: 'sec-7-6', label: '7.6 上传本地文件' },
       { id: 'sec-7-7', label: '7.7 在生成请求中引用素材' },
       { id: 'sec-7-8', label: '7.8 真人认证' },
-      { id: 'sec-7-9', label: '7.9 能力查询' },
+      { id: 'sec-7-9', label: '7.9 账号能力查询' },
       { id: 'sec-7-10', label: '7.10 错误码' },
     ],
   },
@@ -843,6 +843,40 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-7' title={t('7. 素材库（云端素材）')}>
+            <P>
+              {t('素材入库分三步：① 新建素材（公网 URL 或上传本地文件）；② 轮询「查询素材」直到状态为 ACTIVE；③ 在生成请求的媒体字段中填 asset://<本站素材 ID>。')}
+            </P>
+            <ET title={t('术语与标识')} />
+            <T
+              headers={['术语', '含义']}
+              rows={[
+                ['素材', '一条入库的图片 / 视频 / 音频记录，用本站素材 ID 标识'],
+                ['素材组', '素材的容器；普通素材组用「新建素材组」创建，真人素材组由真人认证流程生成'],
+                ['本站素材 ID', '接口返回的 id（数字）；引用时写作 asset://<id>。上游素材 ID 不对外使用'],
+                ['素材渠道', '素材落在哪家素材库；素材与渠道绑定，生成时自动使用该渠道'],
+                ['状态', 'PROCESSING 入库中 / ACTIVE 可用 / FAILED 失败（fail_reason 给出原因）'],
+              ]}
+            />
+            <ET title={t('接口总览')} />
+            <T
+              headers={['分组', '接口', '作用']}
+              rows={[
+                ['素材组', 'GET /v1/assets/groups', '列出素材组'],
+                ['素材组', 'POST /v1/assets/groups', '新建素材组'],
+                ['素材组', 'PUT /v1/assets/groups/{id}', '修改素材组名称与描述'],
+                ['素材组', 'DELETE /v1/assets/groups/{id}', '删除素材组'],
+                ['素材', 'GET /v1/assets', '列出素材（分页与筛选）'],
+                ['素材', 'POST /v1/assets', '新建素材（公网 URL）'],
+                ['素材', 'POST /v1/assets/upload', '上传本地文件'],
+                ['素材', 'GET /v1/assets/{id}', '查询素材（含最新状态）'],
+                ['素材', 'PUT /v1/assets/{id}', '重命名素材'],
+                ['素材', 'DELETE /v1/assets/{id}', '删除素材'],
+                ['真人认证', 'POST /v1/assets/real-person/sessions', '创建认证会话，取认证链接'],
+                ['真人认证', 'GET /v1/assets/real-person/sessions/{id}', '查询认证结果，换取真人素材组'],
+                ['真人认证', 'GET /v1/assets/real-person/sessions', '认证历史'],
+                ['账号能力', 'GET /v1/assets/capabilities', '查询开关状态与可用模型'],
+              ]}
+            />
             <Sub id='sec-7-1' title={t('7.1 权限与准备')}>
               <T
                 headers={['项目', '说明']}
@@ -855,20 +889,20 @@ data: [DONE]`}</Code>
                 ]}
               />
               <P>
-                {t('调用前可用 7.9 的能力查询接口确认账号权限与可用模型。')}
+                {t('调用前建议先调用「账号能力查询」确认权限与可用模型。开关「上传素材」指上传本地文件，与素材库开关相互独立。')}
               </P>
             </Sub>
-            <Sub id='sec-7-2' title={t('7.2 新建素材')}>
+            <Sub id='sec-7-2' title={t('7.2 新建素材（公网 URL）')}>
               <Endpoint method='POST' path='/v1/assets' />
               <P>
-                {t('提交一个公网可访问的素材地址，由上游服务端下载并入库。入库为异步操作，状态变为 ACTIVE 后方可引用。')}
+                {t('素材有两种来源，结果相同：文件已在公网用本节，文件在本地用「上传本地文件」。入库为异步操作，状态变为 ACTIVE 后方可引用。')}
               </P>
               <ET title={t('请求参数')} />
               <T
                 headers={['字段', '类型', '必填', '默认值', '说明']}
                 rows={[
                   ['name', 'string', '是', '—', '素材名称，用于列表展示与识别'],
-                  ['url', 'string', '是', '—', '公网 HTTP(S) 地址；本地文件请见 7.6'],
+                  ['url', 'string', '是', '—', '公网 HTTP(S) 地址；本地文件请用「上传本地文件」'],
                   ['asset_type', 'string', '是', '—', '素材类型：Image / Video / Audio'],
                   ['group_id', 'integer', '否', '默认素材组', '所属素材组 ID；省略时使用默认素材组，不存在则自动创建'],
                   ['channel_id', 'integer', '否', '系统选择', '素材所属渠道；省略时由系统选择'],
@@ -918,7 +952,7 @@ data: [DONE]`}</Code>
               />
               <ET title={t('说明')} />
               <P>
-                {t('入库为异步操作：状态变为 ACTIVE 后方可引用；可轮询 7.4 的详情接口获取最新状态。状态长时间停留在 PROCESSING，表示素材仍在处理中。未指定 channel_id / model 时，由系统按账号分组与优先级自动选择素材渠道；管理员也可在控制台新建时指定渠道。')}
+                {t('入库为异步操作：状态变为 ACTIVE 后方可引用；可轮询「查询素材」获取最新状态。状态长时间停留在 PROCESSING，表示素材仍在处理中。未指定 channel_id / model 时，由系统按账号分组与优先级自动选择素材渠道；管理员也可在控制台新建时指定渠道。')}
               </P>
             </Sub>
             <Sub id='sec-7-3' title={t('7.3 查询素材列表')}>
@@ -967,7 +1001,7 @@ data: [DONE]`}</Code>
               <T
                 headers={['字段', '类型', '说明']}
                 rows={[
-                  ['data', 'array', '素材数组，元素字段同 7.2 的响应字段'],
+                  ['data', 'array', '素材数组，元素字段与「新建素材（公网 URL）」的响应字段一致'],
                   ['total', 'integer', '符合条件的素材总数'],
                   ['page', 'integer', '当前页码'],
                   ['page_size', 'integer', '当前每页条数'],
@@ -977,7 +1011,7 @@ data: [DONE]`}</Code>
             <Sub id='sec-7-4' title={t('7.4 素材详情 / 重命名 / 删除')}>
               <Endpoint method='GET' path='/v1/assets/{id}' />
               <P>
-                {t('查询单个素材并获取最新状态：入库完成后状态为 ACTIVE 或 FAILED。响应字段同 7.2。')}
+                {t('查询单个素材并获取最新状态：入库完成后状态为 ACTIVE 或 FAILED。响应字段与「新建素材（公网 URL）」一致。')}
               </P>
               <ET title={t('请求示例')} />
               <Code>{`curl https://ghyc.top/v1/assets/12 \\
@@ -1080,7 +1114,7 @@ data: [DONE]`}</Code>
   -F "name=角色定妆图"`}</Code>
               <ET title={t('响应说明')} />
               <P>
-                {t('响应与 7.2 新建素材一致，另含 local_key（临时文件名）。入库流程、状态与轮询方式同 7.2。')}
+                {t('响应与「新建素材（公网 URL）」一致，另含 local_key（临时文件名）。本接口只处理本地文件；已有公网地址请用「新建素材（公网 URL）」。')}
               </P>
               <ET title={t('说明')} />
               <T
@@ -1124,7 +1158,7 @@ data: [DONE]`}</Code>
                   ['引用格式', '只接受本站素材 ID（数字）；其它写法返回 400 invalid_asset_ref'],
                   ['素材状态', '仅 ACTIVE 素材可引用，否则返回 asset_not_active'],
                   ['素材所属渠道', '引用素材的生成请求会自动使用素材所属渠道；同一次请求引用的素材须属于同一渠道，否则返回 asset_channel_mismatch'],
-                  ['模型支持', '仅部分模型支持引用素材，可用 7.9 查询；模型不支持时返回 asset_not_supported'],
+                  ['模型支持', '仅部分模型支持引用素材，可用「账号能力查询」确认；模型不支持时返回 asset_not_supported'],
                   ['跨渠道使用', '素材不能在其它渠道复用；如需在另一渠道使用同一文件，请在该渠道重新入库'],
                   ['计费', '素材入库、上传与真人认证当前不单独计费；视频生成按既有规则计费'],
                 ]}
@@ -1198,10 +1232,10 @@ data: [DONE]`}</Code>
   -H "Authorization: Bearer sk-..."`}</Code>
               <ET title={t('说明')} />
               <P>
-                {t('认证通过的真人素材组不能用 7.5 的建组接口创建；把真人图片或视频入库至该组（调用 7.2 时携带 group_id）后即可按 7.7 引用。真人认证不受账号开关限制。')}
+                {t('认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传本地文件」时携带 group_id）后即可按「在生成请求中引用素材」引用。真人认证不受账号开关限制。')}
               </P>
             </Sub>
-            <Sub id='sec-7-9' title={t('7.9 能力查询')}>
+            <Sub id='sec-7-9' title={t('7.9 账号能力查询')}>
               <Endpoint method='GET' path='/v1/assets/capabilities' />
               <P>
                 {t('返回当前账号的素材能力：两个开关状态、可用渠道与支持素材的模型。该接口不受开关限制，用于在调用前判断能否使用素材。')}
