@@ -843,12 +843,6 @@ data: [DONE]`}</Code>
           </Section>
 
           <Section id='sec-7' title={t('7. 素材库（云端素材）')}>
-            <P>
-              {t('素材文件、转码、审核与真人活体认证均由上游渠道托管；平台只登记素材归属、渠道绑定与状态。素材状态为 ACTIVE 后方可用于视频生成，引用写法为 asset://<素材 ID>。')}
-            </P>
-            <P>
-              {t('本节接口同时支持登录会话与 Bearer key 鉴权，路径前缀为 /v1/assets。')}
-            </P>
             <Sub id='sec-7-1' title={t('7.1 权限与准备')}>
               <T
                 headers={['项目', '说明']}
