@@ -881,7 +881,7 @@ data: [DONE]`}</Code>
             </P>
             <ET title={t('在视频生成中引用素材')} />
             <P>
-              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。引用只接受本站素材 ID（数字）：上游原始素材 ID（形如 asset-2026...）会被拒并返回 400 invalid_asset_ref，因为它属于上游账号下的对象，放行会绕过归属校验。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道。')}
+              {t('在 content 数组的 image_url / video_url / audio_url，或扁平写法 metadata.image_url / video_url / audio_url 中填 asset://<素材 ID>。引用只接受本站素材 ID（数字）：上游原始素材 ID（形如 asset-2026...）会被拒并返回 400 invalid_asset_ref，因为它属于上游账号下的对象，放行会绕过归属校验。本站提交上游前会校验素材归属与状态，并替换为上游素材 ID。素材绑定渠道：引用了素材的任务会固定走素材所属渠道，一条请求内的素材必须来自同一渠道；同一个上游素材不能跨渠道复用。素材能力取决于渠道是否支持素材接口（当前移动云 Seedance 渠道不支持，移动云模型上无法引用素材）。素材入库、上传与真人认证当前不单独计费。')}
             </P>
             <Code>{`curl -X POST https://ghyc.top/v1/videos \\
   -H "Content-Type: application/json" \\
