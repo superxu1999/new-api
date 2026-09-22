@@ -94,8 +94,12 @@ type TaskCanceller interface {
 // AssetLibrary 是云端素材库能力的可选接口：素材组、素材与真人活体认证都由上游托管，
 // 本站只做代理。未实现该接口的渠道，上层返回 asset_not_supported，不假装支持。
 //
-// 采用「动作式」签名（action + payload）而不是逐个方法，是因为上游（火山方舟素材资产）
-// 本身就是 /api/?Action=Xxx&Version=... 的动作式接口；换后端只需改动作映射。
+// 采用「动作式」签名（action + payload）而不是逐个方法，是因为火山方舟素材资产本身就是
+// /api/?Action=Xxx&Version=... 的动作式接口；移动云是 REST，由各自适配器把动作名翻译成
+// 对应的 HTTP 调用，上层无需感知差异。
 type AssetLibrary interface {
 	AssetAction(baseUrl string, key string, proxy string, action string, payload map[string]any) (*http.Response, error)
+	// AssetProbe 做一次只读探测，用于确认该渠道的素材接口确实可用（能力查询与自动选路）。
+	// 正常返回 2xx 视为可用；没有素材接口的渠道应返回 404/405，据此被剔除。
+	AssetProbe(baseUrl string, key string, proxy string) (*http.Response, error)
 }

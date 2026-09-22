@@ -165,6 +165,21 @@ func assetChannelCandidates(c *gin.Context, channelId int, modelName string) ([]
 			channelId: id,
 		})
 	}
+	if channelId == 0 {
+		// 自动选路只保留真正可用的渠道：配置了渠道但上游没开放素材接口（或地址不可达、
+		// 鉴权失败）的，一律不参与选路，避免把用户的第一次调用打在死渠道上。
+		verified := make([]*assetChannel, 0, len(result))
+		for _, candidate := range result {
+			if probeAssetChannel(candidate) {
+				verified = append(verified, candidate)
+			}
+		}
+		if len(verified) > 0 {
+			result = verified
+		} else if lastErr == nil {
+			lastErr = fmt.Errorf("no channel currently supports asset library")
+		}
+	}
 	if len(result) == 0 {
 		if lastErr == nil {
 			lastErr = fmt.Errorf("no channel supports asset library")
@@ -197,7 +212,8 @@ func (e *assetUpstreamError) Error() string {
 // assetAction 调用上游动作并解析响应。
 //
 // 兼容两种响应形态：火山方舟的 {"ResponseMetadata":…,"Result":{…}}（失败在
-// ResponseMetadata.Error 里）与中转的 {"ok":true,"data":{…}}；返回业务结果部分。
+// ResponseMetadata.Error 里）与移动云/中转的 {"ok":true,"data":{…}}；
+// 返回业务结果部分。
 func assetAction(ac *assetChannel, action string, payload map[string]any) (map[string]any, error) {
 	resp, err := ac.adaptor.AssetAction(ac.baseUrl, ac.key, ac.proxy, action, payload)
 	if err != nil {
@@ -208,6 +224,10 @@ func assetAction(ac *assetChannel, action string, payload map[string]any) (map[s
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &assetUpstreamError{action: action, status: resp.StatusCode, body: strings.TrimSpace(string(body))}
 	}
+	// 移动云的删除类接口返回空体（或 204），按成功处理。
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return map[string]any{}, nil
+	}
 	var parsed map[string]any
 	if err := common.Unmarshal(body, &parsed); err != nil {
 		return nil, fmt.Errorf("invalid upstream response for %s: %s", action, strings.TrimSpace(string(body)))
@@ -216,6 +236,14 @@ func assetAction(ac *assetChannel, action string, payload map[string]any) (map[s
 		if errObj, ok := meta["Error"].(map[string]any); ok {
 			return nil, fmt.Errorf("upstream %s error: %v", action, errObj["Message"])
 		}
+	}
+	if ok, isBool := parsed["ok"].(bool); isBool && !ok {
+		if errObj, isMap := parsed["error"].(map[string]any); isMap {
+			if message := stringField(errObj, "message"); message != "" {
+				return nil, fmt.Errorf("upstream %s error: %s", action, message)
+			}
+		}
+		return nil, fmt.Errorf("upstream %s failed: %s", action, strings.TrimSpace(string(body)))
 	}
 	if result, ok := parsed["Result"].(map[string]any); ok {
 		return result, nil
@@ -226,23 +254,55 @@ func assetAction(ac *assetChannel, action string, payload map[string]any) (map[s
 	return parsed, nil
 }
 
+// assetField 取上游返回里的第一个非空字符串字段：各家字段命名不同
+// （火山 Id/Status，移动云 asset_id/groupId/status），这里统一兼容。
+func assetField(result map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringField(result, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// assetStatus 取并归一化上游素材状态（字段名与大小写各家不同）。
+func assetStatus(result map[string]any) string {
+	return strings.ToUpper(assetField(result, "Status", "status"))
+}
+
 // assetRouteMissing 判断错误是否属于「上游根本没有这个路由」。
 //
 // 现象：new-api 系中转对 /api 返回 {"error":{"message":"Invalid URL (POST /api)"}}，
-// 网关则返回裸 404/405。这类错误说明该渠道没开放素材动作接口，换下一条候选渠道即可；
+// 网关则返回裸 404/405（移动云直连网关是 Spring 的 {"status":404,"error":"Not Found"}）。
+// 这类错误说明该渠道没开放素材接口，换下一条候选渠道即可；
 // 其它错误（参数错误、鉴权失败、业务报错）一律原样上抛，不掩盖真实问题。
 func assetRouteMissing(err error) bool {
 	var upstreamErr *assetUpstreamError
 	if !errors.As(err, &upstreamErr) {
 		return false
 	}
-	if upstreamErr.status != http.StatusNotFound && upstreamErr.status != http.StatusMethodNotAllowed {
+	return assetRouteMissingResponse(upstreamErr.status, upstreamErr.body)
+}
+
+// assetRouteMissingResponse 判断一次上游响应是否表示没有素材路由。
+func assetRouteMissingResponse(status int, body string) bool {
+	if status != http.StatusNotFound && status != http.StatusMethodNotAllowed {
 		return false
 	}
-	body := upstreamErr.body
 	return strings.Contains(body, "Invalid URL") ||
 		strings.Contains(body, "Not Found") ||
 		strings.Contains(body, "resource_not_found")
+}
+
+// assetUpstreamMissing 判断上游报「对象不存在」：说明它已经在上游被删掉（例如在上游控制台
+// 删除过），此时本地登记也应清理，否则用户会留下删不掉的记录。
+func assetUpstreamMissing(err error) bool {
+	var upstreamErr *assetUpstreamError
+	if !errors.As(err, &upstreamErr) || upstreamErr.status != http.StatusNotFound {
+		return false
+	}
+	body := strings.ToLower(upstreamErr.body)
+	return strings.Contains(body, "not found") || strings.Contains(body, "not exist")
 }
 
 // assetRouteMissingTTL 是「该渠道上游没有素材路由」这一结论的缓存时长。
@@ -280,27 +340,28 @@ func isAssetRouteMissing(channelId int) bool {
 	return true
 }
 
-// probeAssetChannel 用一次只读的列表动作确认这条渠道真的能调素材接口。
+// probeAssetChannel 用一次只读请求确认这条渠道真的能调素材接口。
 //
-// 能力探测要回答「哪些模型能用素材」，而「配了渠道 + 适配器实现了 AssetAction」并不等于
+// 能力探测要回答「哪些模型能用素材」，而「配了渠道 + 适配器实现了素材动作」并不等于
 // 上游真的开放了素材入口（例如 Foxtoken 中转的 /api 就没有）。所以这里实际探一次并缓存，
-// 避免把不可用的渠道与模型展示给用户。
+// 避免把不可用的渠道与模型展示给用户；自动选路同样只走探测通过的渠道。
 func probeAssetChannel(ac *assetChannel) bool {
 	if value, ok := assetChannelProbeCache.Load(ac.channelId); ok {
 		if probe, ok := value.(assetChannelProbe); ok && time.Now().Before(probe.expireAt) {
 			return probe.ok
 		}
 	}
-	_, err := assetAction(ac, "ListAssetGroups", map[string]any{
-		// 上游要求必须带 Filter（空对象即可），否则报 InvalidRequest: Filter is required。
-		"Filter":      map[string]any{},
-		"PageNumber":  1,
-		"PageSize":    1,
-		"ProjectName": "default",
-	})
-	usable := err == nil
-	if err != nil && assetRouteMissing(err) {
-		markAssetRouteMissing(ac.channelId)
+	usable := false
+	resp, err := ac.adaptor.AssetProbe(ac.baseUrl, ac.key, ac.proxy)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("asset probe: channel %d unreachable: %s", ac.channelId, err.Error()))
+	} else {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+		_ = resp.Body.Close()
+		usable = resp.StatusCode >= 200 && resp.StatusCode < 300
+		if !usable && assetRouteMissingResponse(resp.StatusCode, string(body)) {
+			markAssetRouteMissing(ac.channelId)
+		}
 	}
 	assetChannelProbeCache.Store(ac.channelId, assetChannelProbe{
 		ok:       usable,
@@ -407,7 +468,7 @@ func ensureAssetGroup(c *gin.Context, channelId int, modelName string, groupId i
 	if err != nil {
 		return nil, nil, err
 	}
-	upstreamId := stringField(result, "Id")
+	upstreamId := assetField(result, "Id", "id", "group_id", "groupId", "asset_id", "assetId")
 	if upstreamId == "" {
 		return nil, nil, fmt.Errorf("upstream did not return group id")
 	}
@@ -485,7 +546,7 @@ func CreateAssetGroup(c *gin.Context) {
 		assetFailure(c, err)
 		return
 	}
-	upstreamId := stringField(result, "Id")
+	upstreamId := assetField(result, "Id", "id", "group_id", "groupId", "asset_id", "assetId")
 	if upstreamId == "" {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", "upstream did not return group id")
 		return
@@ -603,7 +664,7 @@ func DeleteAssetGroup(c *gin.Context) {
 	if _, err := assetAction(ac, "DeleteAssetGroup", map[string]any{
 		"Id":          group.UpstreamGroupId,
 		"ProjectName": "default",
-	}); err != nil {
+	}); err != nil && !assetUpstreamMissing(err) {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
 		return
 	}
@@ -744,15 +805,12 @@ func CreateAsset(c *gin.Context) {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
 		return
 	}
-	upstreamId := stringField(result, "Id")
-	if upstreamId == "" {
-		upstreamId = stringField(result, "asset_id")
-	}
+	upstreamId := assetField(result, "Id", "id", "asset_id", "assetId")
 	if upstreamId == "" {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", "upstream did not return asset id")
 		return
 	}
-	status := strings.ToUpper(stringField(result, "Status"))
+	status := assetStatus(result)
 	if status == "" {
 		status = model.AssetStatusProcessing
 	}
@@ -800,8 +858,8 @@ func GetAsset(c *gin.Context) {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
 		return
 	}
-	if status := strings.ToUpper(stringField(result, "Status")); status != "" && status != asset.Status {
-		failReason := stringField(result, "Error")
+	if status := assetStatus(result); status != "" && status != asset.Status {
+		failReason := assetField(result, "Error", "error", "fail_reason", "failReason")
 		if err := model.UpdateAssetStatus(asset.Id, status, failReason); err == nil {
 			asset.Status = status
 			asset.FailReason = failReason
@@ -870,7 +928,7 @@ func DeleteAsset(c *gin.Context) {
 	if _, err := assetAction(ac, "DeleteAsset", map[string]any{
 		"Id":          asset.UpstreamAssetId,
 		"ProjectName": "default",
-	}); err != nil {
+	}); err != nil && !assetUpstreamMissing(err) {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", err.Error())
 		return
 	}
@@ -919,15 +977,18 @@ func CreateRealPersonSession(c *gin.Context) {
 		assetFailure(c, err)
 		return
 	}
-	bytedToken := stringField(result, "BytedToken")
-	h5Link := stringField(result, "H5Link")
+	bytedToken := assetField(result, "BytedToken", "bytedToken", "byted_token")
+	h5Link := assetField(result, "H5Link", "h5Link", "h5_link")
 	if bytedToken == "" || h5Link == "" {
 		assetError(c, http.StatusBadGateway, "asset_upstream_error", "upstream did not return real-person session")
 		return
 	}
 	expiresIn := 0
-	if v, ok := result["ExpiresIn"].(float64); ok {
-		expiresIn = int(v)
+	for _, key := range []string{"ExpiresIn", "expiresIn", "expires_in"} {
+		if v, ok := result[key].(float64); ok {
+			expiresIn = int(v)
+			break
+		}
 	}
 	session := &model.RealPersonSession{
 		UserId:     c.GetInt("id"),
@@ -986,7 +1047,7 @@ func GetRealPersonSession(c *gin.Context) {
 		})
 		return
 	}
-	upstreamGroupId := stringField(result, "GroupId")
+	upstreamGroupId := assetField(result, "GroupId", "groupId", "group_id")
 	if upstreamGroupId == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
@@ -1063,16 +1124,11 @@ func AssetCapabilities(c *gin.Context) {
 	channels := make([]gin.H, 0)
 	models := make([]string, 0)
 	// 候选渠道解析失败（无可用渠道、上游不支持）时按「没有素材能力」返回，不报错。
+	// 自动选路已按探测结果过滤，这里拿到的就是当前真正可用的渠道。
 	if candidates, err := assetChannelCandidates(c, 0, ""); err == nil {
-		usable := make([]*assetChannel, 0, len(candidates))
-		for _, candidate := range candidates {
-			if probeAssetChannel(candidate) {
-				usable = append(usable, candidate)
-			}
-		}
 		group, groupErr := assetUserGroup(c)
-		channelIds := make([]int, 0, len(usable))
-		for _, candidate := range usable {
+		channelIds := make([]int, 0, len(candidates))
+		for _, candidate := range candidates {
 			channelIds = append(channelIds, candidate.channelId)
 		}
 		channelModels := map[int][]string{}
@@ -1081,7 +1137,7 @@ func AssetCapabilities(c *gin.Context) {
 				channelModels = list
 			}
 		}
-		for _, candidate := range usable {
+		for _, candidate := range candidates {
 			item := gin.H{"channel_id": candidate.channelId}
 			if isAdmin {
 				item["channel_name"] = candidate.channel.Name

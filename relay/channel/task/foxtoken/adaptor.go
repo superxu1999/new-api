@@ -265,6 +265,17 @@ func (a *TaskAdaptor) AssetAction(baseUrl string, key string, proxy string, acti
 // assetActionVersion 是火山方舟素材资产动作接口的版本号。
 const assetActionVersion = "2024-01-01"
 
+// AssetProbe 用一次只读的素材组列表确认该渠道确实开放了素材接口。
+// 上游要求必须带 Filter（空对象即可），否则返回 InvalidRequest: Filter is required。
+func (a *TaskAdaptor) AssetProbe(baseUrl string, key string, proxy string) (*http.Response, error) {
+	return a.AssetAction(baseUrl, key, proxy, "ListAssetGroups", map[string]any{
+		"Filter":      map[string]any{},
+		"PageNumber":  1,
+		"PageSize":    1,
+		"ProjectName": "default",
+	})
+}
+
 // originOf 从渠道 base 取出 scheme://host，去掉可能存在的路径前缀。
 func originOf(baseUrl string) (string, error) {
 	trimmed := strings.TrimSpace(baseUrl)
