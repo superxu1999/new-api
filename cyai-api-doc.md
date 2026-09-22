@@ -281,7 +281,7 @@ POST /v1/audio/speech          语音合成（TTS）
 | 素材渠道 | 素材落在哪家素材库；素材与渠道绑定，生成时自动使用该渠道 |
 | 状态 | `PROCESSING` 入库中 / `ACTIVE` 可用 / `FAILED` 失败（`fail_reason` 给出原因） |
 
-### 接口总览
+### 接口总览：素材库接口
 
 | 分组 | 接口 | 作用 |
 | --- | --- | --- |
@@ -291,14 +291,19 @@ POST /v1/audio/speech          语音合成（TTS）
 | 素材组 | `DELETE /v1/assets/groups/{id}` | 删除素材组 |
 | 素材 | `GET /v1/assets` | 列出素材（分页与筛选） |
 | 素材 | `POST /v1/assets` | 新建素材（公网 URL） |
-| 素材 | `POST /v1/assets/upload` | 上传本地文件 |
 | 素材 | `GET /v1/assets/{id}` | 查询素材（含最新状态） |
 | 素材 | `PUT /v1/assets/{id}` | 重命名素材 |
 | 素材 | `DELETE /v1/assets/{id}` | 删除素材 |
 | 真人认证 | `POST /v1/assets/real-person/sessions` | 创建认证会话，取认证链接 |
 | 真人认证 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果，换取真人素材组 |
-| 真人认证 | `GET /v1/assets/real-person/sessions` | 认证历史 |
-| 账号能力 | `GET /v1/assets/capabilities` | 查询开关状态与可用模型 |
+
+### 接口总览：本站附加接口
+
+| 接口 | 作用 | 为什么需要 |
+| --- | --- | --- |
+| `POST /v1/assets/upload` | 上传本地文件 | 素材库只接受公网地址，本地文件需先由本站转为可下载地址 |
+| `GET /v1/assets/real-person/sessions` | 认证历史 | 便于查看历史认证与已绑定的真人素材组 |
+| `GET /v1/assets/capabilities` | 查询开关状态与可用模型 | 用于在调用前确认权限与可用模型，避免试错 |
 
 ### 11.1 权限与准备
 
@@ -312,7 +317,59 @@ POST /v1/audio/speech          语音合成（TTS）
 
 调用前建议先调用「账号能力查询」确认权限与可用模型。开关「上传素材」指上传本地文件，与素材库开关相互独立。
 
-### 11.2 新建素材
+### 11.2 素材组
+
+**查询素材组列表**：`GET /v1/assets/groups`。真人素材组由真人认证流程自动生成，不能通过建组接口创建。
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `group_type` | string | 否 | 按类型筛选：`AIGC` / `LivenessFace` |
+| `channel_id` | integer | 否 | 按渠道筛选 |
+
+```bash
+curl https://baseadd.vip/v1/assets/groups \
+  -H "Authorization: Bearer sk-..."
+```
+
+**新建素材组**：`POST /v1/assets/groups`，仅支持 `AIGC` 类型。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `name` | string | 是 | — | 素材组名称 |
+| `description` | string | 否 | 空 | 素材组描述 |
+| `group_type` | string | 否 | `AIGC` | 仅支持 `AIGC` |
+| `channel_id` | integer | 否 | 系统选择 | 素材组所属渠道；省略时由系统选择 |
+| `model` | string | 否 | — | 按模型确定素材组所属渠道，与 `channel_id` 二选一 |
+
+```bash
+curl -X POST https://baseadd.vip/v1/assets/groups \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{ "name": "角色定妆图组" }'
+```
+
+**修改素材组**：`PUT /v1/assets/groups/{id}`，修改名称与描述；未提交的字段保持原值。
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `name` | string | 否 | 新的素材组名称 |
+| `description` | string | 否 | 新的素材组描述 |
+
+```bash
+curl -X PUT https://baseadd.vip/v1/assets/groups/14 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-..." \
+  -d '{ "name": "角色定妆图组-2" }'
+```
+
+**删除素材组**：`DELETE /v1/assets/groups/{id}`，组内素材一并删除。
+
+```bash
+curl -X DELETE https://baseadd.vip/v1/assets/groups/14 \
+  -H "Authorization: Bearer sk-..."
+```
+
+### 11.3 素材：新建（公网 URL）
 
 ```
 POST /v1/assets
@@ -382,7 +439,7 @@ curl -X POST "https://baseadd.vip/v1/assets" \
 
 未指定 `channel_id` / `model` 时，由系统按账号分组与优先级自动选择素材渠道；管理员也可在控制台新建时指定渠道。
 
-### 11.3 查询素材列表
+### 11.4 素材：查询列表
 
 ```
 GET /v1/assets
@@ -442,7 +499,7 @@ curl "https://baseadd.vip/v1/assets?page=1&page_size=20&status=ACTIVE" \
 | `page` | integer | 当前页码 |
 | `page_size` | integer | 当前每页条数 |
 
-### 11.4 素材详情 / 重命名 / 删除
+### 11.5 素材：详情 / 重命名 / 删除
 
 **查询详情**：`GET /v1/assets/{id}`
 
@@ -477,59 +534,7 @@ curl -X DELETE https://baseadd.vip/v1/assets/12 \
   -H "Authorization: Bearer sk-..."
 ```
 
-### 11.5 素材组
-
-**查询素材组列表**：`GET /v1/assets/groups`。真人素材组由真人认证流程自动生成，不能通过建组接口创建。
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `group_type` | string | 否 | 按类型筛选：`AIGC` / `LivenessFace` |
-| `channel_id` | integer | 否 | 按渠道筛选 |
-
-```bash
-curl https://baseadd.vip/v1/assets/groups \
-  -H "Authorization: Bearer sk-..."
-```
-
-**新建素材组**：`POST /v1/assets/groups`，仅支持 `AIGC` 类型。
-
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `name` | string | 是 | — | 素材组名称 |
-| `description` | string | 否 | 空 | 素材组描述 |
-| `group_type` | string | 否 | `AIGC` | 仅支持 `AIGC` |
-| `channel_id` | integer | 否 | 系统选择 | 素材组所属渠道；省略时由系统选择 |
-| `model` | string | 否 | — | 按模型确定素材组所属渠道，与 `channel_id` 二选一 |
-
-```bash
-curl -X POST https://baseadd.vip/v1/assets/groups \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-..." \
-  -d '{ "name": "角色定妆图组" }'
-```
-
-**修改素材组**：`PUT /v1/assets/groups/{id}`，修改名称与描述；未提交的字段保持原值。
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `name` | string | 否 | 新的素材组名称 |
-| `description` | string | 否 | 新的素材组描述 |
-
-```bash
-curl -X PUT https://baseadd.vip/v1/assets/groups/14 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-..." \
-  -d '{ "name": "角色定妆图组-2" }'
-```
-
-**删除素材组**：`DELETE /v1/assets/groups/{id}`，组内素材一并删除。
-
-```bash
-curl -X DELETE https://baseadd.vip/v1/assets/groups/14 \
-  -H "Authorization: Bearer sk-..."
-```
-
-### 11.6 上传本地文件
+### 11.6 上传本地文件（本站附加）
 
 ```
 POST /v1/assets/upload
@@ -658,7 +663,7 @@ curl https://baseadd.vip/v1/assets/real-person/sessions/7 \
 
 认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传本地文件」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
 
-### 11.9 能力查询
+### 11.9 本站附加：账号能力查询
 
 ```
 GET /v1/assets/capabilities
