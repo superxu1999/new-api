@@ -267,9 +267,9 @@ POST /v1/audio/speech          语音合成（TTS）
 
 > 注意：**不认识的请求字段会被忽略而不是报错**。参考素材请按第 5.1 节写在顶层 `content` 或 `metadata.content` 里；写在其它位置（如自造的字段名）不会生效。任务失败的具体原因看 `metadata.fail_reason`（见 5.3）。
 
-## 11. 云端素材库
+## 11. 素材库
 
-素材入库分三步：① 新建素材（公网 URL 或上传本地文件）；② 轮询「查询素材」直到状态为 `ACTIVE`；③ 在生成请求的媒体字段中填 `asset://<本站素材 ID>`。
+素材入库分三步：① 新建素材（公网 URL 或上传素材）；② 轮询「查询素材」直到状态为 `ACTIVE`；③ 在生成请求的媒体字段中填 `asset://<本站素材 ID>`。
 
 ### 术语与标识
 
@@ -281,7 +281,7 @@ POST /v1/audio/speech          语音合成（TTS）
 | 素材渠道 | 素材落在哪家素材库；素材与渠道绑定，生成时自动使用该渠道 |
 | 状态 | `PROCESSING` 入库中 / `ACTIVE` 可用 / `FAILED` 失败（`fail_reason` 给出原因） |
 
-### 接口总览：素材库接口
+### 接口总览
 
 | 分组 | 接口 | 作用 |
 | --- | --- | --- |
@@ -291,19 +291,14 @@ POST /v1/audio/speech          语音合成（TTS）
 | 素材组 | `DELETE /v1/assets/groups/{id}` | 删除素材组 |
 | 素材 | `GET /v1/assets` | 列出素材（分页与筛选） |
 | 素材 | `POST /v1/assets` | 新建素材（公网 URL） |
+| 素材 | `POST /v1/assets/upload` | 上传素材（本地文件） |
 | 素材 | `GET /v1/assets/{id}` | 查询素材（含最新状态） |
 | 素材 | `PUT /v1/assets/{id}` | 重命名素材 |
 | 素材 | `DELETE /v1/assets/{id}` | 删除素材 |
 | 真人认证 | `POST /v1/assets/real-person/sessions` | 创建认证会话，取认证链接 |
 | 真人认证 | `GET /v1/assets/real-person/sessions/{id}` | 查询认证结果，换取真人素材组 |
-
-### 接口总览：本站附加接口
-
-| 接口 | 作用 | 为什么需要 |
-| --- | --- | --- |
-| `POST /v1/assets/upload` | 上传本地文件 | 素材库只接受公网地址，本地文件需先由本站转为可下载地址 |
-| `GET /v1/assets/real-person/sessions` | 认证历史 | 便于查看历史认证与已绑定的真人素材组 |
-| `GET /v1/assets/capabilities` | 查询开关状态与可用模型 | 用于在调用前确认权限与可用模型，避免试错 |
+| 真人认证 | `GET /v1/assets/real-person/sessions` | 列出认证会话 |
+| 账号能力 | `GET /v1/assets/capabilities` | 查询开关状态与可用模型 |
 
 ### 11.1 权限与准备
 
@@ -311,11 +306,11 @@ POST /v1/audio/speech          语音合成（TTS）
 | --- | --- |
 | 控制台显示 | 由管理员的侧边栏配置决定，与账号开关无关 |
 | 素材功能 | 需开通账号开关「素材库」；未开通时素材接口返回 403 `asset_library_disabled` |
-| 上传本地文件 | 需开通账号开关「上传素材」，与素材库开关相互独立；未开通时返回 403 `asset_upload_disabled` |
+| 上传素材 | 需开通账号开关「上传素材」，与「素材库」开关相互独立；未开通时返回 403 `asset_upload_disabled` |
 | 真人认证 | 不受上述开关限制，任何已登录账号均可使用 |
 | 开通方式 | 由管理员在「用户 → 配置」中按账号开通；默认关闭 |
 
-调用前建议先调用「账号能力查询」确认权限与可用模型。开关「上传素材」指上传本地文件，与素材库开关相互独立。
+调用前建议先调用「账号能力查询」确认权限与可用模型。「上传素材」开关控制上传本地文件，与「素材库」开关相互独立。
 
 ### 11.2 素材组
 
@@ -382,7 +377,7 @@ POST /v1/assets
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `name` | string | 是 | — | 素材名称，用于列表展示与识别 |
-| `url` | string | 是 | — | 公网 HTTP(S) 地址；本地文件请用「上传本地文件」 |
+| `url` | string | 是 | — | 公网 HTTP(S) 地址；本地文件请用「上传素材」 |
 | `asset_type` | string | 是 | — | 素材类型：`Image` / `Video` / `Audio` |
 | `group_id` | integer | 否 | 默认素材组 | 所属素材组 ID；省略时使用默认素材组，不存在则自动创建 |
 | `channel_id` | integer | 否 | 系统选择 | 素材所属渠道；省略时由系统选择 |
@@ -534,13 +529,13 @@ curl -X DELETE https://baseadd.vip/v1/assets/12 \
   -H "Authorization: Bearer sk-..."
 ```
 
-### 11.6 上传本地文件（本站附加）
+### 11.6 上传素材
 
 ```
 POST /v1/assets/upload
 ```
 
-素材文件在本地时使用本接口。该能力默认关闭，需开通账号开关「上传素材」，与素材库开关相互独立。
+上传本地文件：文件由本站暂存并提供下载地址，供素材库读取后完成入库。该能力默认关闭，需开通「上传素材」开关，与「素材库」开关相互独立。
 
 请求参数（`multipart/form-data`）：
 
@@ -661,9 +656,9 @@ curl https://baseadd.vip/v1/assets/real-person/sessions/7 \
 
 **认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数与「查询素材列表」一致。
 
-认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传本地文件」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
+认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传素材」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
 
-### 11.9 本站附加：账号能力查询
+### 11.9 账号能力查询
 
 ```
 GET /v1/assets/capabilities
@@ -697,7 +692,7 @@ curl https://baseadd.vip/v1/assets/capabilities \
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `asset_library_enabled` | boolean | 素材功能是否已开通 |
-| `asset_upload_enabled` | boolean | 上传本地文件是否已开通 |
+| `asset_upload_enabled` | boolean | 上传素材是否已开通 |
 | `channels` | array | 可用渠道及其支持的模型；`channel_name` 仅管理员可见 |
 | `models` | array | 当前分组下支持素材的模型去重列表 |
 | `real_person_available` | boolean | 是否存在可做真人认证的渠道 |
@@ -708,7 +703,7 @@ curl https://baseadd.vip/v1/assets/capabilities \
 
 | code | HTTP | 说明 |
 | --- | --- | --- |
-| `asset_library_disabled` | 403 | 该账号未开通云端素材库，请联系管理员开通 |
+| `asset_library_disabled` | 403 | 该账号未开通素材库，请联系管理员开通 |
 | `asset_upload_disabled` | 403 | 该账号未开通上传权限，请联系管理员开通 |
 | `asset_file_too_large` | 400 | 上传文件超过 100MB 上限 |
 | `asset_file_type_not_allowed` | 400 | 上传文件类型不在支持范围内 |
