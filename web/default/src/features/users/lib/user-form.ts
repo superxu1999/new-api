@@ -124,7 +124,8 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
   return {
     username: user.username,
     display_name: user.display_name,
-    password: '',
+    // 后端在管理端详情接口里解密回显当前密码；未启用可逆存储或历史数据时为空串。
+    password: user.password_plain ?? '',
     role: user.role,
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
@@ -133,4 +134,50 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     asset_library_enabled: user.asset_library_enabled ?? 0,
     asset_upload_enabled: user.asset_upload_enabled ?? 0,
   }
+}
+
+// ============================================================================
+// Credential Generation
+// ============================================================================
+
+// 去掉 0/O/o、1/l/I 等易混字符：生成的凭据要能口头转交或手抄。
+const PASSWORD_ALPHABET =
+  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+// 用户名随机段只用小写字母与数字，不含下划线，便于口头转述。
+const USERNAME_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'
+
+function randomString(length: number, alphabet: string): string {
+  const randomValues = new Uint32Array(length)
+  crypto.getRandomValues(randomValues)
+  let result = ''
+  for (const value of randomValues) {
+    result += alphabet[value % alphabet.length]
+  }
+  return result
+}
+
+// 后端对密码有 validate:"min=8,max=20" 的硬约束；默认取 10 位，比下限多留一点强度。
+const DEFAULT_PASSWORD_LENGTH = 10
+// 用户名随机段长度：32^6 ≈ 1.07e9，千级用户量下碰撞概率约万分之五，再短就会明显容易撞名。
+const USERNAME_SUFFIX_LENGTH = 6
+
+/**
+ * 生成一个随机初始密码（默认 10 位，落在后端的 8-20 位区间内）。
+ *
+ * 保存后可在「编辑用户」里回显：后端既存 bcrypt 哈希（登录校验），
+ * 也存一份可解密副本（仅管理端详情接口返回）。
+ */
+export function generateRandomPassword(
+  length = DEFAULT_PASSWORD_LENGTH
+): string {
+  return randomString(length, PASSWORD_ALPHABET)
+}
+
+/**
+ * 生成一个随机用户名（`user_` + 6 位，共 11 位，满足后端 max=20 的长度限制）。
+ *
+ * 唯一性由后端的唯一索引兜底：撞名时接口会返回唯一约束错误，重新生成一次即可。
+ */
+export function generateRandomUsername(): string {
+  return `user_${randomString(USERNAME_SUFFIX_LENGTH, USERNAME_ALPHABET)}`
 }

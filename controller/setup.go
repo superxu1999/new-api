@@ -94,7 +94,7 @@ func PostSetup(c *gin.Context) {
 		}
 
 		// Create root user
-		hashedPassword, err := common.Password2Hash(req.Password)
+		hashedPassword, encryptedPassword, err := common.HashAndEncryptPassword(req.Password)
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
@@ -105,6 +105,7 @@ func PostSetup(c *gin.Context) {
 		rootUser := model.User{
 			Username:    req.Username,
 			Password:    hashedPassword,
+			PasswordEnc: encryptedPassword,
 			Role:        common.RoleRootUser,
 			Status:      common.UserStatusEnabled,
 			DisplayName: "Root User",

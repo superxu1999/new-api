@@ -21,10 +21,16 @@ const UserNameMaxLength = 20
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id               int            `json:"id"`
-	Username         string         `json:"username" gorm:"unique;index" validate:"max=20"`
-	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
-	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	Id               int    `json:"id"`
+	Username         string `json:"username" gorm:"unique;index" validate:"max=20"`
+	Password         string `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	OriginalPassword string `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	// PasswordEnc 是密码的可解密副本（AES-256-GCM），仅供管理端「编辑用户」回显。
+	// 认证始终使用上面的 bcrypt 哈希，该列不参与登录校验；未启用可逆存储时为空。
+	// json:"-" 保证它不会出现在任何接口响应里（包括用户列表）。
+	PasswordEnc string `json:"-" gorm:"type:text;column:password_enc"`
+	// PasswordPlain 由管理端单用户详情接口解密填充，永不落库、永不进列表接口。
+	PasswordPlain    string         `json:"password_plain,omitempty" gorm:"-:all"`
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
@@ -342,7 +348,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	}
 
 	// Get paginated users within same transaction
-	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password", "access_token").Find(&users).Error
+	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password", "password_enc", "access_token").Find(&users).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -410,7 +416,7 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	}
 
 	// 获取分页数据
-	err = query.Omit("password", "access_token").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
+	err = query.Omit("password", "password_enc", "access_token").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -523,9 +529,14 @@ func (user *User) prepareForInsert(tx *gorm.DB) error {
 	if user.Password == "" {
 		return nil
 	}
-	var err error
-	user.Password, err = common.Password2Hash(user.Password)
-	return err
+	plainPassword := user.Password
+	hashedPassword, encryptedPassword, err := common.HashAndEncryptPassword(plainPassword)
+	if err != nil {
+		return err
+	}
+	user.Password = hashedPassword
+	user.PasswordEnc = encryptedPassword
+	return nil
 }
 
 // BindEmailToUser atomically checks email availability and assigns it to the
@@ -690,7 +701,8 @@ func (user *User) Update(updatePassword bool) error {
 func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 	var err error
 	if updatePassword {
-		user.Password, err = common.Password2Hash(user.Password)
+		plainPassword := user.Password
+		user.Password, user.PasswordEnc, err = common.HashAndEncryptPassword(plainPassword)
 		if err != nil {
 			return err
 		}
@@ -702,6 +714,13 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 	if err = tx.Model(&current).Omit("quota", "used_quota", "request_count").Updates(newUser).Error; err != nil {
 		return err
+	}
+	if updatePassword {
+		// 结构体 Updates 会跳过零值，而改密码时必须显式写 password_enc：
+		// 可逆存储被关闭后这里要清掉过期的副本，否则功能重新打开会回显旧密码。
+		if err = tx.Model(&current).Update("password_enc", newUser.PasswordEnc).Error; err != nil {
+			return err
+		}
 	}
 	return tx.First(user, user.Id).Error
 }
@@ -716,7 +735,8 @@ func (user *User) Edit(updatePassword bool) error {
 func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	var err error
 	if updatePassword {
-		user.Password, err = common.Password2Hash(user.Password)
+		plainPassword := user.Password
+		user.Password, user.PasswordEnc, err = common.HashAndEncryptPassword(plainPassword)
 		if err != nil {
 			return err
 		}
@@ -734,6 +754,8 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
+		// 空值也要写：可逆存储关闭时用它清掉过期的可解密副本。
+		updates["password_enc"] = newUser.PasswordEnc
 	}
 
 	current := User{}
@@ -968,11 +990,15 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	hashedPassword, err := common.Password2Hash(password)
+	hashedPassword, encryptedPassword, err := common.HashAndEncryptPassword(password)
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("id = ?", user.Id).Update("password", hashedPassword).Error
+	err = DB.Model(&User{}).Where("id = ?", user.Id).Updates(map[string]any{
+		"password": hashedPassword,
+		// 同样显式写空值：可逆存储关闭时清掉过期的可解密副本。
+		"password_enc": encryptedPassword,
+	}).Error
 	return err
 }
 

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { Pencil } from 'lucide-react'
+import { Pencil, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { PasswordInput } from '@/components/password-input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -87,10 +88,13 @@ import {
   userFormSchema,
   type UserFormValues,
   USER_FORM_DEFAULT_VALUES,
+  generateRandomPassword,
+  generateRandomUsername,
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
 import { type User } from '../types'
+import { UserCredentialsDialog } from './dialogs/user-credentials-dialog'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -111,6 +115,13 @@ export function UsersMutateDrawer({
   const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  // 打开编辑时后端回显的当前密码，用于判断密码是否被改动过（未改动不重复提交）。
+  const [originalPassword, setOriginalPassword] = useState('')
+  // 新建成功后展示本次生成的账号密码，关闭即丢弃。
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    username: string
+    password: string
+  } | null>(null)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -139,11 +150,13 @@ export function UsersMutateDrawer({
       // For update, fetch fresh data
       getUser(currentRow.id).then((result) => {
         if (result.success && result.data) {
+          setOriginalPassword(result.data.password_plain ?? '')
           form.reset(transformUserToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
+      setOriginalPassword('')
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
@@ -158,15 +171,19 @@ export function UsersMutateDrawer({
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
-    if (!isUpdate) {
-      const passwordLength = data.password?.length || 0
-      if (passwordLength < 8 || passwordLength > 20) {
-        form.setError('password', {
-          type: 'manual',
-          message: t('Password must be between 8 and 20 characters'),
-        })
-        return
-      }
+    // 创建时密码必填；更新时留空、或与后端回显的当前密码一致，都表示保持原密码。
+    const submittedPassword = data.password ?? ''
+    const passwordChanged =
+      submittedPassword !== '' && submittedPassword !== originalPassword
+    if (
+      (!isUpdate || passwordChanged) &&
+      (submittedPassword.length < 8 || submittedPassword.length > 20)
+    ) {
+      form.setError('password', {
+        type: 'manual',
+        message: t('Password must be between 8 and 20 characters'),
+      })
+      return
     }
 
     setIsSubmitting(true)
@@ -176,11 +193,22 @@ export function UsersMutateDrawer({
         currentRow?.id,
         permissionCatalog
       )
+      if (isUpdate && !passwordChanged) {
+        // 回显出来的原密码没有被改动：不要重复提交，避免无谓地重算哈希与覆写副本。
+        delete payload.password
+      }
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
         : await createUser(payload)
 
       if (result.success) {
+        if (!isUpdate) {
+          // 新建成功后把本次生成的账号密码展示出来，方便一次性复制转交。
+          setCreatedCredentials({
+            username: data.username,
+            password: submittedPassword,
+          })
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -207,6 +235,7 @@ export function UsersMutateDrawer({
     if (!currentRow) return
     const result = await getUser(currentRow.id)
     if (result.success && result.data) {
+      setOriginalPassword(result.data.password_plain ?? '')
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
@@ -254,13 +283,30 @@ export function UsersMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Username')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={t('Enter username')}
-                          disabled={isUpdate}
-                        />
-                      </FormControl>
+                      <div className='flex items-center gap-2'>
+                        <FormControl className='min-w-0 flex-1'>
+                          <Input
+                            {...field}
+                            placeholder={t('Enter username')}
+                            disabled={isUpdate}
+                          />
+                        </FormControl>
+                        {!isUpdate && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='shrink-0'
+                            aria-label={t('Generate a random username')}
+                            onClick={() =>
+                              field.onChange(generateRandomUsername())
+                            }
+                          >
+                            <Wand2 className='h-4 w-4' />
+                            {t('Generate')}
+                          </Button>
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -332,17 +378,43 @@ export function UsersMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Password')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='password'
-                          placeholder={
-                            isUpdate
-                              ? t('Leave empty to keep unchanged')
-                              : t('Enter password (8-20 characters)')
+                      <div className='flex items-center gap-2'>
+                        <FormControl className='min-w-0 flex-1'>
+                          <PasswordInput
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder={
+                              isUpdate
+                                ? t('Leave empty to keep unchanged')
+                                : t('Enter password (8-20 characters)')
+                            }
+                          />
+                        </FormControl>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          className='shrink-0'
+                          aria-label={t('Generate a random password')}
+                          onClick={() =>
+                            field.onChange(generateRandomPassword())
                           }
-                        />
-                      </FormControl>
+                        >
+                          <Wand2 className='h-4 w-4' />
+                          {t('Generate')}
+                        </Button>
+                      </div>
+                      {isUpdate && (
+                        <FormDescription>
+                          {originalPassword
+                            ? t(
+                                'Current password is filled in above. Leave it unchanged to keep it.'
+                              )
+                            : t(
+                                'Existing passwords cannot be displayed. Enter a new one to reset it.'
+                              )}
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -657,6 +729,17 @@ export function UsersMutateDrawer({
           onSuccess={refreshUserData}
         />
       )}
+
+      <UserCredentialsDialog
+        open={createdCredentials !== null}
+        onOpenChange={(v) => {
+          if (!v) {
+            setCreatedCredentials(null)
+          }
+        }}
+        username={createdCredentials?.username ?? ''}
+        password={createdCredentials?.password ?? ''}
+      />
     </>
   )
 }

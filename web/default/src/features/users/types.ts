@@ -37,6 +37,8 @@ export const userSchema = z.object({
   username: z.string(),
   display_name: z.string(),
   password: z.string().optional(),
+  // 仅管理端单用户详情接口返回：由后端解密得到的当前密码，用于编辑时回显。
+  password_plain: z.string().optional(),
   github_id: z.string().optional(),
   oidc_id: z.string().optional(),
   wechat_id: z.string().optional(),

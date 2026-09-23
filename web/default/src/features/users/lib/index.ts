@@ -28,6 +28,8 @@ export {
   userFormSchema,
   type UserFormValues,
   USER_FORM_DEFAULT_VALUES,
+  generateRandomPassword,
+  generateRandomUsername,
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from './user-form'

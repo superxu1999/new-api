@@ -474,6 +474,10 @@ func GetUser(c *gin.Context) {
 		return
 	}
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
+	// 管理端「编辑用户」需要回显当前密码，这里解密可解密副本。
+	// 只有通过 canManageTargetRole 校验后的单用户详情接口会带上它：
+	// 用户列表接口与 /api/user/self 都拿不到该字段。
+	user.PasswordPlain = common.DecryptPassword(user.PasswordEnc)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
