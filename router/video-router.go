@@ -14,6 +14,11 @@ func SetVideoRouter(router *gin.Engine) {
 	videoProxyRouter.Use(middleware.TokenOrUserAuth())
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
+		// 视频模型能力声明：前端据此把做不到的组合直接置灰，与后端选路共用同一份数据。
+		// 路径挂在 /video 下而不是 /videos，避免与 /videos/:task_id 这类通配路由产生歧义。
+		videoProxyRouter.GET("/video/capabilities", controller.VideoCapabilities)
+		// 提交前的价格预估（与真实计费共用同一套 helper），前端只负责展示。
+		videoProxyRouter.POST("/video/estimate", controller.VideoEstimate)
 		// 取消任务：POST /v1/videos/{task_id}/cancel 与 DELETE /v1/videos/{task_id} 等价。
 		// 与下载接口一样接受会话或令牌鉴权，控制台与 API 客户端可共用。
 		// 参数名必须与同方法下已有的 /v1/videos/:video_id/remix 保持一致（gin 的树不允许

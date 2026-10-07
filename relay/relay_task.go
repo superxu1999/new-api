@@ -161,6 +161,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, taskErr
 	}
 
+	// 渠道能力校验：这条渠道接不住请求的素材组合时，立刻换渠道重试，
+	// 而不是让请求带着被静默丢弃的参考视频/音频继续走（详见 capability_mismatch 错误码）。
+	if taskErr := checkChannelVideoCapability(c, info); taskErr != nil {
+		return nil, taskErr
+	}
+
 	// 2. 确定模型名称
 	modelName := info.OriginModelName
 	if modelName == "" {
@@ -252,6 +258,58 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+// capabilityMismatchCode 标识「这条渠道接不住请求的素材组合」。
+// 它是个本地错误（请求本身没错，错在选到的渠道），但换个渠道可能就行 ——
+// 因此 shouldRetryTaskRelay 专门为它开一个重试口子（见 controller/relay.go）。
+const capabilityMismatchCode = "unsupported_input_for_channel"
+
+// CapabilityMismatchCode 把上面的错误码暴露给重试判定（controller 包），
+// 避免错误码字符串在两处各写一遍产生漂移。
+func CapabilityMismatchCode() string {
+	return capabilityMismatchCode
+}
+
+// checkChannelVideoCapability 校验「当前选中的这条渠道」能否接住请求的素材组合。
+//
+// 为什么在这里（每次选到渠道之后、预扣费之前）而不在分发阶段：分发时请求体还没归一化，
+// 且此时渠道类型才确定。请求只通过 asset:// 引用或 content 数组表达素材，必须等
+// ValidateRequestAndSetAction 归一化（content 数组与扁平写法合并、role 补齐）之后才数得准。
+//
+// 校验不过时返回 capabilityMismatchCode 的本地错误：请求本身合法，错在这条渠道 ——
+// 上层重试循环据此换一条渠道再试，全部渠道都不行才对外报错。这消掉了
+// 「带参考视频的请求落到 Kling 被静默忽略、用户拿到文生视频结果还以为成功」这条最危险路径。
+func checkChannelVideoCapability(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	// 非视频任务（Suno 音频等）不做视频能力校验。
+	if info.RelayMode != relayconstant.RelayModeVideoSubmit {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		// 拿不到已校验请求时不拦：交给适配器自身的校验兜底，避免误伤。
+		return nil
+	}
+	reqs := channel.ExtractVideoInputRequirements(&req)
+	// 纯文生（无参考素材）任何渠道都接得住，直接放行。
+	if len(reqs.NeededInputs()) <= 1 {
+		return nil
+	}
+	capability := channel.RefineVideoCapabilityForModel(
+		channel.GetVideoCapability(info.ChannelType), info.OriginModelName)
+	mismatches := channel.CheckVideoCapability(capability, reqs)
+	if len(mismatches) == 0 {
+		return nil
+	}
+	reasons := make([]string, 0, len(mismatches))
+	for _, m := range mismatches {
+		reasons = append(reasons, m.Reason)
+	}
+	taskErr := service.TaskErrorWrapperLocal(
+		fmt.Errorf("channel #%d (%s) cannot serve this request: %s",
+			info.ChannelId, constant.GetChannelTypeName(info.ChannelType), strings.Join(reasons, "; ")),
+		capabilityMismatchCode, http.StatusBadRequest)
+	return taskErr
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
@@ -622,7 +680,9 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Action:     task.Action,
 		Status:     string(task.Status),
 		FailReason: task.FailReason,
-		ResultURL:  task.GetResultURL(),
+		// GetResultURL 对旧数据有「把 FailReason 当 URL」的历史回退：
+		// 只把真是 URL 形态的值带出去，否则详情页的 Result URL 栏会显示一整段失败文案。
+		ResultURL:  resultURLIfAny(task.GetResultURL()),
 		SubmitTime: task.SubmitTime,
 		StartTime:  task.StartTime,
 		FinishTime: task.FinishTime,
@@ -637,4 +697,13 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 	// 这里必须把「上游返回过的真实用量」带出去，否则下游只能一直按预扣额度收费。
 	result.Usage = taskcommon.SettledVideoUsage(task)
 	return result
+}
+
+// resultURLIfAny 只认 URL 形态的结果地址（http/https/data 前缀）；其余一律视为空。
+func resultURLIfAny(url string) string {
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") ||
+		strings.HasPrefix(url, "data:") {
+		return url
+	}
+	return ""
 }

@@ -18,6 +18,10 @@ type RetryParam struct {
 	RequestPath  string
 	Retry        *int
 	resetNextTry bool
+	// ChannelTypeFilter 是可选的渠道类型谓词：返回 false 的渠道类型在选路时排除。
+	// 视频任务用它把「接不住本次素材组合」的渠道提前滤掉（见 controller 构造处）。
+	// 为 nil 时不过滤，行为与既有调用完全一致。
+	ChannelTypeFilter func(channelType int) bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -116,7 +120,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = model.GetRandomSatisfiedChannelWithFilter(autoGroup, param.ModelName, priorityRetry, param.RequestPath, param.ChannelTypeFilter)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -154,7 +158,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = model.GetRandomSatisfiedChannelWithFilter(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, param.ChannelTypeFilter)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

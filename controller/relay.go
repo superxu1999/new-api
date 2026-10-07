@@ -508,6 +508,14 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	// 能力闸门：跨渠道快速失败 + 选路谓词。带参考视频/音频的请求在此被挡在「没有
+	// 渠道接得住」的 400，或让选路绕开接不住这些素材的渠道（见 task_capability.go）。
+	channelTypeFilter, capabilityErr := setupTaskCapabilityGate(c, relayInfo)
+	if capabilityErr != nil {
+		respondTaskError(c, capabilityErr)
+		return
+	}
+
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
 	defer func() {
@@ -517,11 +525,12 @@ func RelayTask(c *gin.Context) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:               c,
+		TokenGroup:        relayInfo.TokenGroup,
+		ModelName:         relayInfo.OriginModelName,
+		RequestPath:       c.Request.URL.Path,
+		Retry:             common.GetPointer(0),
+		ChannelTypeFilter: channelTypeFilter,
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
@@ -685,6 +694,12 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
+	}
+	// 能力不匹配（请求带了这条渠道接不住的素材）要换渠道重试：它虽是本地错误
+	// （LocalError=true），但错在选到的渠道而非请求本身，另一条渠道可能接得住。
+	// 这条分支必须放在 LocalError 短路之前，否则永远走不到。
+	if taskErr.Code == relay.CapabilityMismatchCode() {
+		return true
 	}
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		return true

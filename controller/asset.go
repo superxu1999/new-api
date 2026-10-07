@@ -729,6 +729,9 @@ func ListAssets(c *gin.Context) {
 		assetError(c, http.StatusInternalServerError, "query_asset_failed", err.Error())
 		return
 	}
+	// 列表页是素材状态的主战场：处理中的素材在这里向上游同步一次状态，
+	// 否则只有打开单个素材详情（GetAsset）才会推进，列表会永远停在 PROCESSING。
+	syncProcessingAssets(c, assets)
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"data":      assets,
@@ -736,6 +739,48 @@ func ListAssets(c *gin.Context) {
 		"page":      page,
 		"page_size": pageSize,
 	})
+}
+
+// syncProcessingAssets 把本页里 PROCESSING 的素材向上游查一次并推进本地状态。
+//
+// 上游入库是异步的，本地状态只在读到上游回执时才会流转；素材列表页开着 5 秒轮询，
+// 正是让状态自然流转的地方。同一渠道的素材复用一次渠道解析；每次列表最多同步
+// 20 条以防放大；上游抖动只跳过该素材，绝不阻断列表本身。
+func syncProcessingAssets(c *gin.Context, assets []*model.Asset) {
+	const syncLimit = 20
+	channelCache := make(map[int]*assetChannel)
+	synced := 0
+	for _, asset := range assets {
+		if asset.Status != model.AssetStatusProcessing || synced >= syncLimit {
+			continue
+		}
+		ac, cached := channelCache[asset.ChannelId]
+		if !cached {
+			resolved, err := resolveAssetChannel(c, asset.ChannelId, "")
+			if err != nil {
+				continue
+			}
+			ac = resolved
+			channelCache[asset.ChannelId] = ac
+		}
+		synced++
+		result, err := assetAction(ac, "GetAsset", map[string]any{
+			"Id":          asset.UpstreamAssetId,
+			"ProjectName": "default",
+		})
+		if err != nil {
+			continue
+		}
+		status := assetStatus(result)
+		if status == "" || status == asset.Status {
+			continue
+		}
+		failReason := assetField(result, "Error", "error", "fail_reason", "failReason")
+		if err := model.UpdateAssetStatus(asset.Id, status, failReason); err == nil {
+			asset.Status = status
+			asset.FailReason = failReason
+		}
+	}
 }
 
 // CreateAsset 创建素材：上游异步入库，本地先记为 PROCESSING。

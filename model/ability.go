@@ -106,6 +106,13 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetChannelWithFilter(group, model, retry, requestPath, nil)
+}
+
+// GetChannelWithFilter 与 GetChannel 相同，但支持一个可选的渠道类型谓词 filter：
+// 返回 false 的渠道类型在选路时排除。filter 为 nil 时行为与原版一致。见
+// GetRandomSatisfiedChannelWithFilter 的用途说明（视频任务按能力过滤渠道）。
+func GetChannelWithFilter(group string, model string, retry int, requestPath string, filter func(channelType int) bool) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -122,6 +129,9 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPath(abilities, requestPath)
+	if filter != nil {
+		abilities = filterAbilitiesByTypePredicate(abilities, filter)
+	}
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -144,6 +154,38 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// filterAbilitiesByTypePredicate 按渠道类型谓词过滤候选 abilities（DB 选路路径）。
+// 查不到渠道详情的保留，与 filterAbilitiesByRequestPath 的兜底策略一致。
+func filterAbilitiesByTypePredicate(abilities []Ability, filter func(channelType int) bool) []Ability {
+	if len(abilities) == 0 {
+		return abilities
+	}
+	channelIds := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		return abilities
+	}
+	kept := make(map[int]bool, len(channels))
+	for _, channel := range channels {
+		kept[channel.Id] = filter(channel.Type)
+	}
+	filtered := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		if keep, ok := kept[ability.ChannelId]; !ok || keep {
+			filtered = append(filtered, ability)
+		}
+	}
+	return filtered
 }
 
 // filterAbilitiesByRequestPath restricts candidates by request path for the DB

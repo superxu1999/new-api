@@ -186,7 +186,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		channel.Type == constant.ChannelTypeVidu ||
 		channel.Type == constant.ChannelTypeGlobalaiopc ||
 		channel.Type == constant.ChannelTypeFoxtoken ||
-		channel.Type == constant.ChannelTypeCyai {
+		channel.Type == constant.ChannelTypeCyai ||
+		channel.Type == constant.ChannelTypeMiguAigc {
 		return testVideoTaskChannel(ctx, c, w, channel, testUserID, testModel)
 	}
 
@@ -1163,8 +1164,8 @@ func testVideoTaskChannel(ctx context.Context, c *gin.Context, w *httptest.Respo
 	}
 
 	tok := time.Now()
-	_ = w     // w not needed for success path
-	_ = tik   // timing info ignored (the caller records its own elapsed time)
+	_ = w   // w not needed for success path
+	_ = tik // timing info ignored (the caller records its own elapsed time)
 	_ = tok
 	return testResult{}
 }

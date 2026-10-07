@@ -106,9 +106,19 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithFilter(group, model, retry, requestPath, nil)
+}
+
+// GetRandomSatisfiedChannelWithFilter 与 GetRandomSatisfiedChannel 相同，但支持一个可选的
+// 渠道谓词 filter：返回 false 的渠道类型在选路时直接排除。filter 为 nil 时行为与原版一致。
+//
+// 用途：视频任务按「这条渠道能不能接住请求的素材组合」过滤 —— 带参考视频的请求不会落到
+// 只支持文生/单图的渠道（否则上游会静默丢弃素材）。filter 用「渠道类型」而不是渠道 ID 做键，
+// 因为能力是按渠道类型声明的（同类型渠道能力一致）。
+func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, requestPath string, filter func(channelType int) bool) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannelWithFilter(group, model, retry, requestPath, filter)
 	}
 
 	channelSyncLock.RLock()
@@ -121,6 +131,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPath(group2model2channels[group][normalizedModel], requestPath)
+	}
+
+	if filter != nil {
+		channels = filterChannelsByTypePredicate(channels, filter)
 	}
 
 	if len(channels) == 0 {
@@ -224,6 +238,27 @@ func filterChannelsByRequestPath(channels []int, requestPath string) []int {
 			continue
 		}
 		if config := channel2advancedCustomConfig[channelId]; config != nil && config.SupportsPath(requestPath) {
+			filtered = append(filtered, channelId)
+		}
+	}
+	return filtered
+}
+
+// filterChannelsByTypePredicate 按渠道类型谓词过滤候选渠道 ID 列表。
+// 谓词返回 false 的渠道被剔除；查不到渠道详情的保留（交给下游一致性错误处理，与原逻辑一致）。
+// Caller must hold channelSyncLock (read lock).
+func filterChannelsByTypePredicate(channels []int, filter func(channelType int) bool) []int {
+	if len(channels) == 0 {
+		return channels
+	}
+	filtered := make([]int, 0, len(channels))
+	for _, channelId := range channels {
+		channel, ok := channelsIDM[channelId]
+		if !ok {
+			filtered = append(filtered, channelId)
+			continue
+		}
+		if filter(channel.Type) {
 			filtered = append(filtered, channelId)
 		}
 	}
