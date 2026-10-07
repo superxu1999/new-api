@@ -66,6 +66,11 @@ export function SidebarModulesCard() {
           description: t('AI model testing environment'),
         },
         {
+          key: 'studio',
+          title: t('Studio'),
+          description: t('Video creation workspace with materials'),
+        },
+        {
           key: 'chat',
           title: t('Chat'),
           description: t('Chat session management'),
@@ -101,6 +106,11 @@ export function SidebarModulesCard() {
           key: 'task',
           title: t('Task Logs'),
           description: t('System task records'),
+        },
+        {
+          key: 'assets',
+          title: t('Asset Library'),
+          description: t('Cloud material library and asset groups'),
         },
       ],
     },

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Clapperboard,
   CreditCard,
   FileText,
   FlaskConical,
@@ -37,7 +38,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -59,6 +60,14 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            // 创作台：素材驱动的视频生成，拥有独立的侧边栏开关（chat.studio），
+            // 运营可以只放开创作台、隐藏实验性的游乐场。
+            // 路径是精确匹配，因此在 /playground 与 /playground/video 上只会高亮一项。
+            title: t('Studio'),
+            url: '/playground/video',
+            icon: Clapperboard,
           },
           {
             title: t('Chat'),

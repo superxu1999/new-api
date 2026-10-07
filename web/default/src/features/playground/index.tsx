@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
+
+import { getVideoCapabilities } from '@/features/playground-video/lib/api'
 
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
@@ -54,6 +57,17 @@ export function Playground() {
   })
 
   const currentModelIsVideo = isVideoModel(config.model)
+
+  // 视频模型的能力声明：参数控件（时长/分辨率/比例/开关）以它为准，与创作台共用同一份数据。
+  // 只在选中视频模型时才请求，避免聊天场景多打一次接口。
+  const { data: videoCapabilities = [] } = useQuery({
+    queryKey: ['playground-video-capabilities'],
+    queryFn: getVideoCapabilities,
+    enabled: currentModelIsVideo,
+  })
+  const currentVideoCapability = videoCapabilities.find(
+    (item) => item.model === config.model
+  )
 
   const {
     sendVideoGeneration,
@@ -168,6 +182,7 @@ export function Playground() {
           isGenerating={isGenerating}
           isModelLoading={isLoadingModels}
           isVideoModel={currentModelIsVideo}
+          videoCapability={currentVideoCapability}
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}

@@ -35,6 +35,7 @@ import type {
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
 import { VideoParameterControls } from './video-parameter-controls'
+import type { VideoModelCapability } from '@/features/playground-video/lib/api'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
@@ -47,6 +48,8 @@ interface PlaygroundInputProps {
   disabled?: boolean
   isGenerating?: boolean
   isVideoModel?: boolean
+  /** 选中视频模型的能力声明；用于让参数控件按后端声明出选项。 */
+  videoCapability?: VideoModelCapability
   models: ModelOption[]
   modelValue: string
   onModelChange: (value: string) => void
@@ -65,6 +68,7 @@ export function PlaygroundInput({
   disabled,
   isGenerating,
   isVideoModel = false,
+  videoCapability,
   models,
   modelValue,
   onModelChange,
@@ -130,6 +134,7 @@ export function PlaygroundInput({
           <VideoParameterControls
             disabled={disabled}
             model={modelValue}
+            capability={videoCapability}
             onChange={setVideoParams}
             onVideoDurationChange={setVideoDuration}
             value={videoParams}

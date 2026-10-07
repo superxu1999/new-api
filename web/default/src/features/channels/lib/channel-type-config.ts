@@ -155,6 +155,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'doubao-seedance-2-0-260128,doubao-seedance-2-0-fast-260128,doubao-seedance-2-0-mini-260615,doubao-seedance-2-5-260628',
     },
   },
+  63: {
+    id: 63,
+    name: CHANNEL_TYPES[63],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://aigc.migucloud.com:449',
+    hints: {
+      baseUrl: 'Default: https://aigc.migucloud.com:449',
+      key: 'X-API-Key (ark-... )',
+      models: 'seedance2.5,seedance2.0,seedance-Fast',
+    },
+  },
 }
 
 /**

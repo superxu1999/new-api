@@ -272,6 +272,10 @@ export function TaskDetailDialog({
   const isVideo = isVideoTaskAction(log.action)
   const videoSrc = isSuccess && isVideo ? `/v1/videos/${log.task_id}/content` : undefined
 
+  // 旧数据的 result_url 可能是失败文案（后端曾把 FailReason 当 URL 兼容回退）：
+  // 只认 URL 形态，防止详情页的 Result URL 栏显示一整段错误文本。
+  const resultUrlIsUrl = /^https?:\/\//.test(log.result_url || '')
+
   const timeRow = (key: string, ts?: number) =>
     ts ? (
       <DetailRow
@@ -365,9 +369,9 @@ export function TaskDetailDialog({
         </div>
 
         {/* 结果 URL / 视频预览 */}
-        {(log.result_url || videoSrc) && (
+        {(resultUrlIsUrl || videoSrc) && (
           <div className='min-w-0 space-y-2'>
-            {log.result_url && (
+            {resultUrlIsUrl && (
               <DetailRow
                 label={t('Result URL')}
                 value={

@@ -18,6 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import type { VideoModelCapability } from '@/features/playground-video/lib/api'
+import { durationOptionsFor } from '@/features/playground-video/lib/params'
+
 import type { VideoGenerationParams } from '../../types'
 
 const RATIO_OPTIONS = ['', '16:9', '9:16', '1:1', '4:3', '3:4', '21:9']
@@ -29,15 +32,34 @@ const CYAI_RESOLUTION_OPTIONS = ['', '480p', '720p', '1080p', '4k']
 const SEED_MIN = 0
 const SEED_MAX = 2147483647
 
-function resolutionOptionsFor(model?: string): string[] {
+/**
+ * 能力声明存在时以它为准（后端下发的 resolutions/ratios/duration 是唯一事实来源）；
+ * 拿不到时才退回下面这套旧规则，保证游乐场在能力接口不可用时仍能工作。
+ */
+function resolutionOptionsFor(
+  model: string | undefined,
+  capability?: VideoModelCapability
+): string[] {
+  if (capability && capability.resolutions.length > 0) {
+    return ['', ...capability.resolutions]
+  }
   if (model?.includes('globalaiopc')) return GLOBALAIOPC_RESOLUTION_OPTIONS
   if (model?.includes('cyai')) return CYAI_RESOLUTION_OPTIONS
   return RESOLUTION_OPTIONS
 }
 
+function ratioOptionsFor(capability?: VideoModelCapability): string[] {
+  if (capability && capability.ratios.length > 0) {
+    return ['', ...capability.ratios]
+  }
+  return RATIO_OPTIONS
+}
+
 type VideoParameterControlsProps = {
   disabled?: boolean
   model?: string
+  /** 该模型的能力声明；由父组件从 /v1/video/capabilities 取回后传入。 */
+  capability?: VideoModelCapability
   value: VideoGenerationParams
   onChange: (params: VideoGenerationParams) => void
   videoDuration?: string
@@ -49,7 +71,7 @@ const DURATION_OPTIONS = [-1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 // CyAI 上游不支持 -1(自动) 时长,去掉该项,避免上报 400 invalid_seconds
 const CYAI_DURATION_OPTIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-function durationOptionsFor(model?: string): number[] {
+function legacyDurationOptionsFor(model?: string): number[] {
   return model?.includes('cyai') ? CYAI_DURATION_OPTIONS : DURATION_OPTIONS
 }
 
@@ -60,6 +82,7 @@ function durationOptionsFor(model?: string): number[] {
 export function VideoParameterControls({
   disabled,
   model,
+  capability,
   value,
   onChange,
   videoDuration = '11',
@@ -71,13 +94,22 @@ export function VideoParameterControls({
     onChange({ ...value, ...patch })
 
   // 当前模型对应的合法分辨率选项;若已选值不在其中,回退到默认(空=上游默认)
-  const resolutionOptions = resolutionOptionsFor(model)
+  const resolutionOptions = resolutionOptionsFor(model, capability)
   const curResolution = resolutionOptions.includes(value.resolution ?? '')
     ? (value.resolution ?? '')
     : ''
 
   // 当前模型对应的合法时长选项(CyAI 不支持 -1 自动)
-  const durationOptions = durationOptionsFor(model)
+  const declaredDurations = durationOptionsFor(capability)
+  const durationOptions =
+    declaredDurations.length > 0
+      ? declaredDurations
+      : legacyDurationOptionsFor(model)
+
+  const ratioOptions = ratioOptionsFor(capability)
+  const showSeed = !capability || capability.supports_seed
+  const showWatermark = !capability || capability.supports_watermark
+  const showAudio = !capability || capability.supports_audio
 
   // 控件统一 h-8,与 footer 输入/按钮同高,保证整条输入区基准线一致
   const controlCls =
@@ -124,7 +156,7 @@ export function VideoParameterControls({
             title={t('Aspect ratio of the generated video')}
             value={value.ratio ?? ''}
           >
-            {RATIO_OPTIONS.map((r) => (
+            {ratioOptions.map((r) => (
               <option key={r} value={r}>
                 {r === '' ? t('Adaptive') : r}
               </option>
@@ -149,6 +181,7 @@ export function VideoParameterControls({
           </select>
         </label>
 
+        {showSeed && (
         <label className='flex items-center gap-1.5'>
           <span className='shrink-0'>{t('Seed')}</span>
           <input
@@ -172,12 +205,14 @@ export function VideoParameterControls({
             value={value.seed ?? ''}
           />
         </label>
+        )}
       </div>
 
       {divider}
 
       {/* 开关型参数:水印 / 生成音频 */}
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+        {showWatermark && (
         <label className='flex h-8 cursor-pointer items-center gap-1.5'>
           <input
             checked={value.watermark ?? false}
@@ -188,7 +223,9 @@ export function VideoParameterControls({
           />
           {t('Watermark')}
         </label>
+        )}
 
+        {showAudio && (
         <label className='flex h-8 cursor-pointer items-center gap-1.5'>
           <input
             checked={value.generateAudio ?? true}
@@ -199,6 +236,7 @@ export function VideoParameterControls({
           />
           {t('Generate audio')}
         </label>
+        )}
       </div>
     </div>
   )

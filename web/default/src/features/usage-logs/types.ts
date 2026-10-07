@@ -274,6 +274,8 @@ export interface TaskLog {
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
   properties?: string // JSON string (request payload / request params)
   result_url?: string // task result URL (e.g. video url)
+  /** 上游返回的尾帧图地址：只有创建任务时带 return_last_frame=true 才有（连拍/续拍要用） */
+  last_frame_url?: string
   other?: string
   /** 提交时的预扣额度（quota 是差额结算后的最终额度） */
   pre_consumed_quota?: number
