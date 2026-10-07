@@ -4316,6 +4316,8 @@
     "Switch between the new frontend and the classic frontend. Changes take effect after page reload.": "新フロントエンドとクラシックフロントエンドを切り替えます。保存後、ページを再読み込みすると反映されます。",
     "Switch to JSON": "JSONに切り替え",
     "Switch to Visual": "ビジュアルに切り替え",
+    "Switch to grid view": "グリッド表示に切り替え",
+    "Switch to table view": "テーブル表示に切り替え",
     "Sync Endpoint": "同期エンドポイント",
     "Sync Endpoints": "同期エンドポイント",
     "Sync Fields": "フィールド同期",

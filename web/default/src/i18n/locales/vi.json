@@ -4316,6 +4316,8 @@
     "Switch between the new frontend and the classic frontend. Changes take effect after page reload.": "Chuyển đổi giữa frontend mới và frontend cổ điển. Thay đổi có hiệu lực sau khi tải lại trang.",
     "Switch to JSON": "Chuyển sang JSON",
     "Switch to Visual": "Chuyển sang Trực quan",
+    "Switch to grid view": "Chuyển sang chế độ lưới",
+    "Switch to table view": "Chuyển sang chế độ bảng",
     "Sync Endpoint": "Điểm cuối đồng bộ",
     "Sync Endpoints": "Điểm đồng bộ",
     "Sync Fields": "Đồng bộ trường",

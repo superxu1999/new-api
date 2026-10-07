@@ -31,6 +31,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getAsset } from '../api'
+import { assetPreviewUrl } from '../lib/asset-preview-url'
 import { assetStatusVariant } from '../lib/asset-status'
 
 interface AssetDetailDialogProps {
@@ -120,9 +121,9 @@ export function AssetDetailDialog(props: AssetDetailDialogProps) {
                 </div>
               </div>
             )}
-            {asset.asset_type === 'Image' && asset.source_url !== '' && (
+            {asset.asset_type === 'Image' && assetPreviewUrl(asset) !== '' && (
               <img
-                src={asset.source_url}
+                src={assetPreviewUrl(asset)}
                 alt={asset.name}
                 className='max-h-64 w-full rounded-md border object-contain'
               />

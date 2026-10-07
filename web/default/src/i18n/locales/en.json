@@ -4316,6 +4316,8 @@
     "Switch between the new frontend and the classic frontend. Changes take effect after page reload.": "Switch between the new frontend and the classic frontend. Changes take effect after page reload.",
     "Switch to JSON": "Switch to JSON",
     "Switch to Visual": "Switch to Visual",
+    "Switch to grid view": "Switch to grid view",
+    "Switch to table view": "Switch to table view",
     "Sync Endpoint": "Sync Endpoint",
     "Sync Endpoints": "Sync Endpoints",
     "Sync Fields": "Sync Fields",

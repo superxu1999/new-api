@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { LayoutGrid, Pencil, Plus, RefreshCw, Table2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -66,6 +66,7 @@ import {
 import { assetStatusVariant } from '../lib/asset-status'
 import type { Asset, AssetGroup, AssetListResult, AssetType } from '../types'
 import { AssetDetailDialog } from './asset-detail-dialog'
+import { AssetThumb } from './asset-thumb'
 
 const ASSET_TYPES: AssetType[] = ['Image', 'Video', 'Audio']
 
@@ -97,6 +98,8 @@ export function AssetsPanel() {
   const [detailAssetId, setDetailAssetId] = useState(0)
   const [groupFilter, setGroupFilter] = useState(0)
   const [assetPage, setAssetPage] = useState(1)
+  // 网格视图看图找素材，表格视图比对字段与 ID：两种真实需求，默认给网格。
+  const [assetView, setAssetView] = useState<'grid' | 'table'>('grid')
   // 素材渠道：0 表示由系统选择；管理员可在新建素材 / 素材组 / 上传时指定。
   const [assetChannelId, setAssetChannelId] = useState(0)
 
@@ -385,6 +388,25 @@ export function AssetsPanel() {
               <RefreshCw className='mr-1 h-4 w-4' />
               {t('Refresh')}
             </Button>
+            <Button
+              size='icon'
+              variant='ghost'
+              aria-label={
+                assetView === 'grid' ? t('Switch to table view') : t('Switch to grid view')
+              }
+              title={
+                assetView === 'grid' ? t('Switch to table view') : t('Switch to grid view')
+              }
+              onClick={() =>
+                setAssetView((prev) => (prev === 'grid' ? 'table' : 'grid'))
+              }
+            >
+              {assetView === 'grid' ? (
+                <Table2 className='h-4 w-4' />
+              ) : (
+                <LayoutGrid className='h-4 w-4' />
+              )}
+            </Button>
           </div>
 
           {groups.length === 0 && (
@@ -466,11 +488,79 @@ export function AssetsPanel() {
             </p>
           )}
 
-          {!loading && assets.length > 0 && (
+          {!loading && assets.length > 0 && assetView === 'grid' && (
+            <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
+              {assets.map((asset) => (
+                <div
+                  key={asset.id}
+                  className='hover:border-primary/60 flex flex-col gap-1.5 rounded-lg border p-2 transition-colors'
+                >
+                  <button
+                    type='button'
+                    className='bg-muted h-28 w-full overflow-hidden rounded-md'
+                    onClick={() => setDetailAssetId(asset.id)}
+                  >
+                    <AssetThumb asset={asset} />
+                  </button>
+                  <div className='flex items-start justify-between gap-1'>
+                    <button
+                      type='button'
+                      className='hover:underline min-w-0 flex-1 text-left'
+                      onClick={() => setDetailAssetId(asset.id)}
+                    >
+                      <span className='block truncate text-sm font-medium'>
+                        {asset.name}
+                      </span>
+                    </button>
+                    <div className='flex shrink-0 gap-0.5'>
+                      <Button
+                        size='icon'
+                        variant='ghost'
+                        className='h-7 w-7'
+                        onClick={() => {
+                          setEditingAsset(asset)
+                          setEditingAssetName(asset.name)
+                        }}
+                        aria-label={t('Edit material')}
+                      >
+                        <Pencil className='h-3.5 w-3.5' />
+                      </Button>
+                      <Button
+                        size='icon'
+                        variant='ghost'
+                        className='text-destructive h-7 w-7'
+                        onClick={() => deleteAssetMutation.mutate(asset.id)}
+                        aria-label={t('Delete')}
+                      >
+                        <Trash2 className='h-3.5 w-3.5' />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className='flex flex-wrap items-center gap-1'>
+                    <Badge variant='secondary' className='text-[10px]'>
+                      {asset.asset_type}
+                    </Badge>
+                    <Badge
+                      variant={assetStatusVariant(asset.status)}
+                      className='text-[10px]'
+                    >
+                      {asset.status}
+                    </Badge>
+                    <span className='text-muted-foreground font-mono text-[10px]'>
+                      asset://{asset.id}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && assets.length > 0 && assetView === 'table' && (
             <div className='overflow-x-auto rounded-lg border'>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className='w-16'>{t('Preview')}</TableHead>
                     <TableHead>{t('ID')}</TableHead>
                     <TableHead>{t('Name')}</TableHead>
                     <TableHead>{t('Type')}</TableHead>
@@ -483,6 +573,16 @@ export function AssetsPanel() {
                 <TableBody>
                   {assets.map((asset) => (
                     <TableRow key={asset.id}>
+                      <TableCell>
+                        <button
+                          type='button'
+                          className='bg-muted h-10 w-10 overflow-hidden rounded-md'
+                          onClick={() => setDetailAssetId(asset.id)}
+                          aria-label={t('Preview')}
+                        >
+                          <AssetThumb asset={asset} />
+                        </button>
+                      </TableCell>
                       <TableCell className='font-mono text-xs'>
                         <div className='flex items-center gap-1'>
                           <span>asset://{asset.id}</span>

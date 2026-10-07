@@ -4316,6 +4316,8 @@
     "Switch between the new frontend and the classic frontend. Changes take effect after page reload.": "Basculer entre le nouveau frontend et le frontend classique. Les modifications prennent effet après le rechargement de la page.",
     "Switch to JSON": "Passer à JSON",
     "Switch to Visual": "Passer à l'affichage visuel",
+    "Switch to grid view": "Passer en vue grille",
+    "Switch to table view": "Passer en vue tableau",
     "Sync Endpoint": "Point de terminaison de synchronisation",
     "Sync Endpoints": "Points de synchronisation",
     "Sync Fields": "Synchroniser les champs",

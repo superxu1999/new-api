@@ -4316,6 +4316,8 @@
     "Switch between the new frontend and the classic frontend. Changes take effect after page reload.": "Переключение между новым и классическим интерфейсом. Изменения вступают в силу после перезагрузки страницы.",
     "Switch to JSON": "Переключиться на JSON",
     "Switch to Visual": "Переключиться на визуальный режим",
+    "Switch to grid view": "Переключить на сетку",
+    "Switch to table view": "Переключить на таблицу",
     "Sync Endpoint": "Конечная точка синхронизации",
     "Sync Endpoints": "Точки синхронизации",
     "Sync Fields": "Синхронизировать поля",

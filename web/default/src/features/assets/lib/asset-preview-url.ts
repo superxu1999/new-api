@@ -16,6 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// 预览地址实现已随 AssetThumb 一起提到 features/assets（素材库与创作台共用），
-// 这里只做转出。
-export { assetPreviewUrl } from '@/features/assets/lib/asset-preview-url'
+import type { Asset } from '../types'
+
+/**
+ * 素材预览地址：直传素材走本站暂存（/asset-media），公网素材直接用其来源地址。
+ * 取不到时返回空串，调用方据此退化成类型占位图。
+ *
+ * 为什么优先用 local_key：source_url 是入库时交给上游的原始地址，上游可能已经
+ * 缓存或转存过，直接拉它不一定还可用；本站暂存才是我们自己手里可靠的副本。
+ */
+export function assetPreviewUrl(asset: Asset): string {
+  if (asset.local_key) {
+    return `/asset-media/${asset.local_key}`
+  }
+  return asset.source_url || ''
+}
