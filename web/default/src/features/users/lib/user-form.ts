@@ -66,8 +66,10 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
-  asset_library_enabled: 0,
-  asset_upload_enabled: 0,
+  // 新建用户默认开通素材库与直传（后端 CreateUser 的缺省值同样是开启）。
+  // 管理员在创建表单里显式关掉仍然有效，编辑已有用户时按该用户的实际值回填。
+  asset_library_enabled: 1,
+  asset_upload_enabled: 1,
 }
 
 // ============================================================================

@@ -1082,9 +1082,9 @@ func DeleteSelf(c *gin.Context) {
 
 func CreateUser(c *gin.Context) {
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	decodeErr := common.UnmarshalBodyReusable(c, &user)
 	user.Username = strings.TrimSpace(user.Username)
-	if err != nil || user.Username == "" || user.Password == "" {
+	if decodeErr != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -1100,12 +1100,30 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
+	// 两个素材开关用指针单独解一次：它们都是 int，直接解码分不清「请求里没带」与
+	// 「显式关闭」。没带时按开启处理 —— 新建用户默认就能用素材库与直传，管理员在
+	// 创建表单里显式关掉仍然有效（之后也能随时改）。
+	var toggles struct {
+		AssetLibraryEnabled *int `json:"asset_library_enabled"`
+		AssetUploadEnabled  *int `json:"asset_upload_enabled"`
+	}
+	_ = common.UnmarshalBodyReusable(c, &toggles)
+	assetLibraryEnabled := 1
+	if toggles.AssetLibraryEnabled != nil && *toggles.AssetLibraryEnabled == 0 {
+		assetLibraryEnabled = 0
+	}
+	assetUploadEnabled := 1
+	if toggles.AssetUploadEnabled != nil && *toggles.AssetUploadEnabled == 0 {
+		assetUploadEnabled = 0
+	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:            user.Username,
+		Password:            user.Password,
+		DisplayName:         user.DisplayName,
+		Role:                user.Role, // 保持管理员设置的角色
+		AssetLibraryEnabled: assetLibraryEnabled,
+		AssetUploadEnabled:  assetUploadEnabled,
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
