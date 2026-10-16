@@ -742,7 +742,7 @@ func ListAssets(c *gin.Context) {
 }
 
 // syncProcessingAssets 把本页里 PROCESSING 的素材向上游查一次并推进本地状态。
-//
+
 // 上游入库是异步的，本地状态只在读到上游回执时才会流转；素材列表页开着 5 秒轮询，
 // 正是让状态自然流转的地方。同一渠道的素材复用一次渠道解析；每次列表最多同步
 // 20 条以防放大；上游抖动只跳过该素材，绝不阻断列表本身。
@@ -862,6 +862,7 @@ func CreateAsset(c *gin.Context) {
 		assetError(c, http.StatusInternalServerError, "create_asset_failed", err.Error())
 		return
 	}
+	asset.FillPreviewUrl()
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": asset})
 }
 
@@ -897,6 +898,7 @@ func GetAsset(c *gin.Context) {
 			asset.FailReason = failReason
 		}
 	}
+	asset.FillPreviewUrl()
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": asset})
 }
 
@@ -937,6 +939,7 @@ func UpdateAsset(c *gin.Context) {
 		return
 	}
 	asset.Name = strings.TrimSpace(req.Name)
+	asset.FillPreviewUrl()
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": asset})
 }
 
@@ -1202,7 +1205,54 @@ func CancelRealPersonSession(c *gin.Context) {
 	})
 }
 
+// DeleteRealPersonSession 软删一条认证会话（历史清理）。
+func DeleteRealPersonSession(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if _, err := model.GetRealPersonSession(userId, id); err != nil {
+		assetError(c, http.StatusNotFound, "real_person_session_not_found", "session not found")
+		return
+	}
+	if err := model.DeleteRealPersonSession(userId, id); err != nil {
+		assetError(c, http.StatusInternalServerError, "delete_real_person_session_failed", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    gin.H{"session_id": id},
+	})
+}
+
 // ListRealPersonSessions 返回当前用户的真人认证历史（最近的在前）。
+// realPersonSessionRow 是认证会话的对外形态，与文档 11.8 的字段一致：
+// session_id（而不是内部主键名 id）、short_link（算好的完整短链，而不是短码）、
+// 且不含 user_id / updated_at / byted_token 这类内部字段。
+type realPersonSessionRow struct {
+	SessionId int64  `json:"session_id"`
+	ChannelId int    `json:"channel_id"`
+	H5Link    string `json:"h5_link"`
+	ShortLink string `json:"short_link"`
+	GroupId   int64  `json:"group_id"`
+	GroupType string `json:"group_type"`
+	Status    string `json:"status"`
+	ExpiresAt int64  `json:"expires_at"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+func toRealPersonSessionRow(c *gin.Context, s *model.RealPersonSession) realPersonSessionRow {
+	return realPersonSessionRow{
+		SessionId: s.Id,
+		ChannelId: s.ChannelId,
+		H5Link:    s.H5Link,
+		ShortLink: realPersonPublicBase(c) + realPersonShortPath + s.ShortCode,
+		GroupId:   s.GroupId,
+		GroupType: s.GroupType,
+		Status:    s.Status,
+		ExpiresAt: s.ExpiresAt,
+		CreatedAt: s.CreatedAt,
+	}
+}
+
 func ListRealPersonSessions(c *gin.Context) {
 	page, pageSize := assetListPage(c)
 	sessions, total, err := model.ListRealPersonSessions(c.GetInt("id"), (page-1)*pageSize, pageSize)
@@ -1210,9 +1260,13 @@ func ListRealPersonSessions(c *gin.Context) {
 		assetError(c, http.StatusInternalServerError, "query_real_person_session_failed", err.Error())
 		return
 	}
+	rows := make([]realPersonSessionRow, 0, len(sessions))
+	for _, session := range sessions {
+		rows = append(rows, toRealPersonSessionRow(c, session))
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
-		"data":      sessions,
+		"data":      rows,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,

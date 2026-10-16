@@ -26,8 +26,8 @@ import type { Asset } from '../types'
  * 缓存或转存过，直接拉它不一定还可用；本站暂存才是我们自己手里可靠的副本。
  */
 export function assetPreviewUrl(asset: Asset): string {
-  if (asset.local_key) {
-    return `/asset-media/${asset.local_key}`
+  if (asset.preview_url) {
+    return asset.preview_url
   }
   return asset.source_url || ''
 }

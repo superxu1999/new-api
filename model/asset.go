@@ -49,38 +49,61 @@ const (
 )
 
 // AssetGroup 是上游素材组在本地的一行映射。
+// AssetGroup 是上游素材组在本地的一行映射；组本身由上游托管。
+//
+// 对外 JSON 里刻意不暴露内部列：upstream_group_id 是上游的组标识，user_id 与
+// updated_at 是本站内部记账字段。对外契约只认本站 id，泄漏上游标识只会让人
+// 误以为能直接用它（实际查不到本地记录）。
 type AssetGroup struct {
-	Id              int64          `json:"id" gorm:"primaryKey"`
-	UserId          int            `json:"user_id" gorm:"index"`
-	ChannelId       int            `json:"channel_id" gorm:"index"`
-	UpstreamGroupId string         `json:"upstream_group_id" gorm:"type:varchar(191);index"`
-	GroupType       string         `json:"group_type" gorm:"type:varchar(32);index"`
-	Name            string         `json:"name" gorm:"type:varchar(191)"`
-	Description     string         `json:"description" gorm:"type:varchar(255)"`
-	CreatedAt       int64          `json:"created_at" gorm:"index"`
-	UpdatedAt       int64          `json:"updated_at"`
+	Id              int64  `json:"id" gorm:"primaryKey"`
+	UserId          int    `json:"-" gorm:"index"`
+	ChannelId       int    `json:"channel_id" gorm:"index"`
+	UpstreamGroupId string `json:"-" gorm:"type:varchar(191);index"`
+	GroupType       string `json:"group_type" gorm:"type:varchar(32);index"`
+	Name            string `json:"name" gorm:"type:varchar(191)"`
+	Description     string `json:"description" gorm:"type:varchar(255)"`
+	CreatedAt       int64  `json:"created_at" gorm:"index"`
+	UpdatedAt       int64  `json:"-"`
 	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 // Asset 是上游素材在本地的一行映射；文件本身不落在本站。
+//
+// 对外 JSON 里刻意不暴露 upstream_*：文档的契约是「只用本站 id 引用素材
+// （asset://<id>）」，把上游标识一并返回会让人拿它去引用 —— 而 asset:// 解析走
+// 的正是本地主键，拿上游 id 查不到记录，只会得到一个自相矛盾的失败。
+// local_key 例外：站内前端靠它拼 /asset-media/<key> 预览直传素材。
 type Asset struct {
 	Id              int64  `json:"id" gorm:"primaryKey"`
-	UserId          int    `json:"user_id" gorm:"index"`
+	UserId          int    `json:"-" gorm:"index"`
 	ChannelId       int    `json:"channel_id" gorm:"index"`
 	GroupId         int64  `json:"group_id" gorm:"index"`
-	UpstreamGroupId string `json:"upstream_group_id" gorm:"type:varchar(191);index"`
-	UpstreamAssetId string `json:"upstream_asset_id" gorm:"type:varchar(191);index"`
+	UpstreamGroupId string `json:"-" gorm:"type:varchar(191);index"`
+	UpstreamAssetId string `json:"-" gorm:"type:varchar(191);index"`
 	Name            string `json:"name" gorm:"type:varchar(191)"`
 	AssetType       string `json:"asset_type" gorm:"type:varchar(16)"`
 	SourceUrl       string `json:"source_url" gorm:"type:text"`
 	// LocalKey 仅在「用户直接上传文件」时有值：本站暂存文件的随机文件名，
 	// 通过 /asset-media/<LocalKey> 对外提供下载（上游也用它来抓取素材）。
-	LocalKey   string         `json:"local_key" gorm:"type:varchar(191);index"`
+	// 对外不返回本站暂存实现，返回算好的 preview_url（见下）。
+	LocalKey   string         `json:"-" gorm:"type:varchar(191);index"`
 	Status     string         `json:"status" gorm:"type:varchar(32);index"`
 	FailReason string         `json:"fail_reason" gorm:"type:varchar(255)"`
 	CreatedAt  int64          `json:"created_at" gorm:"index"`
-	UpdatedAt  int64          `json:"updated_at"`
+	UpdatedAt  int64          `json:"-"`
 	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
+	// PreviewUrl 是素材预览地址：直传素材指向本站暂存（/asset-media/<key>），
+	// 公网 URL 素材为空（调用方直接用 source_url）。由 FillPreviewUrl 填充，
+	// 不落库 —— 让调用方拿到即可用的地址，而不是暴露本站暂存实现让它自己拼。
+	PreviewUrl string `json:"preview_url" gorm:"-"`
+}
+
+// FillPreviewUrl 按暂存情况填充预览地址；每次把 Asset 返回给调用方前调用。
+func (a *Asset) FillPreviewUrl() {
+	if a == nil || a.LocalKey == "" {
+		return
+	}
+	a.PreviewUrl = "/asset-media/" + a.LocalKey
 }
 
 // RealPersonSession 记录一次真人活体认证会话：上游返回 byted_token 与 H5 链接，
@@ -252,6 +275,9 @@ func ListAssets(userId int, channelId int, groupId int64, statuses []string, key
 	if err = page.Find(&assets).Error; err != nil {
 		return nil, 0, err
 	}
+	for _, asset := range assets {
+		asset.FillPreviewUrl()
+	}
 	return assets, total, nil
 }
 
@@ -288,6 +314,7 @@ func GetAssetById(userId int, id int64) (*Asset, error) {
 	if err != nil {
 		return nil, err
 	}
+	asset.FillPreviewUrl()
 	return asset, nil
 }
 
@@ -320,6 +347,7 @@ func UpdateAssetName(userId int, id int64, name string) error {
 func DeleteAsset(userId int, id int64) error {
 	return DB.Where("id = ? AND user_id = ?", id, userId).Delete(&Asset{}).Error
 }
+
 
 // ============================
 // 真人认证会话
@@ -397,4 +425,12 @@ func CancelRealPersonSession(userId int, id int64) error {
 			"status":     RealPersonStatusCancelled,
 			"updated_at": nowUnix(),
 		}).Error
+}
+
+// DeleteRealPersonSession 软删一条认证会话。
+//
+// 历史里会留下已取消、已过期这类没有保留价值的记录，让用户自己清；已通过认证的
+// 会话也允许删——它只是这条记录的删除，绑定的真人素材组不受影响（那是素材的事）。
+func DeleteRealPersonSession(userId int, id int64) error {
+	return DB.Where("id = ? AND user_id = ?", id, userId).Delete(&RealPersonSession{}).Error
 }

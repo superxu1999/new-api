@@ -461,6 +461,7 @@ curl -X POST "https://baseadd.vip/v1/assets" \
 | `source_url` | string | 提交入库的公网地址 |
 | `status` | string | `PROCESSING`（入库中）/ `ACTIVE`（可用）/ `FAILED`（失败） |
 | `fail_reason` | string | 失败原因，仅 `FAILED` 时有值 |
+| `preview_url` | string | 素材预览地址：直传素材指向本站暂存（`/asset-media/<key>`），公网 URL 素材为空（预览直接用 `source_url`） |
 | `created_at` | integer | 创建时间戳（秒） |
 
 入库为异步操作：状态变为 `ACTIVE` 后方可引用；可轮询「查询素材」获取最新状态。状态长时间停留在 `PROCESSING`，表示素材仍在处理中。
@@ -706,7 +707,7 @@ curl -X POST "https://baseadd.vip/v1/assets/real-person/sessions/7/cancel" \
 
 上游不提供销毁认证会话的接口，取消只影响本站记录；认证链接在上游有效期内仍然可用，但本站不再使用其认证结果。
 
-**认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数与「查询素材列表」一致。
+**认证历史**：`GET /v1/assets/real-person/sessions`，最近的在前，分页参数与「查询素材列表」一致。`data` 数组元素字段与「创建认证会话」一致（`session_id` / `h5_link` / `short_link` / `expires_at` / `status`），另含 `channel_id` / `group_id` / `group_type` / `created_at`。
 
 认证通过的真人素材组不能用「新建素材组」创建；把真人图片或视频入库至该组（调用「新建素材（公网 URL）」或「上传素材」时携带 `group_id`）后即可按「在生成请求中引用素材」引用。
 

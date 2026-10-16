@@ -24,7 +24,6 @@ import { toast } from 'sonner'
 
 import { CopyButton } from '@/components/copy-button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
@@ -45,21 +44,10 @@ import {
   getRealPersonSession,
   listRealPersonSessions,
 } from '../api'
-import {
-  isLoopbackLink,
-  realPersonStatusVariant,
-} from '../lib/real-person-status'
+import { isLoopbackLink } from '../lib/real-person-status'
 import type { RealPersonSessionRow } from '../types'
-
-/** 认证状态徽章：后端未覆盖的状态原样展示。 */
-function RealPersonStatusBadge(props: { status: string }) {
-  const { t } = useTranslation()
-  let label = props.status
-  if (props.status === 'pending') label = t('Waiting for completion')
-  if (props.status === 'verified') label = t('Verified')
-  if (props.status === 'cancelled') label = t('Cancelled')
-  return <Badge variant={realPersonStatusVariant(props.status)}>{label}</Badge>
-}
+import { RealPersonSessionDetailDialog } from './real-person-session-detail-dialog'
+import { RealPersonStatusBadge } from './real-person-status-badge'
 
 /**
  * 真人认证面板。
@@ -73,6 +61,10 @@ export function RealPersonPanel() {
   const [sessionId, setSessionId] = useState<number>(0)
   const [h5Link, setH5Link] = useState('')
   const [shortLink, setShortLink] = useState('')
+  // 详情弹窗查看的会话：与「当前查看」区分开——历史里点详情不该把上方
+  // 认证卡片的当前会话也换掉。
+  const [detailSession, setDetailSession] =
+    useState<RealPersonSessionRow | null>(null)
 
   const createMutation = useMutation({
     mutationFn: createRealPersonSession,
@@ -136,14 +128,6 @@ export function RealPersonPanel() {
     cancelMutation.mutate(id)
   }
 
-  // 从历史里回看某次认证：短码拼出本站短链，站点地址不可达时二维码会自动改用 h5_link。
-  const openSession = (row: RealPersonSessionRow) => {
-    setSessionId(row.id)
-    setH5Link(row.h5_link)
-    setShortLink(
-      row.short_code === '' ? '' : `${window.location.origin}/rp/${row.short_code}`
-    )
-  }
 
   return (
     <div className='space-y-4'>
@@ -253,9 +237,9 @@ export function RealPersonPanel() {
                 </TableHeader>
                 <TableBody>
                   {history.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.session_id}>
                       <TableCell className='font-mono text-xs'>
-                        #{item.id}
+                        #{item.session_id}
                       </TableCell>
                       <TableCell>
                         <RealPersonStatusBadge status={item.status} />
@@ -271,7 +255,7 @@ export function RealPersonPanel() {
                           <Button
                             size='sm'
                             variant='outline'
-                            onClick={() => openSession(item)}
+                            onClick={() => setDetailSession(item)}
                           >
                             {t('Details')}
                           </Button>
@@ -279,7 +263,7 @@ export function RealPersonPanel() {
                             <Button
                               size='sm'
                               variant='outline'
-                              onClick={() => cancelSession(item.id)}
+                              onClick={() => cancelSession(item.session_id)}
                               disabled={cancelMutation.isPending}
                             >
                               {t('Cancel verification')}
@@ -295,6 +279,23 @@ export function RealPersonPanel() {
           </CardContent>
         </Card>
       )}
+
+      <RealPersonSessionDetailDialog
+        session={detailSession}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailSession(null)
+          }
+        }}
+        onDeleted={() => {
+          void historyQuery.refetch()
+          if (detailSession && detailSession.session_id === sessionId) {
+            setSessionId(0)
+            setH5Link('')
+            setShortLink('')
+          }
+        }}
+      />
     </div>
   )
 }

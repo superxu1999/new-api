@@ -20,31 +20,37 @@ export type AssetStatus = 'PROCESSING' | 'ACTIVE' | 'FAILED'
 
 export type AssetType = 'Image' | 'Video' | 'Audio'
 
-/** 素材组：本地只记录映射，实体在上游渠道。 */
+/**
+ * 素材组：本地只记录映射，实体在上游渠道。
+ *
+ * user_id / upstream_group_id 后端已不对外返回（内部记账与上游标识不属于对外契约）。
+ */
 export interface AssetGroup {
   id: number
-  user_id: number
   channel_id: number
-  upstream_group_id: string
   group_type: 'AIGC' | 'LivenessFace'
   name: string
   description: string
   created_at: number
 }
 
-/** 素材：文件托管在上游，本地保存归属与状态。 */
+/**
+ * 素材：文件托管在上游，本地保存归属与状态。
+ *
+ * upstream_* 后端已不对外返回：对外只用本站 id 引用素材（asset://<id>）。
+ */
 export interface Asset {
   id: number
-  user_id: number
   channel_id: number
   group_id: number
-  upstream_group_id: string
-  upstream_asset_id: string
   name: string
   asset_type: AssetType
   source_url: string
-  /** 直传素材在本站的暂存文件名（公网 URL 方式入库时为空） */
-  local_key: string
+  /**
+   * 素材预览地址：直传素材指向本站暂存（/asset-media/<key>），由后端算好；
+   * 公网 URL 素材为空，预览直接用 source_url。
+   */
+  preview_url: string
   status: AssetStatus
   fail_reason: string
   created_at: number
@@ -62,11 +68,14 @@ export interface RealPersonSession {
   message?: string
 }
 
-/** 真人认证历史行：列表接口返回的是会话记录本身。 */
+/**
+ * 真人认证历史行：与文档 11.8 的会话字段一致（session_id / short_link）。
+ * 后端不再返回内部字段（user_id / updated_at / short_code）。
+ */
 export interface RealPersonSessionRow {
-  id: number
+  session_id: number
   channel_id: number
-  short_code: string
+  short_link: string
   h5_link: string
   group_id: number
   group_type: string

@@ -1020,8 +1020,8 @@ data: [DONE]`}</Code>
     "source_url": "https://cdn.example.com/portrait.png",
     "status": "PROCESSING",
     "fail_reason": "",
-    "created_at": 1790047202,
-    "updated_at": 1790047202
+    "preview_url": "",
+    "created_at": 1790047202
   }
 }`}</Code>
               <ET title={t('响应字段')} />
@@ -1036,6 +1036,7 @@ data: [DONE]`}</Code>
                   ['source_url', 'string', '提交入库的公网地址'],
                   ['status', 'string', 'PROCESSING（入库中）/ ACTIVE（可用）/ FAILED（失败）'],
                   ['fail_reason', 'string', '失败原因，仅 FAILED 时有值'],
+                  ['preview_url', 'string', '素材预览地址：直传素材指向本站暂存（/asset-media/<key>），公网 URL 素材为空（预览直接用 source_url）'],
                   ['created_at', 'integer', '创建时间戳（秒）'],
                 ]}
               />
@@ -1148,7 +1149,7 @@ data: [DONE]`}</Code>
   -F "name=角色定妆图"`}</Code>
               <ET title={t('响应说明')} />
               <P>
-                {t('响应与「新建素材（公网 URL）」一致，另含 local_key（临时文件名）。本接口只处理本地文件；已有公网地址请用「新建素材（公网 URL）」。')}
+                {t('响应与「新建素材（公网 URL）」一致，另含 preview_url（本站预览地址；调用方无需自行拼接下载路径）。本接口只处理本地文件；已有公网地址请用「新建素材（公网 URL）」。')}
               </P>
               <ET title={t('说明')} />
               <T
@@ -1279,7 +1280,7 @@ data: [DONE]`}</Code>
               </P>
               <Endpoint method='GET' path='/v1/assets/real-person/sessions' />
               <P>
-                {t('返回当前账号的认证历史，最近的在前。分页参数与本页其他列表接口一致。')}
+                {t('返回当前账号的认证历史，最近的在前。分页参数与本页其他列表接口一致。data 数组元素字段与「创建认证会话」一致（session_id / h5_link / short_link / expires_at / status），另含 channel_id / group_id / group_type / created_at。')}
               </P>
               <ET title={t('请求示例')} />
               <Code>{`curl "https://ghyc.top/v1/assets/real-person/sessions?page=1&page_size=20" \\

@@ -347,6 +347,7 @@ func UploadAsset(c *gin.Context) {
 		assetError(c, http.StatusInternalServerError, "create_asset_failed", err.Error())
 		return
 	}
+	asset.FillPreviewUrl()
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": asset})
 }
 
