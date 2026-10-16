@@ -40,16 +40,19 @@ func TestVideoCapabilityDeclarations(t *testing.T) {
 func TestVideoCapabilityParameters(t *testing.T) {
 	standard := GetVideoCapability(constant.ChannelTypeSeedance)
 	assert.Equal(t, []string{"480p", "720p", "1080p"}, standard.Resolutions)
-	assert.Equal(t, DurationRange{Min: 4, Max: 15, AllowAuto: true}, standard.Duration)
+	// 协议上限 30（seedance2.5 支持）；单模型到 15 的收紧由 RefineVideoCapabilityForModel 管。
+	assert.Equal(t, DurationRange{Min: 4, Max: 30, AllowAuto: true}, standard.Duration)
 	assert.True(t, standard.SupportsAudio)
 
 	opc := GetVideoCapability(constant.ChannelTypeGlobalaiopc)
 	assert.Equal(t, []string{"720p", "1080p", "2k", "4k"}, opc.Resolutions)
 
-	// CyAI 不接受 -1（自动），否则上游报 400 invalid_seconds。
+	// CyAI 不接受 -1（自动），否则上游报 400 invalid_seconds；时长上限按模型收紧：
+	// 上游中转层放行到 3600 秒，真正的天花板是模型（2.5 系 30 秒）。
 	cyai := GetVideoCapability(constant.ChannelTypeCyai)
 	assert.Equal(t, []string{"480p", "720p", "1080p", "4k"}, cyai.Resolutions)
 	assert.False(t, cyai.Duration.AllowAuto)
+	assert.Equal(t, 30, cyai.Duration.Max)
 
 	// 咪咕云上游清单给出 4-30 秒与 4k，且支持 adaptive 比例。
 	migu := GetVideoCapability(constant.ChannelTypeMiguAigc)
@@ -68,11 +71,41 @@ func TestRefineVideoCapabilityForModel(t *testing.T) {
 		RefineVideoCapabilityForModel(migu, "seedance2.0-migu").Duration)
 	assert.Equal(t, DurationRange{Min: 4, Max: 15, AllowAuto: true},
 		RefineVideoCapabilityForModel(migu, "seedance2.0-migu-fast").Duration)
-	// 渠道声明更小时不能被模型覆盖放宽（seedance 渠道只声明到 15）。
+	// 渠道协议上限是 30（seedance2.5 支持），2.5 模型不吃收紧；2.0 被 override 收到 15。
 	seedance := GetVideoCapability(constant.ChannelTypeSeedance)
-	assert.Equal(t, 15, RefineVideoCapabilityForModel(seedance, "doubao-seedance-2-5-260628").Duration.Max)
+	assert.Equal(t, 30, RefineVideoCapabilityForModel(seedance, "doubao-seedance-2-5-260628").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(seedance, "doubao-seedance-2-0-260128").Duration.Max)
 	// 认不出的模型保持渠道声明。
 	assert.Equal(t, migu.Duration, RefineVideoCapabilityForModel(migu, "unknown-model").Duration)
+}
+
+// TestRefineDurationForTwoAndHalfAliases 锁定「2.5 的马甲名不能被 2.0 规则误伤」。
+//
+// 各家给 seedance2.5 起的对外名里仍带着 "2.0"（seedance2.0-cyai-25-260628 等），
+// 而关键字规则是命中即停；一旦 2.0 的规则排在前面，这些模型就会被压到 15 秒，
+// 用户在界面上根本选不到上游明明支持的 30 秒。这里逐个模型名钉死上限。
+func TestRefineDurationForTwoAndHalfAliases(t *testing.T) {
+	cyai := GetVideoCapability(constant.ChannelTypeCyai)
+	assert.Equal(t, 30, RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-25-260628").Duration.Max)
+	assert.Equal(t, 30, RefineVideoCapabilityForModel(cyai, "doubao-seedance-2-5-260628").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-260128").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-fast-260128").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-mini-260615").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-mobile-260128").Duration.Max)
+
+	foxtoken := GetVideoCapability(constant.ChannelTypeFoxtoken)
+	assert.Equal(t, 30, RefineVideoCapabilityForModel(foxtoken, "seedance2.0-foxtoken-25").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(foxtoken, "seedance2.0-foxtoken").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(foxtoken, "seedance2.0-foxtoken-fast").Duration.Max)
+
+	opc := GetVideoCapability(constant.ChannelTypeGlobalaiopc)
+	assert.Equal(t, 30, RefineVideoCapabilityForModel(opc, "seedance2.0-globalaiopc-v25").Duration.Max)
+	assert.Equal(t, 15, RefineVideoCapabilityForModel(opc, "seedance2.0-globalaiopc").Duration.Max)
+
+	// -1（自动）不能被模型级收紧偷偷打开：CyAI 渠道声明就不支持。
+	refined := RefineVideoCapabilityForModel(cyai, "seedance2.0-cyai-25-260628")
+	assert.False(t, refined.Duration.AllowAuto)
+	assert.Equal(t, 4, refined.Duration.Min)
 }
 
 // 宁可让用户看到置灰，也不能把一个做不到的组合显示成可用。

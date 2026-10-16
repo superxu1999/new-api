@@ -93,7 +93,14 @@ export function Playground() {
     const nextMessages = appendUserMessagePair(messages, text)
     updateMessages(nextMessages)
     sendVideoGeneration(
-      { model: config.model, prompt: text, duration, params },
+      {
+        model: config.model,
+        prompt: text,
+        duration,
+        params,
+        // 时长校验以该模型的能力声明为准（seedance2.5 支持到 30 秒）。
+        capability: currentVideoCapability,
+      },
       updateMessages
     )
   }
@@ -119,7 +126,7 @@ export function Playground() {
       }
     }
     sendVideoGeneration(
-      { model: config.model, prompt, duration },
+      { model: config.model, prompt, duration, capability: currentVideoCapability },
       updateMessages
     )
   }

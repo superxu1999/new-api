@@ -361,11 +361,13 @@ func validatePrompt(prompt string) *dto.TaskError {
 const MaxTaskDurationSeconds = 3600
 
 // Seedance 系模型(doubao-seedance-*)上游支持的时长范围(秒)。
-// 移动云 MaaS SDK 与百拓转售文档一致:支持 [SeedanceDurationMin, SeedanceDurationMax]
-// 范围内的整数,或 -1 由模型自动选择;未填时上游默认 5 秒。
+// 这是渠道协议的全局粗校验上界（防非法值溢出到计费），不是单个模型的能力：
+// seedance2.5 支持到 30 秒，2.0/fast/mini 只到 15 —— 精确范围由能力声明
+// （video_capability.go 的 modelDurationOverrides）按模型收紧，界面上不该
+// 出现上游接不住的选项。CyAI 渠道上游中转层实测放行到 3600 秒，渠道级也不设 15 秒死限。
 const (
 	SeedanceDurationMin = 4
-	SeedanceDurationMax = 15
+	SeedanceDurationMax = 30
 )
 
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {

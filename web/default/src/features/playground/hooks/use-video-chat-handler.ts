@@ -22,6 +22,8 @@ import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
 
+import type { VideoModelCapability } from '@/features/playground-video/lib/api'
+
 import {
   completeAssistantTiming,
   updateLastAssistantMessage,
@@ -32,10 +34,36 @@ import type { Message } from '../types'
 
 const POLL_INTERVAL_MS = 3000
 
-// 上游(移动云 MaaS / 百拓转售)doubao-seedance-* 支持的时长范围(秒);
-// -1 表示由模型自动选择,0 表示未填(上游默认 5)。
-const MIN_VIDEO_DURATION = 4
-const MAX_VIDEO_DURATION = 15
+/**
+ * 判断时长是否超出该模型声明的范围。
+ *
+ * 范围取自后端的能力声明（与创作台、与后端选路用的是同一份数据）。这里**不能**再写死一个
+ * 全局上限：早先固定 4-15 秒，会把 seedance2.5 明明支持的 30 秒挡在门外，而这些模型的
+ * 2.0/fast/mini 变体才只到 15 秒 —— 上限是模型属性，不是渠道属性。
+ *
+ * 拿不到声明时（接口没返回）不做前端拦截，交给后端与上游判定，不替它们猜一个规则。
+ * 返回 null 表示合法，否则返回可用区间供提示文案使用。
+ */
+function durationOutOfRange(
+  duration: number,
+  capability?: VideoModelCapability
+): { min: number; max: number; allowAuto: boolean } | null {
+  // 0 表示未填，由上游按默认值处理；-1 表示自动，两者都不是「越界」。
+  if (!capability || duration === 0) {
+    return null
+  }
+  const { min, max, allow_auto: allowAuto } = capability.duration
+  if (max <= 0) {
+    return null
+  }
+  if (duration === -1) {
+    return allowAuto ? null : { min, max, allowAuto }
+  }
+  if (duration < min || duration > max) {
+    return { min, max, allowAuto }
+  }
+  return null
+}
 
 // 上游内容审核拦截(如移动云 MaaS 的 OutputVideoSensitiveContentDetected.PolicyViolation):
 // 任务提交成功但成片被判疑似版权/敏感内容。这类错误给用户展示友好提示,而不是原始英文报错。
@@ -70,6 +98,8 @@ type VideoGenerationOptions = {
   prompt: string
   duration?: number
   params?: import('../types').VideoGenerationParams
+  /** 该模型的能力声明；时长校验以它为准，拿不到时不拦。 */
+  capability?: VideoModelCapability
 }
 
 type MessageUpdater = (updater: (prev: Message[]) => Message[]) => void
@@ -221,21 +251,22 @@ export function useVideoChatHandler() {
       abortRef.current = false
       messageUpdaterRef.current = onMessageUpdate
 
-      // 前端先按上游能力拦截非法时长,后端(适配器层)有同样校验兜底
-      if (
-        options.duration &&
-        options.duration !== -1 &&
-        (options.duration < MIN_VIDEO_DURATION ||
-          options.duration > MAX_VIDEO_DURATION)
-      ) {
+      // 前端先按该模型的能力声明拦截非法时长；后端（适配器层）有同样校验兜底。
+      const outOfRange = durationOutOfRange(
+        options.duration ?? 0,
+        options.capability
+      )
+      if (outOfRange) {
         toast.error(
-          t(
-            'Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.',
-            {
-              min: MIN_VIDEO_DURATION,
-              max: MAX_VIDEO_DURATION,
-            }
-          )
+          outOfRange.allowAuto
+            ? t(
+                'Video duration must be between {{min}} and {{max}} seconds, or use -1 for automatic.',
+                { min: outOfRange.min, max: outOfRange.max }
+              )
+            : t('Duration must be between {{min}} and {{max}} seconds', {
+                min: outOfRange.min,
+                max: outOfRange.max,
+              })
         )
         return
       }

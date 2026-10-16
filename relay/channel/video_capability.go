@@ -67,6 +67,12 @@ var (
 	standardResolutions = []string{"480p", "720p", "1080p"}
 	standardRatios      = []string{"16:9", "9:16", "1:1", "4:3", "3:4", "21:9"}
 	standardDuration    = DurationRange{Min: 4, Max: 15, AllowAuto: true}
+	// seedanceDuration 是 Seedance 系渠道协议的上限：seedance2.5 支持 4-30 秒。
+	seedanceDuration = DurationRange{Min: 4, Max: 30, AllowAuto: true}
+	// seedanceDuration20 是 seedance 2.0 及 fast/mini 变体的时长档（只到 15 秒）。
+	// 取值与 standardDuration 相同但语义不同：这一档说的是「2.0 模型的能力」，
+	// standardDuration 说的是「通用渠道的默认声明」，改一处不该牵连另一处。
+	seedanceDuration20 = DurationRange{Min: 4, Max: 15, AllowAuto: true}
 	// standardParams 是大多数视频渠道的参数集（含音频/水印/seed 开关）。
 	standardParams = paramSet(standardResolutions, standardRatios, standardDuration, true)
 )
@@ -137,17 +143,19 @@ var (
 // videoCapabilityByChannelType 是渠道类型 → 能力的声明表。
 // 未列入的渠道类型按「仅文生视频 + 通用参数」处理（最保守的输入面）。
 var videoCapabilityByChannelType = map[int]VideoCapability{
-	constant.ChannelTypeSeedance:    apply(capSeedanceFull, standardParams),
-	constant.ChannelTypeDoubaoVideo: apply(capSeedanceFull, standardParams),
-	constant.ChannelTypeVolcEngine:  apply(capSeedanceFull, standardParams),
-	constant.ChannelTypeFoxtoken:    apply(capSeedanceGateway, standardParams),
+	constant.ChannelTypeSeedance:    apply(capSeedanceFull, paramSet(standardResolutions, standardRatios, seedanceDuration, true)),
+	constant.ChannelTypeDoubaoVideo: apply(capSeedanceFull, paramSet(standardResolutions, standardRatios, seedanceDuration, true)),
+	constant.ChannelTypeVolcEngine:  apply(capSeedanceFull, paramSet(standardResolutions, standardRatios, seedanceDuration, true)),
+	constant.ChannelTypeFoxtoken:    apply(capSeedanceGateway, paramSet(standardResolutions, standardRatios, seedanceDuration, true)),
 	// GlobalAiOpc 与 CyAI 的分辨率集合按现有前端规则原样搬过来。
 	constant.ChannelTypeGlobalaiopc: apply(capSeedanceGateway,
-		paramSet([]string{"720p", "1080p", "2k", "4k"}, standardRatios, standardDuration, true)),
-	// CyAI 上游不接受 -1（自动）时长，否则报 400 invalid_seconds。
+		paramSet([]string{"720p", "1080p", "2k", "4k"}, standardRatios, seedanceDuration, true)),
+	// CyAI 上游不接受 -1（自动）时长，否则报 400 invalid_seconds；时长上限按模型收紧：
+	// 上游中转层实测放行到 3600 秒（`duration must be -1 or between 0 and 3600`），
+	// 真正的天花板是模型本身 —— 2.5 系 30 秒，2.0/fast/mini 仍是 15 秒。
 	constant.ChannelTypeCyai: apply(capSeedanceGateway,
 		paramSet([]string{"480p", "720p", "1080p", "4k"}, standardRatios,
-			DurationRange{Min: 4, Max: 15}, true)),
+			DurationRange{Min: 4, Max: 30}, true)),
 	// 咪咕云：模型清单直接给出 4-30 秒、720p/1080p/4k、支持 adaptive 比例。
 	constant.ChannelTypeMiguAigc: apply(capTextOnly,
 		paramSet([]string{"720p", "1080p", "4k"},
@@ -178,16 +186,23 @@ func GetVideoCapability(channelType int) VideoCapability {
 // 同一个渠道类型下不同模型的时长范围并不一致：seedance2.5 支持 30 秒，2.0 与 fast/mini
 // 只到 15 秒；CyAI 连 -1（自动）都不接受。这里只做**收紧**（与渠道声明取交集），
 // 绝不越过渠道自己的声明放宽，避免造出「界面上能选、上游却拒绝」的组合。
+//
+// 顺序即优先级（命中第一条就停），所以 **2.5 的规则必须排在 2.0 之前**：各家给 2.5 起的
+// 马甲名里往往仍带着 2.0（seedance2.0-cyai-25-260628、seedance2.0-foxtoken-25、
+// seedance2.0-globalaiopc-v25），若让 seedance2.0 先命中，这些 2.5 模型会被误压到 15 秒，
+// 用户就选不到上游明明支持的 30 秒。
 var modelDurationOverrides = []struct {
 	keyword string
 	value   DurationRange
 }{
-	{"seedance2.5", DurationRange{Min: 4, Max: 30, AllowAuto: true}},
-	{"seedance-2-5", DurationRange{Min: 4, Max: 30, AllowAuto: true}},
-	{"fast", DurationRange{Min: 4, Max: 15, AllowAuto: true}},
-	{"mini", DurationRange{Min: 4, Max: 15, AllowAuto: true}},
-	{"seedance2.0", DurationRange{Min: 4, Max: 15, AllowAuto: true}},
-	{"seedance-2-0", DurationRange{Min: 4, Max: 15, AllowAuto: true}},
+	{"seedance2.5", seedanceDuration},  // 咪咕云：seedance2.5-migu
+	{"seedance-2-5", seedanceDuration}, // 火山原生：doubao-seedance-2-5-260628
+	{"-25", seedanceDuration},          // CyAI / Foxtoken 马甲名：seedance2.0-cyai-25-260628
+	{"v25", seedanceDuration},          // GlobalAiOpc 马甲名：seedance2.0-globalaiopc-v25
+	{"fast", seedanceDuration20},       // fast 变体只到 15 秒
+	{"mini", seedanceDuration20},       // mini 变体只到 15 秒
+	{"seedance2.0", seedanceDuration20},
+	{"seedance-2-0", seedanceDuration20},
 }
 
 // RefineVideoCapabilityForModel 按模型名收紧时长范围（取交集，只收紧不放宽）。
