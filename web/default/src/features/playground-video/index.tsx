@@ -63,8 +63,10 @@ import {
 } from './lib/capability'
 import { loadDraft, saveDraft, type StudioDraft } from './lib/draft'
 import { extractLastFrameUrl, taskModelName, taskPromptPreview } from './lib/task'
+import type { ChainLinkMode } from './lib/chain'
 import {
   buildVideoRequestBody,
+  durationPresetsFor,
   EMPTY_VIDEO_PARAMS,
   normalizeParamsForModel,
   type VideoParams,
@@ -142,6 +144,10 @@ export function PlaygroundVideo() {
   const [detailTask, setDetailTask] = useState<TaskLog | null>(null)
   const [capabilityOpen, setCapabilityOpen] = useState(false)
   const [storyboardOpen, setStoryboardOpen] = useState(false)
+  // 分镜的「整组首尾相接」开关。状态提到这里，弹窗与提交逻辑共用同一份。
+  const [storyboardChainable, setStoryboardChainable] = useState(false)
+  const [storyboardLinkMode, setStoryboardLinkMode] =
+    useState<ChainLinkMode>('last_frame')
   const [chainOpen, setChainOpen] = useState(false)
   const [enhancerOpen, setEnhancerOpen] = useState(false)
   const [taskFilter, setTaskFilter] = useState<TaskFilterKey>('all')
@@ -198,6 +204,32 @@ export function PlaygroundVideo() {
     () => capabilities.find((item) => item.model === model),
     [capabilities, model]
   )
+
+  // 切到不支持尾帧续拍的模型时自动关掉分镜相接开关：否则会留下一个「开着但
+  // 永远生效不了」的状态，用户还以为在生效。
+  const supportsLastFrame = Boolean(selectedCapability?.returns_last_frame)
+  // 成片续接的门槛是「模型收参考视频」，覆盖面比尾帧宽得多（中转渠道也收）。
+  const supportsReferenceVideo = Boolean(
+    selectedCapability?.inputs.includes('reference_video')
+  )
+  useEffect(() => {
+    if (!supportsLastFrame) {
+      setStoryboardChainable(false)
+    }
+  }, [supportsLastFrame])
+
+  // 衔接方式必须与模型能力相符：切到只有成片续接可用的模型时，自动从尾帧改成成片，
+  // 否则界面会停在一个「选中但不可用」的模式上。
+  useEffect(() => {
+    if (supportsLastFrame) {
+      return
+    }
+    setStoryboardLinkMode((prev) =>
+      prev === 'last_frame' && supportsReferenceVideo
+        ? 'reference_video'
+        : prev
+    )
+  }, [supportsLastFrame, supportsReferenceVideo])
 
   // 素材变化后，已选模型可能不再可用：这里同步清掉失效的选择，避免提交时才报错。
   const selectedEligibility = useMemo(() => {
@@ -452,8 +484,30 @@ export function PlaygroundVideo() {
    * 且额度不足时能立刻停下，已提交的镜头照常出片。
    */
   const handleStoryboardSubmit = async (
-    shots: Array<{ prompt: string; duration?: string }>
+    shots: Array<{ prompt: string; duration?: string }>,
+    chainable: boolean
   ): Promise<number> => {
+    const prompts = shots.map((shot) => shot.prompt)
+
+    // 首尾相接模式：交给连拍驱动器串行推进——每镜出片后取尾帧、登记成素材，
+    // 再作为下一镜的首帧。这里必须复用驱动器而不是自己循环，否则尾帧登记、
+    // 中断保护、进度持久化这些逻辑会有两份实现。
+    if (chainable) {
+      if (chainController.running) {
+        toast.error(t('A chain is already running. Stop it first.'))
+        return 0
+      }
+      chainController.start({
+        model,
+        params,
+        baseItems: items,
+        prompts,
+        linkMode: storyboardLinkMode,
+      })
+      toast.success(t('Chain started; shots run one by one'))
+      return prompts.length
+    }
+
     let submitted = 0
     for (const shot of shots) {
       // 每镜可单独指定时长；不指定就沿用参数区当前设置。
@@ -587,8 +641,33 @@ export function PlaygroundVideo() {
   }
 
   /**
-   * 连拍驱动器：按段推进，每段出片后取尾帧接下一段。这里只负责把「怎么提交」和
-   * 「尾帧怎么变成素材」交给它，推进/中断/续跑的逻辑都在 hooks/use-video-chain.ts。
+   * 成片续接：把上一段的成片登记成「下一段参考视频」素材。
+   *
+   * 与尾帧续接的取舍：尾帧是一帧原图，连续性最好但只有声明 ReturnsLastFrame 的
+   * 渠道给得出；成片是上游托管的公网视频，任何渠道都能收，代价是它经过编码重传，
+   * 运动连续性不如尾帧，而且会按「含视频输入」档计费。
+   */
+  const registerClipAsset = async (input: {
+    taskId: string
+    url: string
+  }): Promise<TrayItem> => {
+    const group = await resolveDefaultAssetGroup(await fetchAssetGroups())
+    const asset = await createAsset({
+      group_id: group.id,
+      name: `${input.taskId}-clip`,
+      url: input.url,
+      asset_type: 'Video',
+    })
+    return {
+      key: `${asset.id}-chain-${input.taskId}`,
+      asset,
+      role: 'reference_video',
+    }
+  }
+
+  /**
+   * 连拍驱动器：按段推进，每段出片后按衔接方式取尾帧或成片接下一段。这里只负责把
+   * 「怎么提交」和「产物怎么变成素材」交给它，推进/中断/续跑都在 hooks/use-video-chain.ts。
    */
   const chainController = useVideoChain({
     tasks,
@@ -603,6 +682,7 @@ export function PlaygroundVideo() {
         { quiet: true }
       ),
     registerLastFrame: registerLastFrameAsset,
+    registerClip: registerClipAsset,
   })
 
   const canSubmit = Boolean(model) && prompt.trim().length > 0 && !submitting
@@ -657,9 +737,9 @@ export function PlaygroundVideo() {
     chainDisabledReason = t('Chain running')
   } else if (!model) {
     chainDisabledReason = t('Pick a model to continue')
-  } else if (!selectedCapability?.returns_last_frame) {
+  } else if (!selectedCapability?.returns_last_frame && !supportsReferenceVideo) {
     chainDisabledReason = t(
-      'This model does not return a last frame, so segments cannot be chained'
+      'This model can neither return a last frame nor accept reference videos, so segments cannot be chained'
     )
   } else if (prompt.trim().length === 0) {
     chainDisabledReason = t('Enter a prompt to generate')
@@ -794,7 +874,9 @@ export function PlaygroundVideo() {
           {loadingModels ? (
             <p className='text-muted-foreground text-sm'>{t('Loading...')}</p>
           ) : (
-            <div className='max-h-[420px] overflow-y-auto pr-1'>
+            // 固定高度 + 内部滚动：搜索与筛选留在视野里，滚轮只滚模型列表
+            // （整栏一起滚会把筛选条推走，模型一多就找不到「筛什么」）。
+            <div className='flex max-h-[420px] min-h-0 flex-col'>
               <ModelList
                 models={capabilities}
                 selected={model}
@@ -873,6 +955,13 @@ export function PlaygroundVideo() {
         onSubmit={handleStoryboardSubmit}
         unitQuota={estimate?.quota}
         unitApproximate={estimate?.approximate}
+        chainableSupported={supportsLastFrame || supportsReferenceVideo}
+        supportsReferenceVideo={supportsReferenceVideo}
+        linkMode={storyboardLinkMode}
+        onLinkModeChange={setStoryboardLinkMode}
+        durationOptions={durationPresetsFor(selectedCapability)}
+        chainable={storyboardChainable}
+        onChainableChange={setStoryboardChainable}
         disabled={!canSubmit}
       />
 
@@ -888,9 +977,10 @@ export function PlaygroundVideo() {
         onOpenChange={setChainOpen}
         prompt={prompt}
         supported={Boolean(selectedCapability?.returns_last_frame)}
+        supportsReferenceVideo={supportsReferenceVideo}
         unitQuota={estimate?.quota}
         unitApproximate={estimate?.approximate}
-        onSubmit={(prompts) => {
+        onSubmit={(prompts, linkMode) => {
           setChainOpen(false)
           // 用当前编辑器状态做一次快照：之后用户改提示词/参数不会影响已启动的连拍。
           chainController.start({
@@ -898,6 +988,7 @@ export function PlaygroundVideo() {
             params,
             baseItems: items,
             prompts,
+            linkMode,
           })
         }}
       />

@@ -110,15 +110,27 @@ export function ChainProgress(props: ChainProgressProps) {
         </p>
       )}
 
-      {props.chain.firstFrame && (
+      {props.chain.linkItem && (
         <div className='flex items-center gap-2'>
-          <img
-            src={assetPreviewUrl(props.chain.firstFrame.asset)}
-            alt={t('Last frame')}
-            className='h-12 w-20 rounded border object-cover'
-          />
+          {props.chain.linkMode === 'reference_video' ? (
+            <video
+              src={assetPreviewUrl(props.chain.linkItem.asset)}
+              preload='metadata'
+              muted
+              playsInline
+              className='h-12 w-20 rounded border object-cover'
+            />
+          ) : (
+            <img
+              src={assetPreviewUrl(props.chain.linkItem.asset)}
+              alt={t('Last frame')}
+              className='h-12 w-20 rounded border object-cover'
+            />
+          )}
           <span className='text-muted-foreground text-xs'>
-            {t('Last frame carried into the next segment')}
+            {props.chain.linkMode === 'reference_video'
+              ? t('Clip carried into the next segment as a reference video')
+              : t('Last frame carried into the next segment')}
           </span>
         </div>
       )}

@@ -26,7 +26,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { formatLogQuota } from '@/lib/format'
 
-import { MAX_CHAIN_SEGMENTS, MIN_CHAIN_SEGMENTS } from '../lib/chain'
+import { MAX_CHAIN_SEGMENTS, MIN_CHAIN_SEGMENTS, type ChainLinkMode } from '../lib/chain'
+import { LinkModePicker } from './link-mode-picker'
 
 interface ChainDialogProps {
   open: boolean
@@ -35,10 +36,12 @@ interface ChainDialogProps {
   prompt: string
   /** 模型是否支持尾帧续拍（能力声明里的 returns_last_frame）。 */
   supported: boolean
+  /** 模型是否收参考视频（能力声明的 inputs 含 reference_video）：成片续接的前提。 */
+  supportsReferenceVideo?: boolean
   /** 每一段的预估额度；用于把「一共要花多少」在开始之前讲清楚。 */
   unitQuota?: number
   unitApproximate?: boolean
-  onSubmit: (prompts: string[]) => void
+  onSubmit: (prompts: string[], linkMode: ChainLinkMode) => void
 }
 
 interface Segment {
@@ -62,6 +65,10 @@ export function ChainDialog(props: ChainDialogProps) {
     { id: 2, text: '' },
   ])
   const [nextId, setNextId] = useState(3)
+  // 衔接方式：优先用尾帧（画面最连贯），模型给不出尾帧时用户可改用成片续接。
+  const [linkMode, setLinkMode] = useState<ChainLinkMode>(() =>
+    props.supported ? 'last_frame' : 'reference_video'
+  )
 
   const scriptPrompts = segments.map((segment) => segment.text.trim())
   const scriptReady = scriptPrompts.every((text) => text !== '')
@@ -72,8 +79,12 @@ export function ChainDialog(props: ChainDialogProps) {
     mode === 'repeat'
       ? count
       : scriptPrompts.filter((text) => text !== '').length
+  const linkAvailable =
+    linkMode === 'last_frame'
+      ? props.supported
+      : Boolean(props.supportsReferenceVideo)
   const canSubmit =
-    props.supported &&
+    linkAvailable &&
     segmentCount >= MIN_CHAIN_SEGMENTS &&
     (mode === 'repeat' ? repeatPrompt !== '' : scriptReady)
 
@@ -121,10 +132,13 @@ export function ChainDialog(props: ChainDialogProps) {
       return
     }
     if (mode === 'repeat') {
-      props.onSubmit(Array.from({ length: count }, () => repeatPrompt))
+      props.onSubmit(Array.from({ length: count }, () => repeatPrompt), linkMode)
       return
     }
-    props.onSubmit(segments.map((segment) => segment.text.trim()))
+    props.onSubmit(
+      segments.map((segment) => segment.text.trim()),
+      linkMode
+    )
   }
 
   return (
@@ -161,13 +175,13 @@ export function ChainDialog(props: ChainDialogProps) {
       }
     >
       <div className='flex flex-col gap-4'>
-        {!props.supported && (
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              'This model does not return a last frame, so segments cannot be chained'
-            )}
-          </p>
-        )}
+        {/* 衔接方式：尾帧（画面最连贯）vs 成片（不依赖尾帧，中转渠道也能用）。 */}
+        <LinkModePicker
+          value={linkMode}
+          onChange={setLinkMode}
+          supportsLastFrame={props.supported}
+          supportsReferenceVideo={Boolean(props.supportsReferenceVideo)}
+        />
 
         <div className='flex flex-wrap items-center gap-2'>
           <Button

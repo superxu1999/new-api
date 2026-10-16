@@ -131,9 +131,12 @@ export function ModelList(props: ModelListProps) {
   }, [props.models, props.channelMap, keyword, requiredInputs, channelFilter])
 
   return (
-    <div className='flex flex-col gap-3'>
+    // flex-1 + min-h-0：父级是 max-height 约束的 flex 列容器，这样列表能拿到
+    // 剩余高度并自己滚动，头部（搜索/筛选/渠道）留在视野里。h-full 在只有
+    // max-height 的父级里解析为 auto，靠不住。
+    <div className='flex min-h-0 flex-1 flex-col gap-3'>
       {/* 搜索 */}
-      <div className='relative'>
+      <div className='relative shrink-0'>
         <Search className='text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2' />
         <input
           value={keyword}
@@ -144,7 +147,7 @@ export function ModelList(props: ModelListProps) {
       </div>
 
       {/* 能力筛选 */}
-      <div className='flex flex-wrap gap-1'>
+      <div className='flex shrink-0 flex-wrap gap-1'>
         {FILTERABLE_INPUTS.map((item) => {
           const active = requiredInputs.includes(item.kind)
           return (
@@ -170,7 +173,7 @@ export function ModelList(props: ModelListProps) {
           触发器文本显式给出，不走 SelectValue 自动解析——选项列表是异步数据，
           首渲染时还没有 SelectItem 可供反查，自动解析会把哨兵值原文亮出来。 */}
       {channelOptions.length > 0 && (
-        <div className='flex items-center gap-1'>
+        <div className='flex shrink-0 items-center gap-1'>
           <Select
             value={channelFilter}
             onValueChange={(value) => value && setChannelFilter(value)}
@@ -206,10 +209,10 @@ export function ModelList(props: ModelListProps) {
         </div>
       )}
 
-      {/* 列表 */}
-      {renderList()}
-
-      {/* 能力筛选（底部不再重复） */}
+      {/* 列表：唯一可滚动的区域（flex-1 + min-h-0 才能在 flex 列布局里正确收缩） */}
+      <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+        {renderList()}
+      </div>
     </div>
   )
 

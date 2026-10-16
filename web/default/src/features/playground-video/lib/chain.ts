@@ -54,6 +54,20 @@ export interface ChainSegment {
  */
 export type ChainStatus = 'running' | 'paused' | 'done' | 'failed' | 'canceled'
 
+/**
+ * 衔接方式。
+ *
+ * last_frame      上一段尾帧 → 下一段首帧。画面最连贯（同机位、同光线），但只有
+ *                  声明 ReturnsLastFrame 的渠道（多为火山官方）能做到，中转渠道拿不到。
+ * reference_video 上一段成片 → 下一段参考视频。成片 URL 是公网可拉的，上游都能收；
+ *                  代价是它是一段被重新编码的视频而非一帧，运动连续性不如尾帧，
+ *                  而且会触发「含视频输入」的计费档。
+ *
+ * 两者都是「上一段的产物喂给下一段」，但语义与代价不同，所以让用户显式选，
+ * 不做静默降级——降级会让人以为拿到了尾帧级连续性。
+ */
+export type ChainLinkMode = 'last_frame' | 'reference_video'
+
 /** 面向用户的原因：key 是 i18n 文案，由界面用 t() 渲染，这里不做文案拼接。 */
 export interface ChainReason {
   key: string
@@ -66,8 +80,13 @@ export interface VideoChain {
   params: VideoParams
   /** 链式首帧之外的托盘素材，每一段都带上。 */
   baseItems: TrayItem[]
-  /** 上一段成片换来的首帧素材；第一段为空。持久化下来，刷新后续跑不用重复登记素材。 */
-  firstFrame?: TrayItem
+  /**
+   * 上一段换来的衔接素材；第一段为空。持久化下来，刷新后续跑不用重复登记素材。
+   * 字段名不写死「首帧」：成片续接模式下它是参考视频。
+   */
+  linkItem?: TrayItem
+  /** 衔接方式：尾帧续接（画面最连续）还是成片续接（不依赖尾帧，但有损）。 */
+  linkMode: ChainLinkMode
   segments: ChainSegment[]
   status: ChainStatus
   reason?: ChainReason
@@ -118,12 +137,14 @@ export function createChain(input: {
   params: VideoParams
   baseItems: TrayItem[]
   prompts: string[]
+  linkMode: ChainLinkMode
 }): VideoChain {
   return {
     id: `chain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     model: input.model,
     params: input.params,
     baseItems: input.baseItems,
+    linkMode: input.linkMode,
     segments: input.prompts.map((prompt, position) => ({
       index: position + 1,
       prompt,
@@ -151,12 +172,18 @@ export function loadChain(): VideoChain | null {
     if (!parsed || !Array.isArray(parsed.segments) || parsed.segments.length === 0) {
       return null
     }
+    // 旧持久化数据把衔接素材记在 firstFrame 下，读时兼容；linkMode 缺失的老链
+    // 按尾帧续接解读（它本来就是尾帧链跑出来的）。
+    const legacy = parsed as Partial<VideoChain> & { firstFrame?: TrayItem }
     return {
       id: typeof parsed.id === 'string' ? parsed.id : `chain-${Date.now()}`,
       model: typeof parsed.model === 'string' ? parsed.model : '',
       params: { ...EMPTY_VIDEO_PARAMS, ...parsed.params },
       baseItems: Array.isArray(parsed.baseItems) ? parsed.baseItems : [],
-      firstFrame: parsed.firstFrame,
+      // 旧持久化数据里衔接素材记在 firstFrame 下；缺 linkMode 的老链一律按尾帧续接解读
+      // （它本来就是尾帧链跑出来的），不该被当成成片续接。
+      linkItem: parsed.linkItem ?? legacy.firstFrame,
+      linkMode: parsed.linkMode === 'reference_video' ? 'reference_video' : 'last_frame',
       segments: parsed.segments.map((segment, position) => ({
         index: typeof segment.index === 'number' ? segment.index : position + 1,
         prompt: typeof segment.prompt === 'string' ? segment.prompt : '',

@@ -29,11 +29,12 @@ import {
   loadChain,
   patchSegment,
   saveChain,
+  type ChainLinkMode,
   type ChainReason,
   type VideoChain,
 } from '../lib/chain'
 import type { VideoParams } from '../lib/params'
-import { extractLastFrameUrl } from '../lib/task'
+import { extractLastFrameUrl, extractResultUrl } from '../lib/task'
 
 const TERMINAL_STATUS = new Set(['SUCCESS', 'FAILURE'])
 
@@ -53,8 +54,10 @@ interface UseVideoChainOptions {
   tasks: TaskLog[]
   /** 提交一段并返回任务 ID；提交失败返回空串。 */
   submitSegment: (input: SubmitSegmentInput) => Promise<string>
-  /** 把一段成片的尾帧登记成「下一段首帧」素材。 */
+  /** 把一段成片的尾帧登记成「下一段首帧」素材（尾帧续接模式）。 */
   registerLastFrame: (input: { taskId: string; url: string }) => Promise<TrayItem>
+  /** 把一段成片登记成「下一段参考视频」素材（成片续接模式）。 */
+  registerClip: (input: { taskId: string; url: string }) => Promise<TrayItem>
 }
 
 interface StartChainInput {
@@ -62,6 +65,7 @@ interface StartChainInput {
   params: VideoParams
   baseItems: TrayItem[]
   prompts: string[]
+  linkMode: ChainLinkMode
 }
 
 export interface VideoChainController {
@@ -188,7 +192,7 @@ export function useVideoChain(
     setRunning(true)
     updateChain((prev) => ({ ...prev, status: 'running', reason: undefined }))
 
-    let firstFrame = initial.firstFrame
+    let linkItem = initial.linkItem
     // 中止原因用对象字段承载：闭包里赋值后还要在主流程里读，用局部变量会被
     // TS 的类型收窄判定成永远是 undefined。
     const outcome: { reason?: ChainReason } = {}
@@ -213,12 +217,14 @@ export function useVideoChain(
       // 中断前已经提交出去的段复用原任务，不重新提交（重新提交就是重复扣费）。
       let taskId = segment.status === 'running' ? segment.taskId : ''
       if (!taskId) {
-        // 上一段的尾帧就是这一段的首帧：所以要把用户原来放的首帧换掉，而不是叠加
-        // 成两张首帧（那在多数上游都是非法输入）。
-        const items = firstFrame
+        // 衔接素材就是下一段的输入：要把用户原来放的同角色素材换掉，而不是叠加
+        // （两张首帧/两个参考视频在多数上游都是非法输入）。
+        const linkRole =
+          initial.linkMode === 'reference_video' ? 'reference_video' : 'first_frame'
+        const items = linkItem
           ? [
-              ...initial.baseItems.filter((item) => item.role !== 'first_frame'),
-              firstFrame,
+              ...initial.baseItems.filter((item) => item.role !== linkRole),
+              linkItem,
             ]
           : initial.baseItems
         taskId = await options.submitSegment({
@@ -262,8 +268,45 @@ export function useVideoChain(
       if (isLastSegment) {
         continue
       }
-      // 尾帧是下一段的输入，也是「这段能不能接着拍」的唯一判据：拿不到就停，
-      // 不能退回「整段视频当参考」蒙混过去（那是另一个语义，且同样要花钱）。
+      // 衔接素材是下一段的输入，也是「这段能不能接着拍」的唯一判据：拿不到就停，
+      // 绝不静默降级成另一种衔接方式（那是另一个语义，且同样要花钱）。
+      if (initial.linkMode === 'reference_video') {
+        // 成片续接：把这一段成片本身登记成参考视频。成片 URL 是公网可拉的，
+        // 中转渠道也收，因此不依赖模型返回尾帧。
+        const clipUrl = extractResultUrl(task)
+        if (!clipUrl) {
+          outcome.reason = {
+            key: 'This task did not expose a video URL, so the chain stopped',
+          }
+          updateChain((prev) => ({
+            ...prev,
+            status: 'failed',
+            reason: outcome.reason,
+          }))
+          break
+        }
+        try {
+          const item = await options.registerClip({ taskId, url: clipUrl })
+          if (aborted()) {
+            break
+          }
+          linkItem = item
+          updateChain((prev) => ({ ...prev, linkItem: item }))
+        } catch {
+          outcome.reason = {
+            key: 'Failed to register the clip as a material',
+          }
+          updateChain((prev) => ({
+            ...prev,
+            status: 'failed',
+            reason: outcome.reason,
+          }))
+          break
+        }
+        continue
+      }
+
+      // 尾帧续接：拿不到尾帧就停。
       const url = extractLastFrameUrl(task)
       if (!url) {
         outcome.reason = {
@@ -281,8 +324,8 @@ export function useVideoChain(
         if (aborted()) {
           break
         }
-        firstFrame = item
-        updateChain((prev) => ({ ...prev, firstFrame: item }))
+        linkItem = item
+        updateChain((prev) => ({ ...prev, linkItem: item }))
       } catch {
         outcome.reason = {
           key: 'Failed to register the last frame as a material',

@@ -56,6 +56,21 @@ export function extractLastFrameUrl(task: TaskLog): string {
   return ''
 }
 
+/**
+ * 任务成片的公网地址（成片续接用）。
+ *
+ * 只认 http/https/data 形态：旧数据的 result_url 可能是失败文案（后端曾把
+ * FailReason 当 URL 兼容回退），把那种值登记成素材会得到一个必然失败的入库。
+ * 本站的内容代理地址（/v1/videos/<id>/content）需要鉴权，上游拉不到，因此不用。
+ */
+export function extractResultUrl(task: TaskLog): string {
+  const url = (task.result_url || '').trim()
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return ''
+}
+
 /** 任务提示词摘要：通知、列表等地方需要一行能认出「这是哪个任务」的文字。 */
 export function taskPromptPreview(task: TaskLog, max = 40): string {
   if (!task.properties) {
