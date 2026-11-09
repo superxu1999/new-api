@@ -69,6 +69,7 @@ import {
 } from '@/components/ui/sheet'
 
 import { safeJsonParse } from '../utils/json-parser'
+import { GroupRenameDialog } from './group-rename-dialog'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -506,6 +507,13 @@ function GroupPricingTable({
     [emitRows, rows]
   )
 
+  const [renameOpen, setRenameOpen] = useState(false)
+
+  const groupNames = useMemo(
+    () => rows.map((row) => row.name.trim()).filter(Boolean),
+    [rows]
+  )
+
   const duplicateNames = useMemo(() => {
     const counts = new Map<string, number>()
     for (const row of rows) {
@@ -530,10 +538,19 @@ function GroupPricingTable({
               )}
             </CardDescription>
           </div>
-          <Button onClick={addRow} size='sm' className='sm:self-start'>
-            <Plus className='mr-2 h-4 w-4' />
-            {t('Add group')}
-          </Button>
+          <div className='flex items-center gap-2 sm:self-start'>
+            <Button
+              onClick={() => setRenameOpen(true)}
+              size='sm'
+              variant='outline'
+            >
+              {t('Rename group')}
+            </Button>
+            <Button onClick={addRow} size='sm'>
+              <Plus className='mr-2 h-4 w-4' />
+              {t('Add group')}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -669,6 +686,12 @@ function GroupPricingTable({
           )}
         </div>
       </CardContent>
+      <GroupRenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        groupNames={groupNames}
+        onRenamed={() => window.location.reload()}
+      />
     </Card>
   )
 }

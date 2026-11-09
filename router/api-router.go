@@ -211,6 +211,9 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
+			// 分组改名：一次同步定价倍率、充值倍率、用户可选分组、特殊可用分组规则，
+			// 以及用户 / 令牌 / 渠道与能力表里的引用。只改配置会让数据静默错位。
+			optionRoute.POST("/group/rename", controller.RenameGroup)
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 			optionRoute.GET("/waffo-pancake/catalog", controller.ListWaffoPancakeCatalog)
 			optionRoute.POST("/waffo-pancake/pair", controller.CreateWaffoPancakePair)

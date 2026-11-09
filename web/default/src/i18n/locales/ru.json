@@ -5520,6 +5520,12 @@
     "Assigned agent": "Назначенный агент",
     "No agent (unassigned)": "Без агента (не назначено)",
     "The assigned agent can view this user and its usage data, read-only.": "Назначенный агент может просматривать этого пользователя и его данные об использовании только для чтения.",
-    "Page {{page}} of {{total}}": "Страница {{page}} из {{total}}"
+    "Page {{page}} of {{total}}": "Страница {{page}} из {{total}}",
+    "Renaming a group updates its ratio, top-up ratio, user-selectable list, special usable-group rules, and every user, token and channel that uses it. Save your pending edits first.": "Переименование группы обновит её коэффициент, коэффициент пополнения, список, доступный пользователям, правила специальных групп, а также всех пользователей, токены и каналы, которые её используют. Сначала сохраните текущие изменения.",
+    "Renaming...": "Переименование…",
+    "Current group name": "Текущее имя группы",
+    "New group name": "Новое имя группы",
+    "Enter a new group name": "Введите новое имя группы",
+    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "Группа переименована. Обновлено: пользователей — {{users}}, токенов — {{tokens}}, каналов — {{channels}}."
   }
 }

@@ -5520,6 +5520,12 @@
     "Assigned agent": "Đại lý được giao",
     "No agent (unassigned)": "Không có đại lý (chưa giao)",
     "The assigned agent can view this user and its usage data, read-only.": "Đại lý được giao có thể xem người dùng này và dữ liệu sử dụng của họ ở chế độ chỉ xem.",
-    "Page {{page}} of {{total}}": "Trang {{page}} / {{total}}"
+    "Page {{page}} of {{total}}": "Trang {{page}} / {{total}}",
+    "Renaming a group updates its ratio, top-up ratio, user-selectable list, special usable-group rules, and every user, token and channel that uses it. Save your pending edits first.": "Đổi tên nhóm sẽ cập nhật hệ số, hệ số nạp tiền, danh sách người dùng có thể chọn, quy tắc nhóm đặc biệt, cùng mọi người dùng, token và kênh đang dùng nhóm đó. Hãy lưu các thay đổi hiện tại trước.",
+    "Renaming...": "Đang đổi tên…",
+    "Current group name": "Tên nhóm hiện tại",
+    "New group name": "Tên nhóm mới",
+    "Enter a new group name": "Nhập tên nhóm mới",
+    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "Đã đổi tên nhóm. Đã cập nhật {{users}} người dùng, {{tokens}} token và {{channels}} kênh."
   }
 }
