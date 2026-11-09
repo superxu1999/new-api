@@ -741,39 +741,54 @@ func GetUserModels(c *gin.Context) {
 		return
 	}
 	groups := service.GetUserUsableGroups(user.Group)
+
+	var models []string
 	group := c.Query("group")
 	if group != "" {
 		if _, ok := groups[group]; !ok {
-			c.JSON(http.StatusOK, gin.H{
-				"success": true,
-				"message": "",
-				"data":    []string{},
-			})
-			return
+			models = make([]string, 0)
+		} else {
+			models = model.GetGroupEnabledModels(group)
 		}
+	} else {
+		for usableGroup := range groups {
+			for _, name := range model.GetGroupEnabledModels(usableGroup) {
+				if !common.StringsContains(models, name) {
+					models = append(models, name)
+				}
+			}
+		}
+	}
+	if models == nil {
+		models = make([]string, 0)
+	}
 
+	// 默认只返回模型名（对话游乐场等处的既有约定）；with_endpoint=true 时附带每个模型
+	// 支持的端点类型，供图像游乐场这类需要按类型筛选模型的页面使用。
+	if c.Query("with_endpoint") != "true" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
-			"data":    model.GetGroupEnabledModels(group),
+			"data":    models,
 		})
 		return
 	}
-
-	var models []string
-	for group := range groups {
-		for _, g := range model.GetGroupEnabledModels(group) {
-			if !common.StringsContains(models, g) {
-				models = append(models, g)
-			}
-		}
+	type modelWithEndpoints struct {
+		Name          string                  `json:"name"`
+		EndpointTypes []constant.EndpointType `json:"endpoint_types"`
+	}
+	items := make([]modelWithEndpoints, 0, len(models))
+	for _, name := range models {
+		items = append(items, modelWithEndpoints{
+			Name:          name,
+			EndpointTypes: model.GetModelSupportEndpointTypes(name),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    items,
 	})
-	return
 }
 
 func UpdateUser(c *gin.Context) {

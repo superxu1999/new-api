@@ -5526,6 +5526,10 @@
     "Current group name": "Nom actuel du groupe",
     "New group name": "Nouveau nom du groupe",
     "Enter a new group name": "Saisissez un nouveau nom de groupe",
-    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "Groupe renommé. {{users}} utilisateurs, {{tokens}} jetons et {{channels}} canaux mis à jour."
+    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "Groupe renommé. {{users}} utilisateurs, {{tokens}} jetons et {{channels}} canaux mis à jour.",
+    "Generating image...": "Génération de l'image...",
+    "Image generation failed": "La génération de l'image a échoué",
+    "No image was returned by the upstream": "L'amont n'a renvoyé aucune image",
+    "Download image": "Télécharger l'image"
   }
 }

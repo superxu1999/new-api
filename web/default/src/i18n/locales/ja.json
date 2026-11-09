@@ -5526,6 +5526,10 @@
     "Current group name": "現在のグループ名",
     "New group name": "新しいグループ名",
     "Enter a new group name": "新しいグループ名を入力してください",
-    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "グループ名を変更しました。{{users}} ユーザー、{{tokens}} トークン、{{channels}} チャネルを更新しました。"
+    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "グループ名を変更しました。{{users}} ユーザー、{{tokens}} トークン、{{channels}} チャネルを更新しました。",
+    "Generating image...": "画像を生成しています…",
+    "Image generation failed": "画像の生成に失敗しました",
+    "No image was returned by the upstream": "上流から画像が返されませんでした",
+    "Download image": "画像をダウンロード"
   }
 }

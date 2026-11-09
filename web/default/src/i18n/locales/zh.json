@@ -5526,6 +5526,10 @@
     "Current group name": "当前分组名称",
     "New group name": "新分组名称",
     "Enter a new group name": "请输入新的分组名称",
-    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "分组已重命名。已更新 {{users}} 个用户、{{tokens}} 个令牌、{{channels}} 条渠道。"
+    "Group renamed. Updated {{users}} users, {{tokens}} tokens and {{channels}} channels.": "分组已重命名。已更新 {{users}} 个用户、{{tokens}} 个令牌、{{channels}} 条渠道。",
+    "Generating image...": "正在生成图片…",
+    "Image generation failed": "图片生成失败",
+    "No image was returned by the upstream": "上游没有返回图片",
+    "Download image": "下载图片"
   }
 }

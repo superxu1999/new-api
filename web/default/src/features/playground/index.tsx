@@ -25,6 +25,7 @@ import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
 import {
   useChatHandler,
+  useImageChatHandler,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
@@ -32,7 +33,7 @@ import {
 } from './hooks'
 import { appendUserMessagePair, getMessageContent } from './lib'
 import { MESSAGE_ROLES } from './constants'
-import { isVideoModel } from './hooks/use-playground-options'
+import { isImageModel, isVideoModel } from './hooks/use-playground-options'
 import type { VideoGenerationParams } from './types'
 
 export function Playground() {
@@ -57,6 +58,7 @@ export function Playground() {
   })
 
   const currentModelIsVideo = isVideoModel(config.model)
+  const currentModelIsImage = isImageModel(config.model)
 
   // 视频模型的能力声明：参数控件（时长/分辨率/比例/开关）以它为准，与创作台共用同一份数据。
   // 只在选中视频模型时才请求，避免聊天场景多打一次接口。
@@ -75,6 +77,12 @@ export function Playground() {
     stopGeneration: stopVideoGeneration,
     isGenerating: isVideoGenerating,
   } = useVideoChatHandler()
+
+  const {
+    sendImageGeneration,
+    stopGeneration: stopImageGeneration,
+    isGenerating: isImageGenerating,
+  } = useImageChatHandler()
 
   // After messages are restored from storage, resume polling for video
   // tasks that were still running when the page was last closed.
@@ -131,6 +139,32 @@ export function Playground() {
     )
   }
 
+  // 图片模型的重新生成/编辑后重发：同样取最后一条用户消息作为提示词。
+  // 图片接口是同步的，没有时长、尺寸这类需要沿用的历史参数。
+  const sendImageChat = (nextMessages: typeof messages) => {
+    const lastUserMessage = [...nextMessages]
+      .reverse()
+      .find((message) => message.from === MESSAGE_ROLES.USER)
+    const prompt = lastUserMessage
+      ? getMessageContent(lastUserMessage).trim()
+      : ''
+    if (!prompt) return
+    sendImageGeneration({ model: config.model, prompt }, updateMessages)
+  }
+
+  // 按当前模型的类型选择发送链路：视频 → 任务轮询，图片 → 同步出图，其余走对话。
+  const sendChatByModel = (nextMessages: typeof messages) => {
+    if (currentModelIsVideo) {
+      sendVideoChat(nextMessages)
+      return
+    }
+    if (currentModelIsImage) {
+      sendImageChat(nextMessages)
+      return
+    }
+    sendChat(nextMessages)
+  }
+
   const {
     editingMessageKey,
     handleSendMessage,
@@ -142,7 +176,7 @@ export function Playground() {
   } = usePlaygroundConversation({
     messages,
     updateMessages,
-    sendChat: currentModelIsVideo ? sendVideoChat : sendChat,
+    sendChat: sendChatByModel,
   })
 
   const handleClearMessages = () => {
@@ -158,8 +192,15 @@ export function Playground() {
     updateConfig,
   })
 
-  const isGenerating = currentModelIsVideo ? isVideoGenerating : isChatGenerating
-  const handleStop = currentModelIsVideo ? stopVideoGeneration : stopGeneration
+  let isGenerating = isChatGenerating
+  let handleStop = stopGeneration
+  if (currentModelIsVideo) {
+    isGenerating = isVideoGenerating
+    handleStop = stopVideoGeneration
+  } else if (currentModelIsImage) {
+    isGenerating = isImageGenerating
+    handleStop = stopImageGeneration
+  }
 
   return (
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>

@@ -16,6 +16,9 @@ var (
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+		// 豆包 Seedream 系列（如 doubao-seedream-5-0-pro-260628）只提供
+		// /v1/images/generations，不支持对话接口，必须按图片模型处理。
+		"seedream-",
 	}
 	OpenAITextModels = []string{
 		"gpt-",

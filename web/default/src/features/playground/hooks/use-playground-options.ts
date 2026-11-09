@@ -33,9 +33,20 @@ import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
 /** Models matching these patterns are video/task types, not chat models. */
 const VIDEO_MODEL_RE = /sora|veo|kling|pika|video|wan-|hunyuanvideo|seedance/i
 
+/**
+ * 图片模型按名称识别（与后端 common.IsImageGenerationModel 的名单保持一致）。
+ * 这里只用于「选中模型后切到图片链路」的界面判断；真正的计费与路由由后端按端点类型决定。
+ */
+const IMAGE_MODEL_RE = /dall-e|gpt-image|imagen-|flux|seedream/i
+
 /** Check if a model name is a video/task type. */
 export function isVideoModel(model: string): boolean {
   return VIDEO_MODEL_RE.test(model)
+}
+
+/** Check if a model name is an image generation model. */
+export function isImageModel(model: string): boolean {
+  return IMAGE_MODEL_RE.test(model)
 }
 
 /**

@@ -90,6 +90,8 @@ const messageSchema = z.object({
   videoTaskId: z.string().optional(),
   videoDuration: z.number().optional(),
   videoModel: z.string().optional(),
+  imageUrls: z.array(z.string()).optional(),
+  imageModel: z.string().optional(),
 })
 
 export const messagesSchema = z.array(messageSchema)

@@ -65,6 +65,9 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
+		// 图像游乐场：与对话游乐场共用同一套会话鉴权与临时令牌逻辑，
+		// 但必须走图片的 RelayFormat，否则请求体会被当成对话请求解析。
+		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
 		playgroundRouter.POST("/video/generations", controller.RelayTask)
 		playgroundRouter.GET("/video/generations/:task_id", controller.RelayTaskFetch)
 		// 游乐场「停止」按钮：取消正在生成的任务（与 /v1/videos/{id}/cancel 同一实现）

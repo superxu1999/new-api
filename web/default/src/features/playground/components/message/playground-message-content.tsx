@@ -84,6 +84,7 @@ export function PlaygroundMessageContent({
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
+  const hasImages = Boolean(message.imageUrls && message.imageUrls.length > 0)
 
   return (
     <div
@@ -137,8 +138,47 @@ export function PlaygroundMessageContent({
 
       {!isError && showMessageContent && (
         <>
-          {/* Render video content when message has videoUrl */}
-          {message.videoUrl ? (
+          {/* 图片模型：同步接口直接返回图片地址，渲染成一组可点击的图片 */}
+          {hasImages && (
+            <div className='my-2'>
+              <div className='flex flex-wrap gap-3'>
+                {(message.imageUrls ?? []).map((url) => (
+                  <a
+                    key={url.slice(0, 64)}
+                    href={url}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='block overflow-hidden rounded-lg border'
+                  >
+                    <img
+                      src={url}
+                      alt={versionContent}
+                      className='h-64 w-64 object-cover'
+                      loading='lazy'
+                    />
+                  </a>
+                ))}
+              </div>
+              <div className='text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
+                {message.imageModel && (
+                  <span className='inline-flex items-center gap-1'>
+                    {t('Model')}: {message.imageModel}
+                  </span>
+                )}
+                <a
+                  className='hover:text-foreground inline-flex items-center gap-1'
+                  download
+                  href={(message.imageUrls ?? [])[0]}
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  <Download className='size-3.5' />
+                  {t('Download image')}
+                </a>
+              </div>
+            </div>
+          )}
+          {!hasImages && message.videoUrl && (
             <div className='my-2'>
               <div className='overflow-hidden rounded-lg'>
                 <video
@@ -165,7 +205,8 @@ export function PlaygroundMessageContent({
                 </a>
               </div>
             </div>
-          ) : isSourceVisible ? (
+          )}
+          {!hasImages && !message.videoUrl && isSourceVisible && (
             <CodeBlock
               code={versionContent}
               className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'
@@ -179,7 +220,8 @@ export function PlaygroundMessageContent({
             >
               <CodeBlockCopyButton />
             </CodeBlock>
-          ) : (
+          )}
+          {!hasImages && !message.videoUrl && !isSourceVisible && (
             <MessageContent
               variant='flat'
               className={cn(getMessageContentStyles())}

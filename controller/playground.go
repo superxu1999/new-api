@@ -13,6 +13,20 @@ import (
 )
 
 func Playground(c *gin.Context) {
+	playgroundRelay(c, types.RelayFormatOpenAI)
+}
+
+// PlaygroundImage 图像游乐场入口。
+//
+// 图片接口的请求体结构与对话不同（prompt/size/n 而不是 messages），必须用
+// RelayFormatOpenAIImage 解析，否则渠道适配器会拿到 GeneralOpenAIRequest 而报
+// "invalid request type, expected dto.ImageRequest"。其余鉴权与临时令牌逻辑
+// 与对话游乐场完全一致。
+func PlaygroundImage(c *gin.Context) {
+	playgroundRelay(c, types.RelayFormatOpenAIImage)
+}
+
+func playgroundRelay(c *gin.Context, relayFormat types.RelayFormat) {
 	var newAPIError *types.NewAPIError
 
 	defer func() {
@@ -29,7 +43,7 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, nil, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
@@ -52,5 +66,5 @@ func Playground(c *gin.Context) {
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
 
-	Relay(c, types.RelayFormatOpenAI)
+	Relay(c, relayFormat)
 }
