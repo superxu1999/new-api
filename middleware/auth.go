@@ -190,6 +190,14 @@ func AdminAuth() func(c *gin.Context) {
 	}
 }
 
+// AgentAuth 要求达到「代理」等级。管理员与 root 等级更高，同样能通过；
+// 但接口里的数据范围永远以调用者自己的 id 为准，不会因为角色更高就放宽。
+func AgentAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		authHelper(c, common.RoleAgent)
+	}
+}
+
 func RootAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleRootUser)

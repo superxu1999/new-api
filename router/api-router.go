@@ -157,6 +157,17 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		// 代理（RoleAgent）只能查看直接下级的数据，管理员负责把用户分配给代理。
+		// 读接口用 AgentAuth（代理及以上都能进，但范围永远以调用者自己的 id 为准），
+		// 分配接口是写操作，只给管理员。
+		agentRoute := apiRouter.Group("/agent")
+		{
+			agentRoute.GET("/users", middleware.AgentAuth(), controller.GetAgentUsers)
+			agentRoute.GET("/logs", middleware.AgentAuth(), controller.GetAgentLogs)
+			agentRoute.GET("/stats", middleware.AgentAuth(), controller.GetAgentStats)
+			agentRoute.POST("/assign", middleware.AdminAuth(), controller.AssignSubordinates)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

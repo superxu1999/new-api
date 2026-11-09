@@ -77,6 +77,11 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
+  assignSubordinates,
+  listAgents,
+  type AgentSubordinate,
+} from '@/features/agent/api'
+import {
   createUser,
   updateUser,
   getUser,
@@ -93,7 +98,7 @@ import {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
-import { type User } from '../types'
+import type { User } from '../types'
 import { UserCredentialsDialog } from './dialogs/user-credentials-dialog'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
@@ -114,6 +119,9 @@ export function UsersMutateDrawer({
   const { triggerRefresh } = useUsers()
   const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // 归属代理：只有管理员能改，且只对普通用户有意义（代理与管理员不能被挂到别人名下）。
+  const [assignAgentId, setAssignAgentId] = useState(0)
+  const [agentOptions, setAgentOptions] = useState<AgentSubordinate[]>([])
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
   // 打开编辑时后端回显的当前密码，用于判断密码是否被改动过（未改动不重复提交）。
   const [originalPassword, setOriginalPassword] = useState('')
@@ -152,14 +160,28 @@ export function UsersMutateDrawer({
         if (result.success && result.data) {
           setOriginalPassword(result.data.password_plain ?? '')
           form.reset(transformUserToFormDefaults(result.data))
+          setAssignAgentId(result.data.inviter_id ?? 0)
         }
+      }).catch(() => {
+        // 拉取失败时保留表单当前值，不阻塞编辑。
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       setOriginalPassword('')
       form.reset(USER_FORM_DEFAULT_VALUES)
+      setAssignAgentId(0)
     }
   }, [open, isUpdate, currentRow, form])
+
+  // 代理下拉：只列角色为「代理」的账号。抽屉只有管理员能打开，接口本身也是管理员权限。
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    listAgents()
+      .then((agents) => setAgentOptions(agents))
+      .catch(() => setAgentOptions([]))
+  }, [open])
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
@@ -169,6 +191,12 @@ export function UsersMutateDrawer({
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
+  // 代理本身不能再被挂到别的代理名下（后端只允许把普通用户分配给代理），
+  // 所以「归属代理」只在目标是普通用户时才显示。
+  const targetIsAgent = (selectedRole ?? currentRow?.role ?? 0) === ROLE.AGENT
+  const assignableAgents = agentOptions.filter(
+    (agent) => agent.id !== currentRow?.id
+  )
 
   const onSubmit = async (data: UserFormValues) => {
     // 创建时密码必填；更新时留空、或与后端回显的当前密码一致，都表示保持原密码。
@@ -209,6 +237,21 @@ export function UsersMutateDrawer({
             password: submittedPassword,
           })
         }
+        // 归属代理走独立接口（写的是 inviter_id），只有真的改了才调用，
+        // 避免普通的资料编辑顺带改动归属关系。
+        if (isUpdate && currentRow) {
+          const originAgentId = currentRow.inviter_id ?? 0
+          if (assignAgentId !== originAgentId) {
+            try {
+              await assignSubordinates({
+                agentId: assignAgentId,
+                userIds: [currentRow.id],
+              })
+            } catch {
+              toast.error(t('Failed to update the agent assignment'))
+            }
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -224,7 +267,7 @@ export function UsersMutateDrawer({
               : t(ERROR_MESSAGES.CREATE_FAILED))
         )
       }
-    } catch (_error) {
+    } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
@@ -312,7 +355,9 @@ export function UsersMutateDrawer({
                   )}
                 />
 
-                {!isUpdate && (
+                {/* 新建时可选全部角色；编辑时只允许在「普通用户 / 代理」之间切换
+                    （两者都不带管理权限，后端放行），管理员升降级仍走专用操作。 */}
+                {(!isUpdate || !targetIsAdmin) && (
                   <FormField
                     control={form.control}
                     name='role'
@@ -320,10 +365,18 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Role')}</FormLabel>
                         <Select
-                          items={[
-                            { value: '1', label: t('Common User') },
-                            { value: '10', label: t('Admin') },
-                          ]}
+                          items={
+                            isUpdate
+                              ? [
+                                  { value: '1', label: t('Common User') },
+                                  { value: '2', label: t('Agent') },
+                                ]
+                              : [
+                                  { value: '1', label: t('Common User') },
+                                  { value: '2', label: t('Agent') },
+                                  { value: '10', label: t('Admin') },
+                                ]
+                          }
                           onValueChange={(value) =>
                             value !== null && field.onChange(parseInt(value))
                           }
@@ -339,7 +392,10 @@ export function UsersMutateDrawer({
                               <SelectItem value='1'>
                                 {t('Common User')}
                               </SelectItem>
-                              <SelectItem value='10'>{t('Admin')}</SelectItem>
+                              <SelectItem value='2'>{t('Agent')}</SelectItem>
+                              {!isUpdate && (
+                                <SelectItem value='10'>{t('Admin')}</SelectItem>
+                              )}
                             </SelectGroup>
                           </SelectContent>
                         </Select>
@@ -350,6 +406,33 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                )}
+
+                {isUpdate && !targetIsAdmin && !targetIsAgent && (
+                  <div className='flex flex-col gap-1.5'>
+                    <span className='text-sm font-medium'>
+                      {t('Assigned agent')}
+                    </span>
+                    <select
+                      className='border-input bg-background h-9 rounded-md border px-2 text-sm'
+                      value={String(assignAgentId)}
+                      onChange={(event) =>
+                        setAssignAgentId(Number(event.target.value))
+                      }
+                    >
+                      <option value='0'>{t('No agent (unassigned)')}</option>
+                      {assignableAgents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.display_name || agent.username}
+                        </option>
+                      ))}
+                    </select>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'The assigned agent can view this user and its usage data, read-only.'
+                      )}
+                    </p>
+                  </div>
                 )}
 
                 <FormField
@@ -433,12 +516,10 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Group')}</FormLabel>
                         <Select
-                          items={[
-                            ...groups.map((group) => ({
-                              value: group,
-                              label: group,
-                            })),
-                          ]}
+                          items={groups.map((group) => ({
+                            value: group,
+                            label: group,
+                          }))}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
@@ -531,7 +612,7 @@ export function UsersMutateDrawer({
                             <FormLabel>{t('Asset library')}</FormLabel>
                             <FormDescription>
                               {t(
-                                'Allow this user to ingest materials into the asset library. Disabled by default.'
+                                'Allow this user to ingest materials into the asset library. Enabled by default.'
                               )}
                             </FormDescription>
                           </div>
@@ -558,7 +639,7 @@ export function UsersMutateDrawer({
                             <FormLabel>{t('Direct upload')}</FormLabel>
                             <FormDescription>
                               {t(
-                                'Allow this user to upload local files, which are kept on this site as a temporary copy. Can be granted without the asset library. Disabled by default.'
+                                'Allow this user to upload local files, which are kept on this site as a temporary copy. Can be granted without the asset library. Enabled by default.'
                               )}
                             </FormDescription>
                           </div>

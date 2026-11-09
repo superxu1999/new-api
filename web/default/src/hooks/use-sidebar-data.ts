@@ -23,6 +23,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Handshake,
   Images,
   Key,
   LayoutDashboard,
@@ -111,6 +112,13 @@ export function useSidebarData(): SidebarData {
             title: t('Asset Library'),
             url: '/asset-library',
             icon: Images,
+          },
+          {
+            // 代理的只读工作台：只对「代理及以上」显示，普通用户看不到这一项。
+            title: t('My subordinates'),
+            url: '/agent',
+            icon: Handshake,
+            requiredRole: ROLE.AGENT,
           },
         ],
       },

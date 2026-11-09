@@ -562,11 +562,23 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	return GetLogsByUserIDs([]int{userId}, logType, startTimestamp, endTimestamp, modelName, tokenName, startIdx, num, group, requestId, upstreamRequestId)
+}
+
+// GetLogsByUserIDs 按一组用户 ID 分页查询日志，供代理查看直接下级使用。
+//
+// 与 GetUserLogs 共用同一份实现（只是 user_id = ? 换成 IN），避免两套过滤口径漂移：
+// 代理看到的列与筛选能力必须和用户自查时完全一致，否则「上级看到的数」和
+// 「下级自己看到的数」会对不上。
+func GetLogsByUserIDs(userIds []int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	if len(userIds) == 0 {
+		return []*Log{}, 0, nil
+	}
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
+		tx = LOG_DB.Where("logs.user_id IN ?", userIds)
 	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+		tx = LOG_DB.Where("logs.user_id IN ? and logs.type = ?", userIds, logType)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -669,6 +681,37 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 
 	return stat, nil
+}
+
+// UserQuotaStat 是单个用户在一段时间内的用量汇总。
+type UserQuotaStat struct {
+	UserId int `json:"user_id"`
+	Quota  int `json:"quota"`
+	Count  int `json:"count"`
+}
+
+// SumUsedQuotaByUserIDs 按用户汇总消费额度与请求次数，供代理查看下级用。
+// 只统计消费类日志（LogTypeConsume），口径与 SumUsedQuota 一致。
+func SumUsedQuotaByUserIDs(userIds []int, startTimestamp int64, endTimestamp int64) ([]*UserQuotaStat, error) {
+	stats := make([]*UserQuotaStat, 0)
+	if len(userIds) == 0 {
+		return stats, nil
+	}
+	tx := LOG_DB.Table("logs").
+		Select("user_id, COALESCE(sum(quota), 0) as quota, count(*) as count").
+		Where("user_id IN ?", userIds).
+		Where("type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if err := tx.Group("user_id").Scan(&stats).Error; err != nil {
+		common.SysError("failed to sum quota by user ids: " + err.Error())
+		return nil, errors.New("查询统计数据失败")
+	}
+	return stats, nil
 }
 
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {

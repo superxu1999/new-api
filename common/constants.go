@@ -206,12 +206,20 @@ const (
 const (
 	RoleGuestUser  = 0
 	RoleCommonUser = 1
-	RoleAdminUser  = 10
-	RoleRootUser   = 100
+	// RoleAgent 是「代理」：不是管理员，只能查看**直接下级**（inviter_id 指向自己）
+	// 的用户与用量数据。
+	//
+	// 取值必须小于 RoleAdminUser：全站判管理员权限用的都是 role >= RoleAdminUser，
+	// 只要在 10 以下就天然不具备任何管理员能力，不必在几十处判断里逐个排除。
+	// 反过来，把它设成 >= 10 会直接继承全部管理权限。
+	RoleAgent     = 2
+	RoleAdminUser = 10
+	RoleRootUser  = 100
 )
 
 func IsValidateRole(role int) bool {
-	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
+	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAgent ||
+		role == RoleAdminUser || role == RoleRootUser
 }
 
 var (

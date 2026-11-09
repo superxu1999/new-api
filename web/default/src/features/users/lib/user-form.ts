@@ -27,7 +27,7 @@ import { quotaUnitsToDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { UserFormData, User } from '../types'
 
 // ============================================================================
 // Form Schema
@@ -112,6 +112,11 @@ export function transformFormDataToPayload(
     payload.asset_library_enabled = data.asset_library_enabled ? 1 : 0
     payload.asset_upload_enabled = data.asset_upload_enabled ? 1 : 0
     payload.id = userId
+    // 只在「普通用户 / 代理」之间传角色：两者都不带管理权限，后端允许直接切换。
+    // 管理员及以上的升降级必须走 /api/user/manage，这里传了也会被后端拒绝。
+    if (role < ROLE.ADMIN) {
+      payload.role = role
+    }
   }
 
   return payload

@@ -457,6 +457,14 @@ func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
 }
 
+// isAgentRoleSwitch 判断这次角色变更是否只是「普通用户 ↔ 代理」之间的切换。
+// 两者都不带管理权限，允许在编辑用户时直接切换；其它组合（含任何管理员角色）一律拒绝，
+// 必须走 ManageUser 的升降级流程，避免绕过权限校验把普通用户改成管理员。
+func isAgentRoleSwitch(from int, to int) bool {
+	return (from == common.RoleCommonUser && to == common.RoleAgent) ||
+		(from == common.RoleAgent && to == common.RoleCommonUser)
+}
+
 func GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -792,11 +800,17 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
+	// 角色变更：只放行「普通用户 ↔ 代理」这一对。
+	// 两者都不带任何管理权限，互相切换没有提权风险；涉及管理员的升降级仍必须走 ManageUser。
+	requestedRole := updatedUser.Role
+	if requestedRole == common.RoleGuestUser {
+		requestedRole = originUser.Role
+	}
+	if requestedRole != originUser.Role && !isAgentRoleSwitch(originUser.Role, requestedRole) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	updatedUser.Role = originUser.Role
+	updatedUser.Role = requestedRole
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, originUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)

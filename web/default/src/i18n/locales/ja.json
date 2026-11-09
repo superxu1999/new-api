@@ -5500,6 +5500,26 @@
     "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。": "方法 1：metadata.video_url で参照動画を渡すか、content に role=reference_video 付きの video_url 要素を指定します。方法 2：POST /v1/videos/{video_id}/remix を呼び出し、元のタスクから新しいタスクを派生させます。",
     "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。": "エラー応答の構造：チャット系エンドポイントは {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}} を返します（認証エラーでは code が空のことがあります）。タスク系エンドポイント（/v1/videos、/v1/video/generations）はフラットな {\"code\": \"...\", \"message\": \"...\", \"data\": null} を返します。失敗の詳細は 6.5 の metadata.fail_reason にあります。",
     "，": "、",
-    "，and ": "、"
+    "，and ": "、",
+    "My subordinates": "自分の下位ユーザー",
+    "Read-only view of the users assigned to you.": "自分に割り当てられたユーザーの閲覧専用ビューです。",
+    "Subordinates": "下位ユーザー数",
+    "Their balance": "下位ユーザーの残高",
+    "Their total usage": "下位ユーザーの累計使用量",
+    "Requests this month": "今月のリクエスト数",
+    "Subordinate users": "下位ユーザー",
+    "Search username or ID": "ユーザー名または ID で検索",
+    "No subordinates yet": "下位ユーザーはまだいません",
+    "Used quota": "使用済みクォータ",
+    "Joined": "登録日",
+    "Subordinate usage logs": "下位ユーザーの利用ログ",
+    "All subordinates": "すべての下位ユーザー",
+    "No logs yet": "ログはまだありません",
+    "Failed to update the agent assignment": "代理の割り当ての更新に失敗しました",
+    "Agent": "代理",
+    "Assigned agent": "担当代理",
+    "No agent (unassigned)": "代理なし（未割り当て）",
+    "The assigned agent can view this user and its usage data, read-only.": "担当代理はこのユーザーと利用データを閲覧専用で参照できます。",
+    "Page {{page}} of {{total}}": "{{total}} ページ中 {{page}} ページ目"
   }
 }

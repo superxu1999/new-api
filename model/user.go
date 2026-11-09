@@ -432,6 +432,111 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	return users, total, nil
 }
 
+// SubordinateSummary 是某个代理名下直接下级的汇总。
+type SubordinateSummary struct {
+	UserCount      int64 `json:"user_count"`
+	TotalQuota     int64 `json:"total_quota"`
+	TotalUsedQuota int64 `json:"total_used_quota"`
+	TotalRequests  int64 `json:"total_requests"`
+}
+
+// GetSubordinateIDs 返回代理的直接下级用户 ID。
+//
+// 只按 inviter_id 取一层、不递归：多级归属会引出「跨层能不能看见」的歧义，
+// 也会让「挂到谁名下」这件事变成两个概念，当前明确只支持一层。
+// 同时排除等级达到「代理」及以上的账号：管理员或另一个代理不该出现在下级名单里。
+func GetSubordinateIDs(agentId int) ([]int, error) {
+	if agentId <= 0 {
+		return nil, nil
+	}
+	ids := make([]int, 0)
+	err := DB.Model(&User{}).
+		Where("inviter_id = ? AND role < ?", agentId, common.RoleAgent).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// GetSubordinateUsers 分页返回代理的直接下级。keyword 匹配用户名 / 显示名 / ID。
+// 返回值已剔除密码与访问令牌，代理只能看到业务字段。
+func GetSubordinateUsers(agentId int, keyword string, startIdx int, num int) ([]*User, int64, error) {
+	if agentId <= 0 {
+		return []*User{}, 0, nil
+	}
+	query := DB.Model(&User{}).
+		Where("inviter_id = ? AND role < ?", agentId, common.RoleAgent)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		condition := "username LIKE ? OR display_name LIKE ?"
+		args := []interface{}{like, like}
+		if keywordId, err := strconv.Atoi(keyword); err == nil {
+			condition = "id = ? OR " + condition
+			args = append([]interface{}{keywordId}, args...)
+		}
+		query = query.Where("("+condition+")", args...)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	users := make([]*User, 0)
+	err := query.Omit("password", "password_enc", "access_token").
+		Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+}
+
+// SumSubordinateUsage 汇总代理名下直接下级的余额、已用额度与请求数。
+func SumSubordinateUsage(agentId int) (SubordinateSummary, error) {
+	summary := SubordinateSummary{}
+	if agentId <= 0 {
+		return summary, nil
+	}
+	err := DB.Model(&User{}).
+		Select("count(*) as user_count, COALESCE(sum(quota), 0) as total_quota, "+
+			"COALESCE(sum(used_quota), 0) as total_used_quota, COALESCE(sum(request_count), 0) as total_requests").
+		Where("inviter_id = ? AND role < ?", agentId, common.RoleAgent).
+		Scan(&summary).Error
+	return summary, err
+}
+
+// UserBrief 是用户的对外最小画像，用于给日志/统计补名字。
+type UserBrief struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+// GetUserBriefsByIds 批量取用户的最小画像（不涉及密码与令牌）。
+func GetUserBriefsByIds(ids []int) (map[int]*UserBrief, error) {
+	briefs := make(map[int]*UserBrief, len(ids))
+	if len(ids) == 0 {
+		return briefs, nil
+	}
+	rows := make([]*UserBrief, 0, len(ids))
+	if err := DB.Model(&User{}).Select("id, username, display_name").
+		Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		briefs[row.Id] = row
+	}
+	return briefs, nil
+}
+
+// SetSubordinateInviter 把一组用户挂到指定代理名下（inviterId 传 0 表示解除归属）。
+// 调用方负责校验目标角色与合法性，这里只做写入。
+func SetSubordinateInviter(userIds []int, inviterId int) error {
+	if len(userIds) == 0 {
+		return nil
+	}
+	return DB.Model(&User{}).Where("id IN ?", userIds).Update("inviter_id", inviterId).Error
+}
+
 func GetUserById(id int, selectAll bool) (*User, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")
@@ -750,6 +855,9 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
+		// 角色：调用方（UpdateUser）已经校验过只允许「普通用户 ↔ 代理」互换，
+		// 这里必须落库，否则界面上改完角色保存后仍然是旧角色。
+		"role": newUser.Role,
 		// 云端素材库开关由管理员在这里改写（UpdateUser 走 AdminAuth 路由）。
 		"asset_library_enabled": newUser.AssetLibraryEnabled,
 		"asset_upload_enabled":  newUser.AssetUploadEnabled,

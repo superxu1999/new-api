@@ -5500,6 +5500,26 @@
     "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。": "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。",
     "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。": "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。",
     "，": "，",
-    "，and ": "，并"
+    "，and ": "，并",
+    "My subordinates": "我的下级",
+    "Read-only view of the users assigned to you.": "查看管理员分配给你的用户及其用量数据，仅供查阅。",
+    "Subordinates": "下级用户数",
+    "Their balance": "下级余额合计",
+    "Their total usage": "下级已用合计",
+    "Requests this month": "本月请求数",
+    "Subordinate users": "下级用户",
+    "Search username or ID": "搜索用户名或 ID",
+    "No subordinates yet": "还没有下级用户",
+    "Used quota": "已用额度",
+    "Joined": "加入时间",
+    "Subordinate usage logs": "下级调用记录",
+    "All subordinates": "全部下级",
+    "No logs yet": "暂无记录",
+    "Failed to update the agent assignment": "更新归属代理失败",
+    "Agent": "代理",
+    "Assigned agent": "归属代理",
+    "No agent (unassigned)": "未分配代理",
+    "The assigned agent can view this user and its usage data, read-only.": "归属代理可以只读查看该用户及其用量数据。",
+    "Page {{page}} of {{total}}": "第 {{page}} / {{total}} 页"
   }
 }

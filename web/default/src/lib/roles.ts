@@ -21,6 +21,10 @@ import { t } from 'i18next'
 export const ROLE = {
   GUEST: 0, // 后续如果需要用到这个角色那就再加，同语先留一下
   USER: 1,
+  // 代理：不是管理员，只能查看直接下级（inviter_id 指向自己）的数据。
+  // 取值必须小于 ADMIN —— 前端与后端都按「大于等于管理员才算管理员」判断，
+  // 放在 10 以下就天然不会拿到任何管理入口。
+  AGENT: 2,
   ADMIN: 10,
   SUPER_ADMIN: 100,
 } as const
@@ -32,6 +36,7 @@ const DEFAULT_ROLE = ROLE.GUEST
 const ROLE_LABEL_KEYS: Record<RoleValue, string> = {
   [ROLE.SUPER_ADMIN]: 'Super Admin',
   [ROLE.ADMIN]: 'Admin',
+  [ROLE.AGENT]: 'Agent',
   [ROLE.USER]: 'User',
   [ROLE.GUEST]: 'Guest',
 }

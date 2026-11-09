@@ -5500,6 +5500,26 @@
     "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。": "Option 1 : transmettre la vidéo de référence via metadata.video_url, ou fournir un élément video_url avec role=reference_video dans content. Option 2 : appeler POST /v1/videos/{video_id}/remix pour dériver une nouvelle tâche à partir de l'originale.",
     "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。": "Structure des réponses d'erreur : les endpoints de type chat renvoient {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}, le code pouvant être vide pour les erreurs d'authentification ; les endpoints de tâche (/v1/videos, /v1/video/generations) renvoient une structure plate {\"code\": \"...\", \"message\": \"...\", \"data\": null}. Le motif détaillé d'un échec se trouve dans metadata.fail_reason (voir 6.5).",
     "，": ", ",
-    "，and ": " et "
+    "，and ": " et ",
+    "My subordinates": "Mes subordonnés",
+    "Read-only view of the users assigned to you.": "Vue en lecture seule des utilisateurs qui vous sont attribués.",
+    "Subordinates": "Subordonnés",
+    "Their balance": "Leur solde",
+    "Their total usage": "Leur consommation totale",
+    "Requests this month": "Requêtes ce mois-ci",
+    "Subordinate users": "Utilisateurs subordonnés",
+    "Search username or ID": "Rechercher un nom d'utilisateur ou un ID",
+    "No subordinates yet": "Aucun subordonné pour l’instant",
+    "Used quota": "Quota utilisé",
+    "Joined": "Inscrit le",
+    "Subordinate usage logs": "Journaux d'utilisation des subordonnés",
+    "All subordinates": "Tous les subordonnés",
+    "No logs yet": "Aucun journal pour l’instant",
+    "Failed to update the agent assignment": "Échec de la mise à jour de l'agent attribué",
+    "Agent": "Agent",
+    "Assigned agent": "Agent attribué",
+    "No agent (unassigned)": "Aucun agent (non attribué)",
+    "The assigned agent can view this user and its usage data, read-only.": "L'agent attribué peut consulter cet utilisateur et ses données d'utilisation en lecture seule.",
+    "Page {{page}} of {{total}}": "Page {{page}} sur {{total}}"
   }
 }

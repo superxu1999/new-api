@@ -5500,6 +5500,26 @@
     "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。": "Cách 1: truyền video tham chiếu qua metadata.video_url, hoặc cung cấp phần tử video_url có role=reference_video trong content. Cách 2: gọi POST /v1/videos/{video_id}/remix để tạo tác vụ mới từ tác vụ gốc.",
     "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。": "Cấu trúc phản hồi lỗi: các endpoint kiểu chat trả về {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}} (với lỗi xác thực, code có thể rỗng); các endpoint tác vụ (/v1/videos, /v1/video/generations) trả về cấu trúc phẳng {\"code\": \"...\", \"message\": \"...\", \"data\": null}. Lý do thất bại chi tiết nằm ở metadata.fail_reason (xem 6.5).",
     "，": ", ",
-    "，and ": " và "
+    "，and ": " và ",
+    "My subordinates": "Cấp dưới của tôi",
+    "Read-only view of the users assigned to you.": "Chế độ chỉ xem đối với những người dùng được giao cho bạn.",
+    "Subordinates": "Cấp dưới",
+    "Their balance": "Số dư của họ",
+    "Their total usage": "Tổng mức dùng của họ",
+    "Requests this month": "Số yêu cầu tháng này",
+    "Subordinate users": "Người dùng cấp dưới",
+    "Search username or ID": "Tìm tên người dùng hoặc ID",
+    "No subordinates yet": "Chưa có cấp dưới",
+    "Used quota": "Hạn mức đã dùng",
+    "Joined": "Ngày tham gia",
+    "Subordinate usage logs": "Nhật ký sử dụng của cấp dưới",
+    "All subordinates": "Tất cả cấp dưới",
+    "No logs yet": "Chưa có nhật ký",
+    "Failed to update the agent assignment": "Cập nhật đại lý được giao thất bại",
+    "Agent": "Đại lý",
+    "Assigned agent": "Đại lý được giao",
+    "No agent (unassigned)": "Không có đại lý (chưa giao)",
+    "The assigned agent can view this user and its usage data, read-only.": "Đại lý được giao có thể xem người dùng này và dữ liệu sử dụng của họ ở chế độ chỉ xem.",
+    "Page {{page}} of {{total}}": "Trang {{page}} / {{total}}"
   }
 }

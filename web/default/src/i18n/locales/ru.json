@@ -5500,6 +5500,26 @@
     "方式一：以 metadata.video_url 传入参考视频，或在 content 中提供一条 role=reference_video 的 video_url 元素。方式二：调用 POST /v1/videos/{video_id}/remix，由原任务派生新任务。": "Вариант 1: передать референсное видео через metadata.video_url или указать элемент video_url с role=reference_video в content. Вариант 2: вызвать POST /v1/videos/{video_id}/remix и получить новую задачу на основе исходной.",
     "错误响应结构：对话等接口为 {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}}，鉴权类错误的 code 可能为空；任务类接口（/v1/videos、/v1/video/generations）为扁平结构 {\"code\": \"...\", \"message\": \"...\", \"data\": null}。任务失败的详细原因见 6.5 的 metadata.fail_reason。": "Структура ответов об ошибках: чат-эндпоинты возвращают {\"error\": {\"message\": \"...\", \"code\": \"...\", \"type\": \"new_api_error\"}} (для ошибок авторизации code может быть пустым); эндпоинты задач (/v1/videos, /v1/video/generations) возвращают плоскую структуру {\"code\": \"...\", \"message\": \"...\", \"data\": null}. Подробная причина сбоя — в metadata.fail_reason (см. 6.5).",
     "，": ", ",
-    "，and ": " и "
+    "，and ": " и ",
+    "My subordinates": "Мои подчинённые",
+    "Read-only view of the users assigned to you.": "Просмотр только для чтения назначенных вам пользователей.",
+    "Subordinates": "Подчинённые",
+    "Their balance": "Их баланс",
+    "Their total usage": "Их общий расход",
+    "Requests this month": "Запросов за этот месяц",
+    "Subordinate users": "Подчинённые пользователи",
+    "Search username or ID": "Поиск по имени пользователя или ID",
+    "No subordinates yet": "Подчинённых пока нет",
+    "Used quota": "Использовано квоты",
+    "Joined": "Дата регистрации",
+    "Subordinate usage logs": "Журнал использования подчинённых",
+    "All subordinates": "Все подчинённые",
+    "No logs yet": "Записей пока нет",
+    "Failed to update the agent assignment": "Не удалось обновить назначение агента",
+    "Agent": "Агент",
+    "Assigned agent": "Назначенный агент",
+    "No agent (unassigned)": "Без агента (не назначено)",
+    "The assigned agent can view this user and its usage data, read-only.": "Назначенный агент может просматривать этого пользователя и его данные об использовании только для чтения.",
+    "Page {{page}} of {{total}}": "Страница {{page}} из {{total}}"
   }
 }

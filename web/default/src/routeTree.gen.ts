@@ -51,6 +51,7 @@ import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedAssetLibraryIndexRouteImport } from './routes/_authenticated/asset-library/index'
+import { Route as AuthenticatedAgentIndexRouteImport } from './routes/_authenticated/agent/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedPlaygroundVideoRouteImport } from './routes/_authenticated/playground/video'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
@@ -294,6 +295,11 @@ const AuthenticatedAssetLibraryIndexRoute =
     path: '/asset-library/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAgentIndexRoute = AuthenticatedAgentIndexRouteImport.update({
+  id: '/agent/',
+  path: '/agent/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUsageLogsSectionRoute =
   AuthenticatedUsageLogsSectionRouteImport.update({
     id: '/usage-logs/$section',
@@ -452,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/playground/video': typeof AuthenticatedPlaygroundVideoRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/agent/': typeof AuthenticatedAgentIndexRoute
   '/asset-library/': typeof AuthenticatedAssetLibraryIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -514,6 +521,7 @@ export interface FileRoutesByTo {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/playground/video': typeof AuthenticatedPlaygroundVideoRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/agent': typeof AuthenticatedAgentIndexRoute
   '/asset-library': typeof AuthenticatedAssetLibraryIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
@@ -580,6 +588,7 @@ export interface FileRoutesById {
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/playground/video': typeof AuthenticatedPlaygroundVideoRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/agent/': typeof AuthenticatedAgentIndexRoute
   '/_authenticated/asset-library/': typeof AuthenticatedAssetLibraryIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -645,6 +654,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/playground/video'
     | '/usage-logs/$section'
+    | '/agent/'
     | '/asset-library/'
     | '/channels/'
     | '/dashboard/'
@@ -707,6 +717,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/playground/video'
     | '/usage-logs/$section'
+    | '/agent'
     | '/asset-library'
     | '/channels'
     | '/dashboard'
@@ -772,6 +783,7 @@ export interface FileRouteTypes {
     | '/_authenticated/models/$section'
     | '/_authenticated/playground/video'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/agent/'
     | '/_authenticated/asset-library/'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
@@ -1121,6 +1133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAssetLibraryIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agent/': {
+      id: '/_authenticated/agent/'
+      path: '/agent'
+      fullPath: '/agent/'
+      preLoaderRoute: typeof AuthenticatedAgentIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/usage-logs/$section': {
       id: '/_authenticated/usage-logs/$section'
       path: '/usage-logs/$section'
@@ -1363,6 +1382,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedPlaygroundVideoRoute: typeof AuthenticatedPlaygroundVideoRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedAgentIndexRoute: typeof AuthenticatedAgentIndexRoute
   AuthenticatedAssetLibraryIndexRoute: typeof AuthenticatedAssetLibraryIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
@@ -1388,6 +1408,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedPlaygroundVideoRoute: AuthenticatedPlaygroundVideoRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedAgentIndexRoute: AuthenticatedAgentIndexRoute,
   AuthenticatedAssetLibraryIndexRoute: AuthenticatedAssetLibraryIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
