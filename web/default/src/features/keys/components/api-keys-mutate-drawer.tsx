@@ -102,14 +102,6 @@ export function ApiKeysMutateDrawer({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
-  // Fetch models
-  const { data: modelsData } = useQuery({
-    queryKey: ['user-models'],
-    queryFn: getUserModels,
-    enabled: open,
-    staleTime: 0,
-  })
-
   // Fetch groups
   const { data: groupsData } = useQuery({
     queryKey: ['user-groups'],
@@ -118,7 +110,6 @@ export function ApiKeysMutateDrawer({
     staleTime: 0,
   })
 
-  const models = modelsData?.data || []
   const groupsRaw = groupsData?.data || {}
   const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
     ([key, info]) => ({
@@ -135,6 +126,20 @@ export function ApiKeysMutateDrawer({
     resolver: zodResolver(schema),
     defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
   })
+
+  // 模型限制列表要跟着令牌分组走：不同分组能用的模型不同，不分组的并集会把
+  // 别的分组的模型也列出来（例如 78 分组里出现只属于 default 的 seedream）。
+  // 「自动分组」是跨分组的合成值，没有单一分组可查，此时仍取并集。
+  const groupForModels = form.watch('group')
+  const modelsGroup =
+    groupForModels && groupForModels !== 'auto' ? groupForModels : undefined
+  const { data: modelsData } = useQuery({
+    queryKey: ['user-models', modelsGroup ?? 'all'],
+    queryFn: () => getUserModels(modelsGroup),
+    enabled: open,
+    staleTime: 0,
+  })
+  const models = modelsData?.data || []
 
   // Load existing data when updating
   useEffect(() => {

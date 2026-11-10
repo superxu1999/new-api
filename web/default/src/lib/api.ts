@@ -187,12 +187,16 @@ export async function getSelf() {
 }
 
 // Get user available models
-export async function getUserModels(): Promise<{
+// 传 group 时只返回该分组下可用的模型（令牌的模型限制列表需要按令牌分组过滤）；
+// 不传则返回该用户所有可用分组的模型并集。
+export async function getUserModels(group?: string): Promise<{
   success: boolean
   message?: string
   data?: string[]
 }> {
-  const res = await api.get('/api/user/models')
+  const res = await api.get('/api/user/models', {
+    params: group ? { group } : {},
+  })
   return res.data
 }
 
