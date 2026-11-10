@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -43,7 +44,14 @@ func RenameGroup(c *gin.Context) {
 		return
 	}
 	if !ratio_setting.ContainsGroupRatio(oldName) {
-		common.ApiErrorMsg(c, "分组不存在")
+		// 带上机器可读的 code：前端在「保存时顺带改名」的场景里，需要区分
+		// 「这个分组本来就不存在（新建行尚未来得及保存）」和真正的失败，
+		// 前者应当跳过改名继续保存，后者应当中断。
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "分组不存在",
+			"code":    "group_not_found",
+		})
 		return
 	}
 	if ratio_setting.ContainsGroupRatio(newName) {

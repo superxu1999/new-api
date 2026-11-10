@@ -216,22 +216,28 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         await onSave(values)
         return
       }
-      const renames = new Map(queue)
+      const appliedRenames = new Map<string, string>()
       for (const [from, to] of queue) {
         try {
           await renameGroup(from, to)
+          appliedRenames.set(from, to)
         } catch (error: unknown) {
+          // 「新建一行、还没保存就先改名」是常见操作：这个旧名字服务端本来就不存在，
+          // 不是真正的改名，跳过即可，后面的配置保存会把这个新分组建出来。
+          if ((error as { code?: string }).code === 'group_not_found') {
+            continue
+          }
           const reason =
             error instanceof Error && error.message
               ? error.message
               : t('Rename failed')
           toast.error(`${from} → ${to}: ${reason}`)
-          // 改名没成功就不要再写配置，避免出现「配置改了、引用没改」的半成品状态。
+          // 其它失败就不要再写配置，避免出现「配置改了、引用没改」的半成品状态。
           return
         }
       }
       queue.clear()
-      await onSave(applyGroupRenames(values, renames))
+      await onSave(applyGroupRenames(values, appliedRenames))
       // 分组名已变，表格与各处缓存都要重载，直接刷新最稳妥。
       window.location.reload()
     },

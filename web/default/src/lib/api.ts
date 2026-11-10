@@ -209,9 +209,18 @@ export async function renameGroup(oldName: string, newName: string) {
     old_name: oldName,
     new_name: newName,
   })
-  const body = res.data as { success?: boolean; message?: string; data?: unknown }
+  const body = res.data as {
+    success?: boolean
+    message?: string
+    code?: string
+    data?: unknown
+  }
   if (!body?.success) {
-    throw new Error(body?.message || 'Rename failed')
+    const error = new Error(body?.message || 'Rename failed') as Error & {
+      code?: string
+    }
+    error.code = body?.code
+    throw error
   }
   return body.data
 }
