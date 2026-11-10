@@ -17,9 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
-import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+
+import { renameGroup } from '@/lib/api'
 
 import {
   sideDrawerContentClassName,
@@ -78,6 +81,89 @@ type GroupRatioFormProps = {
   isSaving: boolean
 }
 
+/**
+ * 把「分组改名」传播到表单里其它仍写着旧名字的字段。
+ *
+ * 改名接口会在服务端把矩阵、特殊可用分组规则一起改掉，但表单状态里还是旧名字；
+ * 如果直接保存，就会把这些刚改好的配置又写回旧名字，等于把改名结果覆盖掉。
+ */
+function applyGroupRenames(
+  values: GroupFormValues,
+  renames: Map<string, string>
+): GroupFormValues {
+  const rename = (name: string) => renames.get(name) ?? name
+
+  const renameFlatKeys = (json: string) => {
+    const parsed = safeJsonParse<Record<string, unknown>>(json, {
+      fallback: {},
+      silent: true,
+    })
+    const next: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(parsed)) {
+      next[rename(key)] = value
+    }
+    return JSON.stringify(next, null, 2)
+  }
+
+  const renameNestedKeys = (json: string) => {
+    const parsed = safeJsonParse<Record<string, Record<string, unknown>>>(json, {
+      fallback: {},
+      silent: true,
+    })
+    const next: Record<string, Record<string, unknown>> = {}
+    for (const [outer, inner] of Object.entries(parsed)) {
+      const nextInner: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(inner)) {
+        nextInner[rename(key)] = value
+      }
+      next[rename(outer)] = nextInner
+    }
+    return JSON.stringify(next, null, 2)
+  }
+
+  const renameSpecialUsable = (json: string) => {
+    const parsed = safeJsonParse<Record<string, Record<string, string>>>(json, {
+      fallback: {},
+      silent: true,
+    })
+    const next: Record<string, Record<string, string>> = {}
+    for (const [outer, inner] of Object.entries(parsed)) {
+      const nextInner: Record<string, string> = {}
+      for (const [key, desc] of Object.entries(inner)) {
+        // 内层条目可能带 +:（额外可见）/ -:（屏蔽）前缀，改名要保住前缀。
+        let prefix = ''
+        if (key.startsWith('+:')) {
+          prefix = '+:'
+        } else if (key.startsWith('-:')) {
+          prefix = '-:'
+        }
+        nextInner[prefix + rename(key.slice(prefix.length))] = desc
+      }
+      next[rename(outer)] = nextInner
+    }
+    return JSON.stringify(next, null, 2)
+  }
+
+  const autoGroups = safeJsonParse<string[]>(values.AutoGroups, {
+    fallback: [],
+    silent: true,
+  })
+
+  return {
+    ...values,
+    GroupRatio: renameFlatKeys(values.GroupRatio),
+    TopupGroupRatio: renameFlatKeys(values.TopupGroupRatio),
+    UserUsableGroups: renameFlatKeys(values.UserUsableGroups),
+    GroupGroupRatio: renameNestedKeys(values.GroupGroupRatio),
+    GroupSpecialUsableGroup: renameSpecialUsable(values.GroupSpecialUsableGroup),
+    AutoGroups: JSON.stringify(
+      autoGroups.map((name) => rename(name)),
+      null,
+      2
+    ),
+  }
+}
+
 export const GroupRatioForm = memo(function GroupRatioForm({
   form,
   onSave,
@@ -95,6 +181,61 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       })
     },
     [form]
+  )
+
+  // 表格里改分组名后并不是单纯地改一个配置：用户、令牌、渠道、能力表都要跟着改名。
+  // 这里把「旧名 → 新名」攒起来，等点保存时按顺序执行级联，再保存其余配置。
+  const renameQueueRef = useRef(new Map<string, string>())
+
+  const handleRename = useCallback((oldName: string, newName: string) => {
+    const queue = renameQueueRef.current
+    // 连续输入会退化成 A→B→C，这里链式合并成 A→C；改回原名则整条丢弃。
+    let predecessor: string | undefined
+    for (const [from, to] of queue) {
+      if (to === oldName) {
+        predecessor = from
+        break
+      }
+    }
+    if (predecessor !== undefined) {
+      queue.delete(predecessor)
+      if (predecessor !== newName) {
+        queue.set(predecessor, newName)
+      }
+      return
+    }
+    if (oldName !== newName) {
+      queue.set(oldName, newName)
+    }
+  }, [])
+
+  const handleSave = useCallback(
+    async (values: GroupFormValues) => {
+      const queue = renameQueueRef.current
+      if (queue.size === 0) {
+        await onSave(values)
+        return
+      }
+      const renames = new Map(queue)
+      for (const [from, to] of queue) {
+        try {
+          await renameGroup(from, to)
+        } catch (error: unknown) {
+          const reason =
+            error instanceof Error && error.message
+              ? error.message
+              : t('Rename failed')
+          toast.error(`${from} → ${to}: ${reason}`)
+          // 改名没成功就不要再写配置，避免出现「配置改了、引用没改」的半成品状态。
+          return
+        }
+      }
+      queue.clear()
+      await onSave(applyGroupRenames(values, renames))
+      // 分组名已变，表格与各处缓存都要重载，直接刷新最稳妥。
+      window.location.reload()
+    },
+    [onSave, t]
   )
 
   const toggleEditMode = useCallback(() => {
@@ -155,7 +296,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <Button
             type='button'
             size='sm'
-            onClick={form.handleSubmit(onSave)}
+            onClick={form.handleSubmit(handleSave)}
             disabled={isSaving}
           >
             {isSaving ? t('Saving...') : t('Save group ratios')}
@@ -170,6 +311,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
+              onRename={handleRename}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }

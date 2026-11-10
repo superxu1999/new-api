@@ -200,6 +200,22 @@ export async function getUserModels(group?: string): Promise<{
   return res.data
 }
 
+/**
+ * 分组改名（会级联改用户/令牌/渠道与能力表，属于服务端的一次性操作）。
+ * 失败时后端用 200 + success:false 返回原因，这里统一抛错给调用方展示。
+ */
+export async function renameGroup(oldName: string, newName: string) {
+  const res = await api.post('/api/option/group/rename', {
+    old_name: oldName,
+    new_name: newName,
+  })
+  const body = res.data as { success?: boolean; message?: string; data?: unknown }
+  if (!body?.success) {
+    throw new Error(body?.message || 'Rename failed')
+  }
+  return body.data
+}
+
 // Get user groups with descriptions and ratios
 export async function getUserGroups(): Promise<{
   success: boolean

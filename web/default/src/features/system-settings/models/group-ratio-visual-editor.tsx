@@ -69,7 +69,6 @@ import {
 } from '@/components/ui/sheet'
 
 import { safeJsonParse } from '../utils/json-parser'
-import { GroupRenameDialog } from './group-rename-dialog'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -79,6 +78,8 @@ type GroupRatioVisualEditorProps = {
   autoGroups: string
   groupSpecialUsableGroup: string
   onChange: (field: string, value: string) => void
+  /** 表格里改了某行的分组名时上报「旧名 → 新名」，保存时由外层统一做级联改名。 */
+  onRename?: (oldName: string, newName: string) => void
 }
 
 type GroupPricingRow = {
@@ -260,6 +261,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   autoGroups,
   groupSpecialUsableGroup,
   onChange,
+  onRename,
 }: GroupRatioVisualEditorProps) {
   const { t } = useTranslation()
   const [detailGroup, setDetailGroup] = useState<string | null>(null)
@@ -332,6 +334,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         topupGroupRatio={topupGroupRatio}
         onChange={onChange}
         onShowDetail={setDetailGroup}
+        onRename={onRename}
       />
 
       <GroupOverrideRules
@@ -423,6 +426,7 @@ type GroupPricingTableProps = {
   topupGroupRatio: string
   onChange: (field: string, value: string) => void
   onShowDetail: (name: string) => void
+  onRename?: (oldName: string, newName: string) => void
 }
 
 function GroupPricingTable({
@@ -431,6 +435,7 @@ function GroupPricingTable({
   topupGroupRatio,
   onChange,
   onShowDetail,
+  onRename,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
@@ -507,13 +512,6 @@ function GroupPricingTable({
     [emitRows, rows]
   )
 
-  const [renameOpen, setRenameOpen] = useState(false)
-
-  const groupNames = useMemo(
-    () => rows.map((row) => row.name.trim()).filter(Boolean),
-    [rows]
-  )
-
   const duplicateNames = useMemo(() => {
     const counts = new Map<string, number>()
     for (const row of rows) {
@@ -539,13 +537,6 @@ function GroupPricingTable({
             </CardDescription>
           </div>
           <div className='flex items-center gap-2 sm:self-start'>
-            <Button
-              onClick={() => setRenameOpen(true)}
-              size='sm'
-              variant='outline'
-            >
-              {t('Rename group')}
-            </Button>
             <Button onClick={addRow} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
               {t('Add group')}
@@ -568,9 +559,16 @@ function GroupPricingTable({
                 cell: (row) => (
                   <Input
                     value={row.name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      // 改名是服务端级联操作（用户/令牌/渠道/能力表都要跟着改），
+                      // 这里只把「旧名 → 新名」上报给外层，等点保存时统一执行。
+                      const nextName = event.target.value.trim()
+                      const oldName = row.name.trim()
+                      if (oldName && nextName && nextName !== oldName) {
+                        onRename?.(oldName, nextName)
+                      }
                       updateRow(row._id, 'name', event.target.value)
-                    }
+                    }}
                     aria-invalid={duplicateNames.includes(row.name.trim())}
                   />
                 ),
@@ -686,12 +684,6 @@ function GroupPricingTable({
           )}
         </div>
       </CardContent>
-      <GroupRenameDialog
-        open={renameOpen}
-        onOpenChange={setRenameOpen}
-        groupNames={groupNames}
-        onRenamed={() => window.location.reload()}
-      />
     </Card>
   )
 }
