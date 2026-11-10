@@ -5524,6 +5524,8 @@
     "Generating image...": "正在生成图片…",
     "Image generation failed": "图片生成失败",
     "No image was returned by the upstream": "上游没有返回图片",
-    "Download image": "下载图片"
+    "Download image": "下载图片",
+    "Delete verification record": "删除认证记录",
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "记录会从认证历史中移除。已通过的认证不受影响，绑定的素材组保持不变。"
   }
 }

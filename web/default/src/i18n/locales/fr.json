@@ -5524,6 +5524,8 @@
     "Generating image...": "Génération de l'image...",
     "Image generation failed": "La génération de l'image a échoué",
     "No image was returned by the upstream": "L'amont n'a renvoyé aucune image",
-    "Download image": "Télécharger l'image"
+    "Download image": "Télécharger l'image",
+    "Delete verification record": "Supprimer l'enregistrement de vérification",
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "L'enregistrement sera retiré de l'historique. Une personne déjà vérifiée n'est pas affectée ; le groupe de matériel lié reste inchangé."
   }
 }

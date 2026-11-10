@@ -5524,6 +5524,8 @@
     "Generating image...": "画像を生成しています…",
     "Image generation failed": "画像の生成に失敗しました",
     "No image was returned by the upstream": "上流から画像が返されませんでした",
-    "Download image": "画像をダウンロード"
+    "Download image": "画像をダウンロード",
+    "Delete verification record": "認証記録を削除",
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "記録は認証履歴から削除されます。認証済みの本人には影響せず、紐付けられた素材グループも変更されません。"
   }
 }

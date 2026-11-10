@@ -5524,6 +5524,8 @@
     "Generating image...": "Đang tạo hình ảnh...",
     "Image generation failed": "Tạo hình ảnh thất bại",
     "No image was returned by the upstream": "Máy chủ thượng nguồn không trả về hình ảnh",
-    "Download image": "Tải hình ảnh"
+    "Download image": "Tải hình ảnh",
+    "Delete verification record": "Xóa bản ghi xác minh",
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "Bản ghi sẽ bị xóa khỏi lịch sử xác minh. Người đã xác minh không bị ảnh hưởng; nhóm tư liệu đã liên kết được giữ nguyên."
   }
 }

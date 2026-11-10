@@ -5524,6 +5524,8 @@
     "Generating image...": "Создание изображения...",
     "Image generation failed": "Не удалось создать изображение",
     "No image was returned by the upstream": "Верхний сервис не вернул изображение",
-    "Download image": "Скачать изображение"
+    "Download image": "Скачать изображение",
+    "Delete verification record": "Удалить запись проверки",
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "Запись будет удалена из истории. На уже подтверждённого человека это не влияет; привязанная группа материалов остаётся."
   }
 }

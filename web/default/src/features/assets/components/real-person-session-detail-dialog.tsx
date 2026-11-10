@@ -91,7 +91,7 @@ export function RealPersonSessionDetailDialog(props: SessionDetailDialogProps) {
         </DialogHeader>
 
         {session && (
-          <div className='flex flex-col gap-5'>
+          <div className='flex min-w-0 flex-col gap-5'>
             {/* 档案：两列定义列表，成对信息对齐着看 */}
             <section className='flex flex-col gap-2'>
               <SectionTitle>{t('Session')}</SectionTitle>
@@ -117,11 +117,13 @@ export function RealPersonSessionDetailDialog(props: SessionDetailDialogProps) {
               </dl>
             </section>
 
-            {/* 链接：长链接必须可复制，且不能撑破弹窗 */}
-            <section className='flex flex-col gap-2'>
+            {/* 链接：长链接必须可复制，且不能撑破弹窗。
+                DialogContent 是 grid 容器，子项默认 min-width:auto，
+                不显式给 min-w-0 时超长 URL 会把弹窗顶宽、横向溢出。 */}
+            <section className='flex min-w-0 flex-col gap-2'>
               <SectionTitle>{t('Verification link')}</SectionTitle>
               {session.h5_link !== '' ? (
-                <div className='flex items-center gap-2'>
+                <div className='flex min-w-0 items-center gap-2'>
                   <a
                     className='text-primary min-w-0 flex-1 truncate text-xs underline'
                     href={session.h5_link}

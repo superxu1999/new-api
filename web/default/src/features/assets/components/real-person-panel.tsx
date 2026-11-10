@@ -23,6 +23,16 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { CopyButton } from '@/components/copy-button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -40,8 +50,10 @@ import { formatTimestampToDate } from '@/lib/format'
 import {
   cancelRealPersonSession,
   createRealPersonSession,
+  deleteRealPersonSession,
   extractAssetError,
   getRealPersonSession,
+  listAssetGroups,
   listRealPersonSessions,
 } from '../api'
 import { isLoopbackLink } from '../lib/real-person-status'
@@ -128,6 +140,42 @@ export function RealPersonPanel() {
     cancelMutation.mutate(id)
   }
 
+  // 素材组名：历史记录里只有 group_id，名称要另外查一次；
+  // 查不到时退回只显示 #id，不影响使用。
+  const groupsQuery = useQuery({
+    queryKey: ['asset-groups'],
+    queryFn: listAssetGroups,
+    retry: false,
+  })
+  const groupNames = new Map<number, string>(
+    (groupsQuery.data ?? []).map((group) => [group.id, group.name])
+  )
+  const formatGroup = (groupId: number) => {
+    if (groupId <= 0) {
+      return '—'
+    }
+    const name = groupNames.get(groupId)
+    return name ? `#${groupId} · ${name}` : `#${groupId}`
+  }
+
+  const [deleteTarget, setDeleteTarget] =
+    useState<RealPersonSessionRow | null>(null)
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteRealPersonSession(id),
+    onSuccess: () => {
+      toast.success(t('Deleted'))
+      setDeleteTarget(null)
+      // 删掉的正是当前查看的会话时，把上方认证卡片也清空，避免展示已不存在的记录。
+      if (deleteTarget && deleteTarget.session_id === sessionId) {
+        setSessionId(0)
+        setH5Link('')
+        setShortLink('')
+      }
+      historyQuery.refetch()
+    },
+    onError: (error) => toast.error(extractAssetError(error).message),
+  })
+
 
   return (
     <div className='space-y-4'>
@@ -210,7 +258,7 @@ export function RealPersonPanel() {
 
           {verified && session && (
             <p className='text-center text-sm'>
-              {t('Bound real-person group')}: #{session.group_id}
+              {t('Bound real-person group')}: {formatGroup(session.group_id)}
             </p>
           )}
         </CardContent>
@@ -245,7 +293,7 @@ export function RealPersonPanel() {
                         <RealPersonStatusBadge status={item.status} />
                       </TableCell>
                       <TableCell>
-                        {item.group_id > 0 ? `#${item.group_id}` : '—'}
+                        {formatGroup(item.group_id)}
                       </TableCell>
                       <TableCell>
                         {formatTimestampToDate(item.created_at)}
@@ -269,6 +317,14 @@ export function RealPersonPanel() {
                               {t('Cancel verification')}
                             </Button>
                           )}
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            className='text-destructive hover:text-destructive'
+                            onClick={() => setDeleteTarget(item)}
+                          >
+                            {t('Delete')}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -296,6 +352,39 @@ export function RealPersonPanel() {
           }
         }}
       />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Delete verification record')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.session_id)
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {t('Delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
