@@ -3,7 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"math/rand"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -23,7 +25,24 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*dto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+// lastChannelCacheSignature 上一次成功构建的「分组→模型→渠道」签名。
+// 只在签名变化时打日志，避免每轮同步都刷屏，同时让「缓存到底有没有刷新」可观测。
+var lastChannelCacheSignature string
+
+// InitChannelCache 重建渠道缓存。内部捕获 panic 只记日志：
+// 一次异常不应该让同步循环永久退出（那样缓存会一直停在旧快照，
+// 表现为「后台改了渠道分组却不生效，必须重启进程」），
+// 也不应该把正在处理请求的调用方带崩。
 func InitChannelCache() {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("init channel cache panic: %v\n%s", r, debug.Stack()))
+		}
+	}()
+	rebuildChannelCache()
+}
+
+func rebuildChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
 	}
@@ -93,14 +112,68 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
+
+	// 只在「分组→模型→渠道」的映射真的变化时打日志：
+	// 否则每轮同步都刷一行，看不出任何信息；有变化时才说明缓存确实更新了。
+	signature := channelCacheSignature(newGroup2model2channels)
+	changed := signature != lastChannelCacheSignature
+	lastChannelCacheSignature = signature
+	label := "channels synced from database"
+	if changed {
+		label = fmt.Sprintf("channel cache refreshed: channels=%d groups=%d mappings=%d signature=%08x",
+			len(newChannelId2channel), len(newGroup2model2channels), countChannelCacheMappings(newGroup2model2channels), crc32.ChecksumIEEE([]byte(signature)))
+	}
 	channelSyncLock.Unlock()
-	common.SysLog("channels synced from database")
+	common.SysLog(label)
+}
+
+// channelCacheSignature 把「分组→模型→渠道」映射压成一个稳定字符串，用于判断缓存是否变化。
+func channelCacheSignature(mappings map[string]map[string][]int) string {
+	groups := make([]string, 0, len(mappings))
+	for group := range mappings {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	var builder strings.Builder
+	for _, group := range groups {
+		models := make([]string, 0, len(mappings[group]))
+		for model := range mappings[group] {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		builder.WriteString(group)
+		builder.WriteByte('=')
+		for _, model := range models {
+			builder.WriteString(model)
+			builder.WriteByte(':')
+			for _, channelId := range mappings[group][model] {
+				builder.WriteString(fmt.Sprintf("%d,", channelId))
+			}
+			builder.WriteByte(';')
+		}
+		builder.WriteByte('|')
+	}
+	return builder.String()
+}
+
+// countChannelCacheMappings 统计映射条目数，仅用于日志展示。
+func countChannelCacheMappings(mappings map[string]map[string][]int) int {
+	total := 0
+	for _, models := range mappings {
+		total += len(models)
+	}
+	return total
 }
 
 func SyncChannelCache(frequency int) {
+	if frequency <= 0 {
+		// 频率配成 0/负数会让下面的 Sleep 变成忙循环，退回默认 60 秒。
+		frequency = 60
+	}
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing channels from database")
+		// InitChannelCache 内部已捕获 panic：单次重建异常不会把整个同步循环带死。
 		InitChannelCache()
 	}
 }
