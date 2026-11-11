@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as z from 'zod'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import { ratioToUnitPrice } from '@/lib/pricing-units'
 
 import { formatPricingNumber } from './pricing-format'
 
@@ -159,7 +160,7 @@ export function toNumberOrNull(value: unknown): number | null {
 function ratioToBasePrice(ratio: unknown): string {
   const num = toNumberOrNull(ratio)
   if (num === null) return ''
-  return formatPricingNumber(num * 2)
+  return formatPricingNumber(ratioToUnitPrice(num))
 }
 
 function deriveLanePrice(

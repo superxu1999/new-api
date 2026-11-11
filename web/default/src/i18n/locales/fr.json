@@ -5526,6 +5526,9 @@
     "No image was returned by the upstream": "L'amont n'a renvoyé aucune image",
     "Download image": "Télécharger l'image",
     "Delete verification record": "Supprimer l'enregistrement de vérification",
-    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "L'enregistrement sera retiré de l'historique. Une personne déjà vérifiée n'est pas affectée ; le groupe de matériel lié reste inchangé."
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "L'enregistrement sera retiré de l'historique. Une personne déjà vérifiée n'est pas affectée ; le groupe de matériel lié reste inchangé.",
+    "Price per 1M tokens.": "Prix par million de tokens.",
+    "Price per 1M input tokens.": "Prix par million de tokens d'entrée.",
+    "Cost per request, regardless of tokens used.": "Coût par requête, indépendamment des tokens utilisés."
   }
 }

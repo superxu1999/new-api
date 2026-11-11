@@ -5526,6 +5526,9 @@
     "No image was returned by the upstream": "No image was returned by the upstream",
     "Download image": "Download image",
     "Delete verification record": "Delete verification record",
-    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is."
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.",
+    "Price per 1M tokens.": "Price per 1M tokens.",
+    "Price per 1M input tokens.": "Price per 1M input tokens.",
+    "Cost per request, regardless of tokens used.": "Cost per request, regardless of tokens used."
   }
 }

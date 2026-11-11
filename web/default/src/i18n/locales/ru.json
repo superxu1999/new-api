@@ -5526,6 +5526,9 @@
     "No image was returned by the upstream": "Верхний сервис не вернул изображение",
     "Download image": "Скачать изображение",
     "Delete verification record": "Удалить запись проверки",
-    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "Запись будет удалена из истории. На уже подтверждённого человека это не влияет; привязанная группа материалов остаётся."
+    "The record will be removed from the history. An already verified person is not affected; the bound material group stays as is.": "Запись будет удалена из истории. На уже подтверждённого человека это не влияет; привязанная группа материалов остаётся.",
+    "Price per 1M tokens.": "Цена за 1 млн токенов.",
+    "Price per 1M input tokens.": "Цена за 1 млн входных токенов.",
+    "Cost per request, regardless of tokens used.": "Стоимость за запрос независимо от использованных токенов."
   }
 }

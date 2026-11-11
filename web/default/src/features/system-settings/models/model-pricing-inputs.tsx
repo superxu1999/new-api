@@ -8,11 +8,11 @@ License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
@@ -24,11 +24,25 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   SettingsControlGroup,
   SettingsSwitchField,
 } from '../components/settings-form-layout'
+
+/** 价格输入框的货币符号：跟随系统设置里的展示货币。 */
+function usePriceCurrencySymbol(): string {
+  return useSystemConfigStore((state) => {
+    const currency = state.config.currency
+    if (currency.quotaDisplayType === 'CNY') return '¥'
+    if (currency.quotaDisplayType === 'CUSTOM') {
+      return currency.customCurrencySymbol || '¤'
+    }
+    if (currency.quotaDisplayType === 'TOKENS') return ''
+    return '$'
+  })
+}
 
 export function PriceInput(props: {
   value: string
@@ -36,9 +50,11 @@ export function PriceInput(props: {
   disabled?: boolean
   onChange: (value: string) => void
 }) {
+  const symbol = usePriceCurrencySymbol()
+
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      {symbol !== '' && <InputGroupAddon>{symbol}</InputGroupAddon>}
       <InputGroupInput
         inputMode='decimal'
         value={props.value}
@@ -46,7 +62,7 @@ export function PriceInput(props: {
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>/1M</InputGroupAddon>
     </InputGroup>
   )
 }
@@ -85,7 +101,7 @@ export function PriceLane(props: {
       />
       <p className='text-muted-foreground text-xs'>
         {props.enabled
-          ? t('USD price per 1M tokens.')
+          ? t('Price per 1M tokens.')
           : t('Disabled lanes are omitted on save.')}
       </p>
     </SettingsControlGroup>

@@ -49,11 +49,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -61,6 +56,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { unitPriceToRatio } from '@/lib/pricing-units'
 import { cn } from '@/lib/utils'
 
 import {
@@ -256,7 +252,7 @@ export const ModelPricingEditorPanel = forwardRef<
     const inputPrice = toNumberOrNull(nextPromptPrice)
     setFormValue(
       'ratio',
-      inputPrice !== null ? formatPricingNumber(inputPrice / 2) : ''
+      inputPrice !== null ? formatPricingNumber(unitPriceToRatio(inputPrice)) : ''
     )
 
     laneConfigs.forEach(({ key }) => {
@@ -578,7 +574,7 @@ export const ModelPricingEditorPanel = forwardRef<
                           onChange={handlePromptPriceChange}
                         />
                         <FieldDescription>
-                          {t('USD price per 1M input tokens.')}
+                          {t('Price per 1M input tokens.')}
                         </FieldDescription>
                       </Field>
 
@@ -620,27 +616,19 @@ export const ModelPricingEditorPanel = forwardRef<
                             <Field>
                               <FieldLabel>{t('Fixed price')}</FieldLabel>
                               <FormControl>
-                                <InputGroup>
-                                  <InputGroupAddon>$</InputGroupAddon>
-                                  <InputGroupInput
-                                    inputMode='decimal'
-                                    placeholder='0.01'
-                                    {...field}
-                                    onChange={(event) => {
-                                      const value = event.target.value
-                                      if (numericDraftRegex.test(value)) {
-                                        field.onChange(value)
-                                      }
-                                    }}
-                                  />
-                                  <InputGroupAddon align='inline-end'>
-                                    {t('per request')}
-                                  </InputGroupAddon>
-                                </InputGroup>
+                                <PriceInput
+                                  value={field.value ?? ''}
+                                  placeholder='0.01'
+                                  onChange={(value) => {
+                                    if (numericDraftRegex.test(value)) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                />
                               </FormControl>
                               <FieldDescription>
                                 {t(
-                                  'Cost in USD per request, regardless of tokens used.'
+                                  'Cost per request, regardless of tokens used.'
                                 )}
                               </FieldDescription>
                               <FormMessage />

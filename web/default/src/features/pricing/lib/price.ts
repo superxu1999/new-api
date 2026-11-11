@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import { getCurrentRatioPriceFactor } from '@/lib/pricing-units'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
@@ -36,7 +37,7 @@ export function stripTrailingZeros(formatted: string): string {
   const [, symbol, number, suffix] = match
 
   // Remove commas for processing
-  const cleanNumber = number.replace(/,/g, '')
+  const cleanNumber = number.replaceAll(',', '')
 
   // Convert to number and back to remove trailing zeros
   const parsed = parseFloat(cleanNumber)
@@ -85,7 +86,9 @@ function calculateTokenPrice(
   type: PriceType,
   ratio: number
 ): number {
-  const base = model.model_ratio * 2 * ratio
+  // 系数按站点 QuotaPerUnit 计算：1M tokens 的 quota 数 ÷ QuotaPerUnit = 展示金额。
+  // 硬编码 2 只适用于 QuotaPerUnit=500000 的站点，QuotaPerUnit 被改过时广场金额会失真。
+  const base = model.model_ratio * getCurrentRatioPriceFactor() * ratio
 
   switch (type) {
     case 'input':
