@@ -297,7 +297,7 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
-	"doubao-seedance-2.0":             0.3,
+	"doubao-seedance-2.0":            0.3,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -433,18 +433,13 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
 
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return ratio
-		}
-	}
-	hardCodedRatio, contain := getHardcodedCompletionModelRatio(name)
-	if contain {
-		return hardCodedRatio
-	}
+	// 后台显式配置优先。早期实现让 getHardcodedCompletionModelRatio 先返回，
+	// 结果 gpt-5.6-* 这类命中 "gpt-5" 前缀的模型，管理员在后台改补全倍率也不生效
+	// （计费与模型广场都按硬编码值走），这里改成配置优先、硬编码兜底。
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return ratio
 	}
+	hardCodedRatio, _ := getHardcodedCompletionModelRatio(name)
 	return hardCodedRatio
 }
 
@@ -456,12 +451,11 @@ type CompletionRatioInfo struct {
 func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 	name = FormatMatchingModelName(name)
 
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return CompletionRatioInfo{
-				Ratio:  ratio,
-				Locked: false,
-			}
+	// 与 GetCompletionRatio 保持一致：后台显式配置优先，命中配置即视为可编辑（不锁定）。
+	if ratio, ok := completionRatioMap.Get(name); ok {
+		return CompletionRatioInfo{
+			Ratio:  ratio,
+			Locked: false,
 		}
 	}
 
@@ -470,13 +464,6 @@ func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 		return CompletionRatioInfo{
 			Ratio:  hardCodedRatio,
 			Locked: true,
-		}
-	}
-
-	if ratio, ok := completionRatioMap.Get(name); ok {
-		return CompletionRatioInfo{
-			Ratio:  ratio,
-			Locked: false,
 		}
 	}
 
