@@ -3,7 +3,47 @@ package model_setting
 import (
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+// 只接受 adaptive 思考的模型判定：opus 4.7/4.8/5 系必须改写，其余仍可用 enabled。
+func TestRequiresAdaptiveThinking(t *testing.T) {
+	for _, model := range []string{
+		"claude-opus-4-7",
+		"claude-opus-4-7-high",
+		"claude-opus-4-8",
+		"claude-opus-5",
+		"claude-opus-5-5",
+	} {
+		assert.True(t, RequiresAdaptiveThinking(model), model)
+	}
+	for _, model := range []string{
+		"claude-opus-4-6",
+		"claude-sonnet-5",
+		"claude-3-7-sonnet-20250219",
+		"gpt-5",
+	} {
+		assert.False(t, RequiresAdaptiveThinking(model), model)
+	}
+}
+
+// 旧版 budget_tokens 折算成 effort 档位。
+func TestEffortFromThinkingBudget(t *testing.T) {
+	tests := []struct {
+		budget int
+		want   string
+	}{
+		{1280, "low"},
+		{2048, "medium"},
+		{4096, "medium"},
+		{8192, "high"},
+		{0, "low"},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, EffortFromThinkingBudget(tc.budget), "budget=%d", tc.budget)
+	}
+}
 
 func TestClaudeSettingsWriteHeadersMergesConfiguredValuesIntoSingleHeader(t *testing.T) {
 	settings := &ClaudeSettings{

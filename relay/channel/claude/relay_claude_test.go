@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -372,4 +373,72 @@ func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(
 	require.Nil(t, claudeRequest.Temperature)
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
+}
+
+// 回归：claude-opus-5-5 只接受 adaptive 思考，OpenAI 格式的 reasoning_effort
+// 不能再下发 thinking.type="enabled"，否则上游返回 400 "requires adaptive thinking"。
+func TestRequestOpenAI2ClaudeMessage_ClaudeOpus55ReasoningEffortUsesAdaptive(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:           "claude-opus-5-5",
+		ReasoningEffort: "high",
+		Temperature:     commonPointer(0.7),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-opus-5-5", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"high"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Nil(t, claudeRequest.Temperature)
+}
+
+// 回归：旧版 extended thinking 的 budget_tokens 需要折算成 effort 档位。
+func TestRequestOpenAI2ClaudeMessage_ClaudeOpus5LegacyBudgetConvertsToEffort(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-opus-5",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+		Reasoning: json.RawMessage(`{"max_tokens":4096}`),
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.JSONEq(t, `{"effort":"medium"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Thinking.BudgetTokens)
+}
+
+// 非 adaptive 模型仍然保留旧的 enabled + budget_tokens 行为。
+func TestRequestOpenAI2ClaudeMessage_ClaudeSonnetKeepsEnabledThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:           "claude-sonnet-4-5-20250929",
+		ReasoningEffort: "high",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "enabled", claudeRequest.Thinking.Type)
+	require.NotNil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Equal(t, 4096, *claudeRequest.Thinking.BudgetTokens)
 }

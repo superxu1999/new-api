@@ -87,3 +87,37 @@ func (c *ClaudeSettings) GetDefaultMaxTokens(model string) int {
 	}
 	return c.DefaultMaxTokens["default"]
 }
+
+// adaptiveOnlyThinkingModelPrefixes 列出只接受 adaptive 思考的模型前缀。
+// 这些模型拒绝 thinking.type="enabled"（上游返回 400：
+// "requires adaptive thinking; omit thinking or use type=adaptive and output_config.effort"），
+// 推理等级必须用 thinking.type=adaptive + output_config.effort 表达。
+var adaptiveOnlyThinkingModelPrefixes = []string{
+	"claude-opus-4-7",
+	"claude-opus-4-8",
+	"claude-opus-5",
+}
+
+// RequiresAdaptiveThinking 判断该模型是否只接受 adaptive 思考。
+// 注意 "claude-opus-5" 前缀同时覆盖 claude-opus-5 与 claude-opus-5-5。
+func RequiresAdaptiveThinking(model string) bool {
+	for _, prefix := range adaptiveOnlyThinkingModelPrefixes {
+		if strings.HasPrefix(model, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// EffortFromThinkingBudget 把旧版 thinking.budget_tokens 折算成 adaptive 模式的 effort 档位。
+// 上游只接受 low/medium/high（及其它档位名以模型为准），这里按预算量级给出等价档位。
+func EffortFromThinkingBudget(budgetTokens int) string {
+	switch {
+	case budgetTokens >= 8192:
+		return "high"
+	case budgetTokens >= 2048:
+		return "medium"
+	default:
+		return "low"
+	}
+}
