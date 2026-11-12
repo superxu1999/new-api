@@ -45,6 +45,25 @@ func TestEffortFromThinkingBudget(t *testing.T) {
 	}
 }
 
+// 客户端发来的推理等级要归一化成 adaptive 能接受的 low/medium/high。
+func TestNormalizeAdaptiveEffort(t *testing.T) {
+	tests := map[string]string{
+		"minimal": "low",
+		"low":     "low",
+		"medium":  "medium",
+		"high":    "high",
+		"xhigh":   "high",
+		"max":     "high",
+		"HIGH":    "high",
+		" none ":  "",
+		"unknown": "",
+		"":        "",
+	}
+	for input, want := range tests {
+		assert.Equal(t, want, NormalizeAdaptiveEffort(input), "input=%q", input)
+	}
+}
+
 func TestClaudeSettingsWriteHeadersMergesConfiguredValuesIntoSingleHeader(t *testing.T) {
 	settings := &ClaudeSettings{
 		HeadersSettings: map[string]map[string][]string{

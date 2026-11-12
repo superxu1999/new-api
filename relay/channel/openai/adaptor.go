@@ -231,6 +231,25 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// 部分 OpenAI 兼容中转（如 HFSY）在把 claude 模型转成 Anthropic 协议时，会把
+	// reasoning_effort 翻译成旧版 thinking.type="enabled"，而 claude opus 4.7/4.8/5 系
+	// 只接受 adaptive 思考，于是上游返回 400 "requires adaptive thinking"。
+	// 这里直接按 Anthropic 原始字段下发：thinking.type=adaptive + output_config.effort。
+	if info.ChannelType != constant.ChannelTypeOpenRouter && model_setting.RequiresAdaptiveThinking(request.Model) {
+		effort := model_setting.NormalizeAdaptiveEffort(request.ReasoningEffort)
+		if len(request.THINKING) > 0 {
+			var thinking dto.Thinking
+			if err := common.Unmarshal(request.THINKING, &thinking); err == nil &&
+				thinking.Type == "enabled" && thinking.BudgetTokens != nil {
+				effort = model_setting.NormalizeAdaptiveEffort(model_setting.EffortFromThinkingBudget(*thinking.BudgetTokens))
+			}
+		}
+		request.ReasoningEffort = ""
+		request.THINKING = json.RawMessage(`{"type":"adaptive"}`)
+		if effort != "" {
+			request.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effort))
+		}
+	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}

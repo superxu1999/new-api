@@ -121,3 +121,22 @@ func EffortFromThinkingBudget(budgetTokens int) string {
 		return "low"
 	}
 }
+
+// NormalizeAdaptiveEffort 把客户端常见的推理等级归一化成 Anthropic adaptive 能接受的档位。
+// 各家客户端还会发 minimal / xhigh / max / none，直接透传会被上游拒绝。
+func NormalizeAdaptiveEffort(effort string) string {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "minimal":
+		return "low"
+	case "low":
+		return "low"
+	case "medium":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh", "max":
+		return "high"
+	default:
+		return ""
+	}
+}

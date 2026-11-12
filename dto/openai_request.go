@@ -98,6 +98,8 @@ type GeneralOpenAIRequest struct {
 	WebSearch json.RawMessage `json:"web_search,omitempty"`
 	// doubao,zhipu_v4
 	THINKING json.RawMessage `json:"thinking,omitempty"`
+	// Anthropic 新版思考控制：与 thinking.type="adaptive" 搭配表达推理等级
+	OutputConfig json.RawMessage `json:"output_config,omitempty"`
 	// pplx Params
 	SearchDomainFilter     json.RawMessage `json:"search_domain_filter,omitempty"`
 	SearchRecencyFilter    json.RawMessage `json:"search_recency_filter,omitempty"`
