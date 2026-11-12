@@ -91,6 +91,14 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	}
 	info.LockedChannel = ch
 
+	// 锁定渠道自检：复用原始任务渠道时，渠道必须仍服务当前分组。
+	// 与 distributor 里的自检互补 —— 这条路径会绕过正常选路直接锁定渠道。
+	if info.UsingGroup != "" && !strings.Contains(","+ch.Group+",", ","+info.UsingGroup+",") {
+		common.SysError(fmt.Sprintf(
+			"任务锁定渠道不一致: group=%s model=%s channel=#%d channel_groups=[%s] origin_task=%s",
+			info.UsingGroup, info.OriginModelName, ch.Id, ch.Group, originTask.TaskID))
+	}
+
 	if originTask.ChannelId != info.ChannelId {
 		key, _, newAPIError := ch.GetNextEnabledKey()
 		if newAPIError != nil {

@@ -161,6 +161,19 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+		// 选路一致性自检：选中的渠道必须真的服务当前分组与该模型。
+		// 线上出现过「group_cyai_78 的请求被路由到只服务 group_cyai_1.0 的渠道」，
+		// 这类不一致只在日志里留下最终渠道号，无法定位来源；这里显式记一条 WARN。
+		effectiveGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if autoGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup); autoGroup != "" {
+			effectiveGroup = autoGroup
+		}
+		if channel != nil && effectiveGroup != "" &&
+			!model.IsChannelEnabledForGroupModel(effectiveGroup, modelRequest.Model, channel.Id) {
+			common.SysError(fmt.Sprintf(
+				"选路不一致: group=%s model=%s channel=#%d channel_groups=[%s] path=%s",
+				effectiveGroup, modelRequest.Model, channel.Id, channel.Group, c.Request.URL.Path))
+		}
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
