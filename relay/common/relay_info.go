@@ -43,6 +43,17 @@ type ClaudeConvertInfo struct {
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
+
+	// 以下状态用于 OpenAI→Anthropic 流式转换时保证块协议合法：
+	// StartedBlocks 记录已发送 content_block_start 的块下标，
+	// StoppedBlocks 记录已发送 content_block_stop 的块下标（避免重复 stop），
+	// ToolCallMeta 记录每个工具 offset 的 id/name，供「只带 arguments」的续传块补发 start。
+	StartedBlocks          map[int]bool
+	StoppedBlocks          map[int]bool
+	BlockKinds             map[int]string
+	ToolBlocks             map[int]int
+	ToolCallMeta           map[int]dto.ToolCallResponse
+	ToolCallBaseIndexFixed bool
 }
 
 type RerankerInfo struct {
