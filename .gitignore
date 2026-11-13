@@ -54,3 +54,6 @@ asset-uploads/
 
 # 创作台产出的成片/中间产物（体积大，随时可重新生成）
 output/seedance/
+
+# 服务器专用 compose（含真实数据库/Redis 密码与密钥，只存在于服务器，不入库）
+docker-compose.server.yml
